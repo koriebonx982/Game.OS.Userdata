@@ -221,6 +221,7 @@ public sealed class GameScannerService : IDisposable
                     ExecutableType = exe.Type,
                     FolderPath     = gameFolder,
                     DriveRoot      = driveRoot,
+                    Source         = "Local",
                 });
             }
         }
@@ -254,7 +255,8 @@ public sealed class GameScannerService : IDisposable
     private static void ScanStorefrontDirs(string driveRoot, List<LocalGame> results)
     {
         // ── Helper: scan one flat storefront directory ─────────────────────
-        static void ScanDir(string path, List<LocalGame> results, string driveRoot)
+        static void ScanDir(string path, List<LocalGame> results, string driveRoot,
+                            string source = "Local")
         {
             if (!Directory.Exists(path)) return;
             try
@@ -270,6 +272,7 @@ public sealed class GameScannerService : IDisposable
                         ExecutableType = exe.Type,
                         FolderPath     = gameFolder,
                         DriveRoot      = driveRoot,
+                        Source         = source,
                     });
                 }
             }
@@ -282,7 +285,7 @@ public sealed class GameScannerService : IDisposable
             // ── Steam ──────────────────────────────────────────────────────
             string steamCommon = Path.Combine(driveRoot,
                 "Program Files (x86)", "Steam", "steamapps", "common");
-            ScanDir(steamCommon, results, driveRoot);
+            ScanDir(steamCommon, results, driveRoot, "Steam");
 
             // Additional Steam library folders declared in libraryfolders.vdf
             string vdfPath = Path.Combine(driveRoot,
@@ -290,32 +293,41 @@ public sealed class GameScannerService : IDisposable
             foreach (var libPath in ParseSteamLibraryFolders(vdfPath))
             {
                 string libCommon = Path.Combine(libPath, "steamapps", "common");
-                ScanDir(libCommon, results, libPath);
+                ScanDir(libCommon, results, libPath, "Steam");
             }
 
-            // ── Epic Games ─────────────────────────────────────────────────
+            // ── Epic Games — manifest-based discovery ──────────────────────
+            // Epic stores a .item JSON manifest per installed game under
+            // %ProgramData%\Epic\EpicGamesLauncher\Data\Manifests\.  Read those
+            // first so DisplayName is used as the title instead of folder name,
+            // and any non-default install location is found automatically.
+            string epicManifestsWin = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "Epic", "EpicGamesLauncher", "Data", "Manifests");
+            ScanEpicManifests(epicManifestsWin, results);
+            // Also scan the default install folder for games without manifests
             ScanDir(Path.Combine(driveRoot, "Program Files", "Epic Games"),
-                    results, driveRoot);
+                    results, driveRoot, "Epic");
 
             // ── GOG Galaxy ─────────────────────────────────────────────────
             ScanDir(Path.Combine(driveRoot,
                     "Program Files (x86)", "GOG Galaxy", "Games"),
-                    results, driveRoot);
+                    results, driveRoot, "GOG");
 
             // ── EA / Origin ────────────────────────────────────────────────
             ScanDir(Path.Combine(driveRoot,
                     "Program Files (x86)", "Origin Games"),
-                    results, driveRoot);
+                    results, driveRoot, "EA");
             ScanDir(Path.Combine(driveRoot, "Program Files", "EA Games"),
-                    results, driveRoot);
+                    results, driveRoot, "EA");
 
             // ── Ubisoft Connect ────────────────────────────────────────────
             ScanDir(Path.Combine(driveRoot, "Program Files (x86)",
                     "Ubisoft", "Ubisoft Game Launcher", "games"),
-                    results, driveRoot);
+                    results, driveRoot, "Ubisoft");
 
             // ── Xbox / Game Pass ───────────────────────────────────────────
-            ScanDir(Path.Combine(driveRoot, "XboxGames"), results, driveRoot);
+            ScanDir(Path.Combine(driveRoot, "XboxGames"), results, driveRoot, "Xbox");
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
@@ -323,27 +335,27 @@ public sealed class GameScannerService : IDisposable
             string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             ScanDir(Path.Combine(home, "Library", "Application Support",
                     "Steam", "steamapps", "common"),
-                    results, home);
+                    results, home, "Steam");
 
-            // Epic Games Launcher on macOS
-            ScanDir(Path.Combine(home, "Library", "Application Support",
-                    "Epic", "EpicGamesLauncher", "Data", "Manifests"),
-                    results, home);
+            // Epic Games Launcher on macOS — manifest-based discovery
+            string epicManifestsMac = Path.Combine(home, "Library", "Application Support",
+                    "Epic", "EpicGamesLauncher", "Data", "Manifests");
+            ScanEpicManifests(epicManifestsMac, results);
         }
         else
         {
             // Linux — Steam (Flatpak and native paths)
             string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             ScanDir(Path.Combine(home, ".steam", "steam", "steamapps", "common"),
-                    results, home);
+                    results, home, "Steam");
             ScanDir(Path.Combine(home, ".local", "share", "Steam",
                     "steamapps", "common"),
-                    results, home);
+                    results, home, "Steam");
             // Flatpak Steam
             ScanDir(Path.Combine(home, ".var", "app",
                     "com.valvesoftware.Steam", "data", "Steam",
                     "steamapps", "common"),
-                    results, home);
+                    results, home, "Steam");
 
             // Additional Steam library folders from the VDF in the native location
             string vdfLinux = Path.Combine(home, ".local", "share",
@@ -351,12 +363,12 @@ public sealed class GameScannerService : IDisposable
             foreach (var libPath in ParseSteamLibraryFolders(vdfLinux))
             {
                 string libCommon = Path.Combine(libPath, "steamapps", "common");
-                ScanDir(libCommon, results, libPath);
+                ScanDir(libCommon, results, libPath, "Steam");
             }
 
             // Heroic Games Launcher (Epic/GOG on Linux)
             ScanDir(Path.Combine(home, "Games", "Heroic", "Installed"),
-                    results, home);
+                    results, home, "Heroic");
         }
     }
 
@@ -404,7 +416,97 @@ public sealed class GameScannerService : IDisposable
     }
 
     /// <summary>
-    /// Scans <paramref name="driveRoot"/>/Roms for non-PC ROM files.
+    /// Scans an Epic Games Launcher <c>Manifests</c> directory for installed games.
+    /// Epic stores one JSON <c>.item</c> file per installed game at:
+    /// <list type="bullet">
+    ///   <item>Windows — <c>%ProgramData%\Epic\EpicGamesLauncher\Data\Manifests\</c></item>
+    ///   <item>macOS   — <c>~/Library/Application Support/Epic/EpicGamesLauncher/Data/Manifests/</c></item>
+    /// </list>
+    /// Each file contains <c>InstallLocation</c> (absolute path), <c>DisplayName</c>,
+    /// and <c>LaunchExecutable</c> (relative path to the main exe).
+    /// </summary>
+    internal static void ScanEpicManifests(string manifestsDir, List<LocalGame> results)
+    {
+        if (!Directory.Exists(manifestsDir)) return;
+        try
+        {
+            foreach (var manifestFile in Directory.EnumerateFiles(manifestsDir, "*.item"))
+            {
+                try
+                {
+                    string json = File.ReadAllText(manifestFile);
+                    using var doc = JsonDocument.Parse(json);
+                    var root = doc.RootElement;
+
+                    // Skip incomplete installs and non-game entries
+                    if (root.TryGetProperty("bIsIncompleteInstall", out var incomplete) &&
+                        incomplete.ValueKind == JsonValueKind.True) continue;
+
+                    if (!root.TryGetProperty("InstallLocation", out var installLocProp)) continue;
+                    string? installLocation = installLocProp.GetString();
+                    if (string.IsNullOrEmpty(installLocation) ||
+                        !Directory.Exists(installLocation)) continue;
+
+                    // Prefer DisplayName; fall back to the install folder name
+                    string displayName = "";
+                    if (root.TryGetProperty("DisplayName", out var nameProp))
+                        displayName = nameProp.GetString() ?? "";
+                    if (string.IsNullOrEmpty(displayName))
+                        displayName = Path.GetFileName(installLocation);
+
+                    // Use the launcher-specified executable when available
+                    string executablePath = "";
+                    string exeType = "exe";
+                    if (root.TryGetProperty("LaunchExecutable", out var exeProp))
+                    {
+                        string? relExe = exeProp.GetString();
+                        if (!string.IsNullOrEmpty(relExe))
+                        {
+                            string fullExe = Path.Combine(installLocation, relExe);
+                            if (File.Exists(fullExe))
+                            {
+                                executablePath = fullExe;
+                                string ext = Path.GetExtension(fullExe).ToLowerInvariant();
+                                exeType = ext == ".exe" ? "exe" : ext == ".app" ? "app" : "elf";
+                            }
+                        }
+                    }
+
+                    // Fall back to auto-detection if the declared exe was not found
+                    if (string.IsNullOrEmpty(executablePath))
+                    {
+                        var exe = FindExecutable(installLocation);
+                        if (exe is null) continue;
+                        executablePath = exe.FullPath;
+                        exeType = exe.Type;
+                    }
+
+                    string driveRoot = Path.GetPathRoot(installLocation) ?? "/";
+
+                    // Skip if the same folder was already added by the directory scan
+                    if (results.Any(g => string.Equals(
+                            g.FolderPath, installLocation,
+                            StringComparison.OrdinalIgnoreCase)))
+                        continue;
+
+                    results.Add(new LocalGame
+                    {
+                        Title          = displayName,
+                        ExecutablePath = executablePath,
+                        ExecutableType = exeType,
+                        FolderPath     = installLocation,
+                        DriveRoot      = driveRoot,
+                        Source         = "Epic",
+                    });
+                }
+                catch { /* skip malformed manifest */ }
+            }
+        }
+        catch (UnauthorizedAccessException) { }
+        catch (IOException) { }
+    }
+
+
     /// Expected layout: Roms/{PlatformName}/Games/{RomFile}
     ///                   or Roms/{PlatformName}/Games/{GameName}/{RomFile}
     ///                   or Roms/{PlatformName}/Games/{TitleID}/  (PS3/PS4/Switch folder-based)

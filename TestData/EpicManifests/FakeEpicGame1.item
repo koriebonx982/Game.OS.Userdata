@@ -1,0 +1,22 @@
+{
+  "FormatVersion": 0,
+  "bIsIncompleteInstall": false,
+  "LaunchCommand": "",
+  "LaunchExecutable": "FakeEpicGame1.exe",
+  "ManifestLocation": "",
+  "bIsApplication": true,
+  "bIsExecutable": true,
+  "bIsManaged": true,
+  "bNeedsValidation": false,
+  "bRequiresAuth": false,
+  "bAllowMultipleInstances": false,
+  "bCanRunOffline": true,
+  "AppCategories": ["public", "games"],
+  "DisplayName": "Fake Epic Game 1",
+  "InstallationGuid": "AABBCCDD00001111",
+  "InstallLocation": "__PLACEHOLDER__",
+  "MandatoryAppFolderName": "FakeEpicGame1",
+  "AppName": "FakeEpicGame1",
+  "CatalogItemId": "fake000000000001",
+  "CatalogNamespace": "fake"
+}

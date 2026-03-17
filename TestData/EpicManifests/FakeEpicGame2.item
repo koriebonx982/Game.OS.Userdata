@@ -1,0 +1,22 @@
+{
+  "FormatVersion": 0,
+  "bIsIncompleteInstall": false,
+  "LaunchCommand": "",
+  "LaunchExecutable": "Binaries/Win64/FakeEpicGame2.exe",
+  "ManifestLocation": "",
+  "bIsApplication": true,
+  "bIsExecutable": true,
+  "bIsManaged": true,
+  "bNeedsValidation": false,
+  "bRequiresAuth": false,
+  "bAllowMultipleInstances": false,
+  "bCanRunOffline": true,
+  "AppCategories": ["public", "games"],
+  "DisplayName": "Fake Epic Game 2 (DLC Test)",
+  "InstallationGuid": "AABBCCDD00002222",
+  "InstallLocation": "__PLACEHOLDER__",
+  "MandatoryAppFolderName": "FakeEpicGame2",
+  "AppName": "FakeEpicGame2",
+  "CatalogItemId": "fake000000000002",
+  "CatalogNamespace": "fake"
+}

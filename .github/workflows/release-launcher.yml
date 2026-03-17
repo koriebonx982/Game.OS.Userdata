@@ -145,8 +145,47 @@ jobs:
             echo "   Set DATA_REPO_TOKEN in repository secrets and re-run this workflow."
           fi
 
+      - name: Publish Linux x64 standalone binary
+        run: |
+          dotnet publish GameLauncher/GameLauncher.csproj \
+            -c Release \
+            -r linux-x64 \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -o /tmp/GameOS-Launcher-linux-x64
+          cp /tmp/GameOS-Launcher-win-x64/gameos-backend.url /tmp/GameOS-Launcher-linux-x64/gameos-backend.url 2>/dev/null || true
+          cp /tmp/GameOS-Launcher-win-x64/gameos-token.dat   /tmp/GameOS-Launcher-linux-x64/gameos-token.dat   2>/dev/null || true
+          echo "✅ Linux x64 binary published"
+          ls -lh /tmp/GameOS-Launcher-linux-x64/
+
+      - name: Publish macOS x64 standalone binary
+        run: |
+          dotnet publish GameLauncher/GameLauncher.csproj \
+            -c Release \
+            -r osx-x64 \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -o /tmp/GameOS-Launcher-osx-x64
+          cp /tmp/GameOS-Launcher-win-x64/gameos-backend.url /tmp/GameOS-Launcher-osx-x64/gameos-backend.url 2>/dev/null || true
+          cp /tmp/GameOS-Launcher-win-x64/gameos-token.dat   /tmp/GameOS-Launcher-osx-x64/gameos-token.dat   2>/dev/null || true
+          echo "✅ macOS x64 binary published"
+          ls -lh /tmp/GameOS-Launcher-osx-x64/
+
+      - name: Publish macOS arm64 standalone binary (Apple Silicon)
+        run: |
+          dotnet publish GameLauncher/GameLauncher.csproj \
+            -c Release \
+            -r osx-arm64 \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -o /tmp/GameOS-Launcher-osx-arm64
+          cp /tmp/GameOS-Launcher-win-x64/gameos-backend.url /tmp/GameOS-Launcher-osx-arm64/gameos-backend.url 2>/dev/null || true
+          cp /tmp/GameOS-Launcher-win-x64/gameos-token.dat   /tmp/GameOS-Launcher-osx-arm64/gameos-token.dat  2>/dev/null || true
+          echo "✅ macOS arm64 binary published"
+          ls -lh /tmp/GameOS-Launcher-osx-arm64/
+
       # ── Package ───────────────────────────────────────────────────────────────
-      - name: Create release zip
+      - name: Create release zip (Windows)
         run: |
           cd /tmp/GameOS-Launcher-win-x64
           # Include the exe and both config files (one or both will have content)
@@ -156,6 +195,36 @@ jobs:
             gameos-token.dat
           echo "✅ Packaged: /tmp/GameOS-Launcher-win-x64.zip"
           ls -lh /tmp/GameOS-Launcher-win-x64.zip
+
+      - name: Create release tarball (Linux)
+        run: |
+          cd /tmp/GameOS-Launcher-linux-x64
+          tar -czf /tmp/GameOS-Launcher-linux-x64.tar.gz \
+            GameLauncher \
+            gameos-backend.url \
+            gameos-token.dat
+          echo "✅ Packaged: /tmp/GameOS-Launcher-linux-x64.tar.gz"
+          ls -lh /tmp/GameOS-Launcher-linux-x64.tar.gz
+
+      - name: Create release tarball (macOS x64)
+        run: |
+          cd /tmp/GameOS-Launcher-osx-x64
+          tar -czf /tmp/GameOS-Launcher-osx-x64.tar.gz \
+            GameLauncher \
+            gameos-backend.url \
+            gameos-token.dat
+          echo "✅ Packaged: /tmp/GameOS-Launcher-osx-x64.tar.gz"
+          ls -lh /tmp/GameOS-Launcher-osx-x64.tar.gz
+
+      - name: Create release tarball (macOS arm64)
+        run: |
+          cd /tmp/GameOS-Launcher-osx-arm64
+          tar -czf /tmp/GameOS-Launcher-osx-arm64.tar.gz \
+            GameLauncher \
+            gameos-backend.url \
+            gameos-token.dat
+          echo "✅ Packaged: /tmp/GameOS-Launcher-osx-arm64.tar.gz"
+          ls -lh /tmp/GameOS-Launcher-osx-arm64.tar.gz
 
       # ── Run auth tests before publishing ─────────────────────────────────────
       # Sets up Node.js + local backend for end-to-end login verification (Admin.GameOS).
@@ -232,7 +301,7 @@ jobs:
           fi
 
       # ── Create GitHub Release ─────────────────────────────────────────────────
-      - name: Create GitHub Release and upload exe
+      - name: Create GitHub Release and upload all platform binaries
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION:  ${{ github.event.inputs.version }}
@@ -241,25 +310,35 @@ jobs:
         run: |
           NOTES="## Game.OS Launcher ${VERSION}
 
-          Download **GameOS-Launcher-win-x64.zip**, extract, and run **GameLauncher.exe**.
+          Cross-platform game launcher for Windows, Linux and macOS.
           Sign in with your Game.OS username and password — the same account you use on the website.
 
-          ### Quick start
+          ### Downloads
+          | Platform | File | Notes |
+          |----------|------|-------|
+          | Windows 10/11 x64 | \`GameOS-Launcher-win-x64.zip\` | Extract and run \`GameLauncher.exe\` |
+          | Linux x64 | \`GameOS-Launcher-linux-x64.tar.gz\` | \`chmod +x GameLauncher && ./GameLauncher\` |
+          | macOS Intel | \`GameOS-Launcher-osx-x64.tar.gz\` | \`chmod +x GameLauncher && ./GameLauncher\` |
+          | macOS Apple Silicon | \`GameOS-Launcher-osx-arm64.tar.gz\` | \`chmod +x GameLauncher && ./GameLauncher\` |
+
+          ### Game detection (all platforms)
+          The launcher automatically finds installed games from:
+          - **Steam** — reads \`libraryfolders.vdf\` to find all Steam library folders
+          - **Epic Games** — reads \`.item\` manifest files (DisplayName, InstallLocation)
+          - **GOG Galaxy** — scans default GOG install folder
+          - **Xbox / Game Pass** — scans \`XboxGames\\\` folder
+          - **EA / Origin** — scans \`Origin Games\\\` and \`EA Games\\\` folders
+          - **Ubisoft Connect** — scans Ubisoft game launcher folder
+          - **ROMs** — PS1/PS2/PS3/PS4/Switch/GBA/SNES/Xbox 360 with TitleID detection
+
+          ### Quick start (Windows)
           1. Download \`GameOS-Launcher-win-x64.zip\` below
           2. Extract the zip to any folder
           3. Double-click \`GameLauncher.exe\`
           4. Sign in — same username and password as the [Game.OS website](https://koriebonx98.github.io/Game.OS.Userdata/)
 
           ### Requirements
-          - Windows 10 / 11 (x64)
-          - No .NET runtime required — fully self-contained single exe
-
-          ### What's included
-          | File | Purpose |
-          |------|---------|
-          | \`GameLauncher.exe\` | The launcher (self-contained, ~90 MB) |
-          | \`gameos-token.dat\` | Encoded credentials — same auth as the website |
-          | \`gameos-backend.url\` | Backend server URL (if configured) |
+          - No .NET runtime required — fully self-contained single binary per platform
 
           ### Same login as the website
           The launcher uses **identical authentication** to the Game.OS website:
@@ -278,7 +357,10 @@ jobs:
             --title "Game.OS Launcher $VERSION" \
             --notes "$NOTES" \
             $PRERELEASE_FLAG \
-            /tmp/GameOS-Launcher-win-x64.zip#GameOS-Launcher-win-x64.zip
+            /tmp/GameOS-Launcher-win-x64.zip#GameOS-Launcher-win-x64.zip \
+            /tmp/GameOS-Launcher-linux-x64.tar.gz#GameOS-Launcher-linux-x64.tar.gz \
+            /tmp/GameOS-Launcher-osx-x64.tar.gz#GameOS-Launcher-osx-x64.tar.gz \
+            /tmp/GameOS-Launcher-osx-arm64.tar.gz#GameOS-Launcher-osx-arm64.tar.gz
 
           echo "✅ Release $VERSION published!"
           echo "   Download: https://github.com/${{ github.repository }}/releases/tag/$VERSION"

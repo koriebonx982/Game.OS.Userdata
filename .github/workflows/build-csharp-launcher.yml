@@ -192,8 +192,17 @@ jobs:
       - name: Build GameLauncher
         run: dotnet build GameLauncher/GameLauncher.csproj -c Release --no-restore
 
+      - name: Build GameScanner.Tests
+        run: dotnet build GameScanner.Tests/GameScanner.Tests.csproj -c Release --no-restore
+
       - name: Build LoginAuth.Tests
         run: dotnet build LoginAuth.Tests/LoginAuth.Tests.csproj -c Release --no-restore
+
+      # ── Game scanner tests (Steam/Epic/GOG/Xbox/ROM detection) ────────────
+      - name: Run GameScanner.Tests — storefront detection (Steam VDF, Epic manifests, GOG, Xbox, ROMs)
+        run: |
+          dotnet run --project GameScanner.Tests -c Release --no-build
+          echo "✅ Game scanner tests passed — all storefronts and ROM platforms detected correctly"
 
       # ── Unit / hash-parity tests (no network required) ────────────────────
       - name: Run LoginAuth.Tests (hash-parity + bcrypt checks)
@@ -405,6 +414,42 @@ jobs:
             echo "ℹ  gameos-backend.url — empty (launcher will use GitHub-direct mode)"
           fi
 
+      # ── Publish Linux x64 ────────────────────────────────────────────────
+      - name: Publish Linux x64 standalone binary
+        run: |
+          dotnet publish GameLauncher/GameLauncher.csproj \
+            -c Release \
+            -r linux-x64 \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -o /tmp/GameOS-Launcher-linux-x64
+          echo "✅ Linux binary published to /tmp/GameOS-Launcher-linux-x64"
+          ls -lh /tmp/GameOS-Launcher-linux-x64/
+
+      # ── Publish macOS x64 ────────────────────────────────────────────────
+      - name: Publish macOS x64 standalone binary
+        run: |
+          dotnet publish GameLauncher/GameLauncher.csproj \
+            -c Release \
+            -r osx-x64 \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -o /tmp/GameOS-Launcher-osx-x64
+          echo "✅ macOS x64 binary published to /tmp/GameOS-Launcher-osx-x64"
+          ls -lh /tmp/GameOS-Launcher-osx-x64/
+
+      # ── Publish macOS arm64 (Apple Silicon) ───────────────────────────────
+      - name: Publish macOS arm64 standalone binary (Apple Silicon)
+        run: |
+          dotnet publish GameLauncher/GameLauncher.csproj \
+            -c Release \
+            -r osx-arm64 \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -o /tmp/GameOS-Launcher-osx-arm64
+          echo "✅ macOS arm64 binary published to /tmp/GameOS-Launcher-osx-arm64"
+          ls -lh /tmp/GameOS-Launcher-osx-arm64/
+
       # ── Capture results as artifact ───────────────────────────────────────
       - name: Save test results as artifact
         if: always()
@@ -457,4 +502,25 @@ jobs:
         with:
           name: GameOS-Launcher-win-x64
           path: /tmp/GameOS-Launcher-win-x64/
+          retention-days: 90
+
+      - name: Upload Linux binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GameOS-Launcher-linux-x64
+          path: /tmp/GameOS-Launcher-linux-x64/
+          retention-days: 90
+
+      - name: Upload macOS x64 binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GameOS-Launcher-osx-x64
+          path: /tmp/GameOS-Launcher-osx-x64/
+          retention-days: 90
+
+      - name: Upload macOS arm64 binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GameOS-Launcher-osx-arm64
+          path: /tmp/GameOS-Launcher-osx-arm64/
           retention-days: 90

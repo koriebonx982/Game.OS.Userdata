@@ -5,8 +5,9 @@
 #   2. The deploy.yml GAMES_DB_TOKEN_ENCODED-injection step would succeed on this branch's script.js
 #   3. The frontend HTML files are present and syntactically well-formed
 #   4. The backend Node.js code is syntactically valid
-#   5. The C# GameLauncher and LoginAuth.Tests projects compile without errors
+#   5. The C# GameLauncher, GameScanner.Tests and LoginAuth.Tests projects compile without errors
 #   6. The C# login-auth unit tests (hash parity + bcrypt) all pass
+#   7. The C# game-scanner tests (Steam/Epic/GOG/Xbox/ROM detection) all pass
 
 name: CI
 
@@ -95,8 +96,24 @@ jobs:
       - name: Build GameLauncher
         run: dotnet build GameLauncher/GameLauncher.csproj -c Release --no-restore
 
+      - name: Build GameScanner.Tests
+        run: dotnet build GameScanner.Tests/GameScanner.Tests.csproj -c Release --no-restore
+
       - name: Build LoginAuth.Tests
         run: dotnet build LoginAuth.Tests/LoginAuth.Tests.csproj -c Release --no-restore
+
+      - name: Run GameScanner.Tests — Steam/Epic/GOG/Xbox/ROM detection
+        # Tests verify game detection for all supported storefronts:
+        #   Steam   — folder scan + libraryfolders.vdf parsing
+        #   Epic    — .item manifest file parsing (DisplayName, InstallLocation)
+        #   GOG     — folder scan under Program Files (x86)\GOG Galaxy\Games\
+        #   Xbox    — folder scan under XboxGames\
+        #   EA      — folder scan under Origin Games\ and EA Games\
+        #   Ubisoft — folder scan under Ubisoft Game Launcher\games\
+        #   ROMs    — PS1/PS2/PS3/PS4/Switch/GBA/SNES/Xbox 360 with TitleID detection
+        run: |
+          dotnet run --project GameScanner.Tests -c Release --no-build
+          echo "✅ C# game-scanner tests passed — all storefronts detected correctly"
 
       - name: Run LoginAuth.Tests — hash parity + bcrypt checks (no network)
         # Tests 1–4 verify that the C# PBKDF2 hash matches the JavaScript

@@ -148,6 +148,8 @@ namespace GameLauncher.Models
         public string DriveRoot      { get; set; } = "";
         public string FolderPath     { get; set; } = "";
         public string ExecutableType { get; set; } = ""; // "exe", "app", "elf"
+        /// <summary>Which storefront or scanner discovered this game (e.g. "Steam", "Epic", "GOG", "Xbox", "Local").</summary>
+        public string Source         { get; set; } = "Local";
         /// <summary>All drive locations where this game was found (populated when same title exists on multiple drives).</summary>
         public List<LocalGameDriveEntry> DriveInstances { get; set; } = new();
         [JsonIgnore] public bool HasMultipleDrives => DriveInstances.Count > 1;
