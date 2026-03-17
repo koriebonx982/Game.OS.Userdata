@@ -729,11 +729,9 @@ class Program
                 "    }\n" +
                 "}\n");
 
-            // Call the internal parser via the public-facing test method
-            // (ParseSteamLibraryFolders is internal, so we call it indirectly via
-            // the test helper that calls ScanEpicManifests as a proxy — but actually
-            // ParseSteamLibraryFolders is internal static on GameScannerService and
-            // we can call it directly since GameScanner.Tests is in the same assembly context)
+            // Call the internal VDF parser. ParseSteamLibraryFolders is private static on
+            // GameScannerService; CallParseSteamVdf calls it via reflection or falls back
+            // to an equivalent inline regex parse when reflection is not available.
             var folders = CallParseSteamVdf(vdfFile);
 
             bool foundLib1 = folders.Any(f => string.Equals(f, lib1, StringComparison.OrdinalIgnoreCase));
@@ -755,16 +753,6 @@ class Program
                 passed = false;
             }
 
-            // Test games in VDF-referenced libraries are picked up by the full scanner
-            string steamGame = Path.Combine(lib1, "steamapps", "common", "SteamVdfGame");
-            Directory.CreateDirectory(steamGame);
-            File.WriteAllText(Path.Combine(steamGame, "SteamVdfGame.exe"), "fake");
-
-            var scannerResults = new List<LocalGame>();
-            // Use the internal ScanEpicManifests as a no-op here and instead test
-            // the VDF library path directly by calling ScanEpicManifests with empty dir.
-            // The real SteamVdf test is already done via folder-based check above.
-            // Let's confirm the result count:
             if (folders.Count >= 2)
                 Console.WriteLine($"  ✅  Steam VDF parser returned {folders.Count} library path(s)");
         }
