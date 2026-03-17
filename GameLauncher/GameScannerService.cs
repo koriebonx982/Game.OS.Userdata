@@ -125,6 +125,7 @@ public sealed class GameScannerService : IDisposable
             {
                 ct.ThrowIfCancellationRequested();
                 ScanGamesDir(driveRoot, foundGamesRaw);
+                ScanStorefrontDirs(driveRoot, foundGamesRaw);
                 ScanRepacksDir(driveRoot, foundRepacks);
                 ScanRomsDir(driveRoot, foundRomsRaw);
             }
@@ -225,6 +226,181 @@ public sealed class GameScannerService : IDisposable
         }
         catch (UnauthorizedAccessException) { }
         catch (IOException) { }
+    }
+
+    /// <summary>
+    /// Scans the default installation directories used by major PC game storefronts
+    /// (Steam, Epic Games, GOG Galaxy, EA/Origin, Ubisoft Connect, Xbox) on the
+    /// given drive root.  Any game folder found here is added to
+    /// <paramref name="results"/> using the same <see cref="LocalGame"/> shape as
+    /// games found under <c>{driveRoot}/Games</c>.
+    /// <para>
+    /// On Windows the canonical locations checked per drive are:
+    /// <list type="bullet">
+    ///   <item>Steam — <c>Program Files (x86)\Steam\steamapps\common\</c><br/>
+    ///     Additional Steam library folders are discovered from
+    ///     <c>libraryfolders.vdf</c> so per-drive Steam libraries are also found.</item>
+    ///   <item>Epic Games — <c>Program Files\Epic Games\</c></item>
+    ///   <item>GOG Galaxy — <c>Program Files (x86)\GOG Galaxy\Games\</c></item>
+    ///   <item>EA / Origin — <c>Program Files (x86)\Origin Games\</c>,
+    ///     <c>Program Files\EA Games\</c></item>
+    ///   <item>Ubisoft Connect — <c>Program Files (x86)\Ubisoft\Ubisoft Game Launcher\games\</c></item>
+    ///   <item>Xbox / Game Pass — <c>XboxGames\</c></item>
+    /// </list>
+    /// </para>
+    /// On non-Windows platforms only the Xbox path is skipped; the others are
+    /// checked under their Linux/macOS equivalents where applicable.
+    /// </summary>
+    private static void ScanStorefrontDirs(string driveRoot, List<LocalGame> results)
+    {
+        // ── Helper: scan one flat storefront directory ─────────────────────
+        static void ScanDir(string path, List<LocalGame> results, string driveRoot)
+        {
+            if (!Directory.Exists(path)) return;
+            try
+            {
+                foreach (var gameFolder in Directory.EnumerateDirectories(path))
+                {
+                    var exe = FindExecutable(gameFolder);
+                    if (exe is null) continue;
+                    results.Add(new LocalGame
+                    {
+                        Title          = Path.GetFileName(gameFolder),
+                        ExecutablePath = exe.FullPath,
+                        ExecutableType = exe.Type,
+                        FolderPath     = gameFolder,
+                        DriveRoot      = driveRoot,
+                    });
+                }
+            }
+            catch (UnauthorizedAccessException) { }
+            catch (IOException) { }
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            // ── Steam ──────────────────────────────────────────────────────
+            string steamCommon = Path.Combine(driveRoot,
+                "Program Files (x86)", "Steam", "steamapps", "common");
+            ScanDir(steamCommon, results, driveRoot);
+
+            // Additional Steam library folders declared in libraryfolders.vdf
+            string vdfPath = Path.Combine(driveRoot,
+                "Program Files (x86)", "Steam", "steamapps", "libraryfolders.vdf");
+            foreach (var libPath in ParseSteamLibraryFolders(vdfPath))
+            {
+                string libCommon = Path.Combine(libPath, "steamapps", "common");
+                ScanDir(libCommon, results, libPath);
+            }
+
+            // ── Epic Games ─────────────────────────────────────────────────
+            ScanDir(Path.Combine(driveRoot, "Program Files", "Epic Games"),
+                    results, driveRoot);
+
+            // ── GOG Galaxy ─────────────────────────────────────────────────
+            ScanDir(Path.Combine(driveRoot,
+                    "Program Files (x86)", "GOG Galaxy", "Games"),
+                    results, driveRoot);
+
+            // ── EA / Origin ────────────────────────────────────────────────
+            ScanDir(Path.Combine(driveRoot,
+                    "Program Files (x86)", "Origin Games"),
+                    results, driveRoot);
+            ScanDir(Path.Combine(driveRoot, "Program Files", "EA Games"),
+                    results, driveRoot);
+
+            // ── Ubisoft Connect ────────────────────────────────────────────
+            ScanDir(Path.Combine(driveRoot, "Program Files (x86)",
+                    "Ubisoft", "Ubisoft Game Launcher", "games"),
+                    results, driveRoot);
+
+            // ── Xbox / Game Pass ───────────────────────────────────────────
+            ScanDir(Path.Combine(driveRoot, "XboxGames"), results, driveRoot);
+        }
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            // Steam on macOS installs to ~/Library/Application Support/Steam/steamapps/common
+            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            ScanDir(Path.Combine(home, "Library", "Application Support",
+                    "Steam", "steamapps", "common"),
+                    results, home);
+
+            // Epic Games Launcher on macOS
+            ScanDir(Path.Combine(home, "Library", "Application Support",
+                    "Epic", "EpicGamesLauncher", "Data", "Manifests"),
+                    results, home);
+        }
+        else
+        {
+            // Linux — Steam (Flatpak and native paths)
+            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            ScanDir(Path.Combine(home, ".steam", "steam", "steamapps", "common"),
+                    results, home);
+            ScanDir(Path.Combine(home, ".local", "share", "Steam",
+                    "steamapps", "common"),
+                    results, home);
+            // Flatpak Steam
+            ScanDir(Path.Combine(home, ".var", "app",
+                    "com.valvesoftware.Steam", "data", "Steam",
+                    "steamapps", "common"),
+                    results, home);
+
+            // Additional Steam library folders from the VDF in the native location
+            string vdfLinux = Path.Combine(home, ".local", "share",
+                "Steam", "steamapps", "libraryfolders.vdf");
+            foreach (var libPath in ParseSteamLibraryFolders(vdfLinux))
+            {
+                string libCommon = Path.Combine(libPath, "steamapps", "common");
+                ScanDir(libCommon, results, libPath);
+            }
+
+            // Heroic Games Launcher (Epic/GOG on Linux)
+            ScanDir(Path.Combine(home, "Games", "Heroic", "Installed"),
+                    results, home);
+        }
+    }
+
+    /// <summary>
+    /// Parses a Steam <c>libraryfolders.vdf</c> file and returns the paths of
+    /// all additional library root folders declared in it.  Returns an empty
+    /// enumerable if the file does not exist or cannot be parsed.
+    /// <para>
+    /// VDF excerpt that this handles:
+    /// <code>
+    /// "libraryfolders"
+    /// {
+    ///     "1"  { "path"  "D:\\SteamLibrary" }
+    ///     "2"  { "path"  "E:\\Games\\Steam" }
+    /// }
+    /// </code>
+    /// </para>
+    /// </summary>
+    private static IEnumerable<string> ParseSteamLibraryFolders(string vdfPath)
+    {
+        if (!File.Exists(vdfPath)) return Array.Empty<string>();
+        try
+        {
+            // Simple line-by-line scan — avoids a full VDF parser dependency.
+            // Looks for lines of the form:  "path"  "D:\\SteamLibrary"
+            var pathLineRegex = new Regex(
+                @"^\s*""path""\s+""(?<p>[^""]+)""",
+                RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+            var folders = new List<string>();
+            foreach (var line in File.ReadLines(vdfPath))
+            {
+                var m = pathLineRegex.Match(line);
+                if (!m.Success) continue;
+
+                // VDF uses \\ for backslash on Windows
+                string folder = m.Groups["p"].Value.Replace(@"\\", @"\");
+                if (Directory.Exists(folder))
+                    folders.Add(folder);
+            }
+            return folders;
+        }
+        catch { /* malformed VDF — skip gracefully */ }
+        return Array.Empty<string>();
     }
 
     /// <summary>
@@ -782,6 +958,19 @@ public sealed class GameScannerService : IDisposable
             TryWatch(Path.Combine(driveRoot, "Games"));
             TryWatch(Path.Combine(driveRoot, "Repacks"));
             TryWatch(Path.Combine(driveRoot, "Roms"));
+
+            // Watch storefront installation directories so newly installed games
+            // are detected without requiring a manual rescan.
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                TryWatch(Path.Combine(driveRoot, "Program Files (x86)", "Steam", "steamapps", "common"));
+                TryWatch(Path.Combine(driveRoot, "Program Files", "Epic Games"));
+                TryWatch(Path.Combine(driveRoot, "Program Files (x86)", "GOG Galaxy", "Games"));
+                TryWatch(Path.Combine(driveRoot, "Program Files (x86)", "Origin Games"));
+                TryWatch(Path.Combine(driveRoot, "Program Files", "EA Games"));
+                TryWatch(Path.Combine(driveRoot, "Program Files (x86)", "Ubisoft", "Ubisoft Game Launcher", "games"));
+                TryWatch(Path.Combine(driveRoot, "XboxGames"));
+            }
         }
     }
 

@@ -29,6 +29,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly Dictionary<string, string> _lastKnownMessageAt =
         new(StringComparer.OrdinalIgnoreCase);
 
+    // ── Presence heartbeat ─────────────────────────────────────────────────
+    /// <summary>
+    /// Fires every 2 minutes to refresh the logged-in user's presence timestamp,
+    /// mirroring the web app's setInterval(updatePresence, 2 * 60 * 1000) heartbeat.
+    /// A user is considered Online when their lastSeen is &lt;5 min old.
+    /// </summary>
+    private Timer? _presenceTimer;
+
     // ── Session data ───────────────────────────────────────────────────────
     private UserProfile     _profile      = new();
     private List<Game>      _library      = new();
@@ -277,8 +285,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 game.GameAchievements = matching;
         }
 
-        // Update presence so the user appears "Online" to friends (mirrors the web app)
+        // Update presence immediately on login so the user appears "Online" to friends,
+        // then start a background heartbeat that refreshes it every 2 minutes — mirroring
+        // the web app's updatePresence() call at startup + setInterval every 2 minutes.
         _ = _client.UpdatePresenceAsync();
+        StartPresenceHeartbeat();
 
         var localCards = LibraryVm.GetMyGameSources()
             .Select(s => LibraryVm.FindMyGameCard(s.Title, s.Platform))
@@ -883,10 +894,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void SignOut()
     {
-        // Stop message polling before clearing credentials
+        // Stop message polling and presence heartbeat before clearing credentials
         _messagePoller?.Dispose();
         _messagePoller = null;
         _lastKnownMessageAt.Clear();
+
+        _presenceTimer?.Dispose();
+        _presenceTimer = null;
 
         // Clear the saved token so the next launch shows the login form
         // (equivalent to the web calling localStorage.removeItem('gameOSUser'))
@@ -912,10 +926,35 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         _messagePoller?.Dispose();
         _messagePoller = null;
+        _presenceTimer?.Dispose();
+        _presenceTimer = null;
         _scanner.Dispose();
         (_client as IDisposable)?.Dispose();
         StoreVm.Dispose();
         _playtimeSvc.Dispose();
+    }
+
+    // ── Presence heartbeat ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Starts a background timer that refreshes the logged-in user's presence
+    /// timestamp every 2 minutes, mirroring the web app's heartbeat:
+    /// <code>setInterval(() =&gt; updatePresence(username), 2 * 60 * 1000)</code>
+    /// A friend is considered Online when their lastSeen is less than 5 minutes old.
+    /// The timer fires for the first time after 2 minutes (the initial call happens
+    /// immediately in <see cref="OnLoginSuccess"/> before this method is invoked).
+    /// </summary>
+    private void StartPresenceHeartbeat()
+    {
+        _presenceTimer?.Dispose();
+        _presenceTimer = new Timer(_ =>
+        {
+            Task.Run(async () =>
+            {
+                try   { await _client.UpdatePresenceAsync().ConfigureAwait(false); }
+                catch { /* presence update failure is non-fatal */ }
+            });
+        }, null, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(2));
     }
 
     // ── Message polling & OS notifications ────────────────────────────────────
