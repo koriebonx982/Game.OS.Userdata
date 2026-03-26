@@ -228,15 +228,17 @@ jobs:
           if [ "$HTTP_STATUS" = "200" ]; then
             echo "✅ Games.Database repository is accessible (HTTP 200) — admin game editing will be active"
           elif [ "$HTTP_STATUS" = "401" ]; then
-            echo "❌ GAMES_DB_TOKEN is invalid or expired (HTTP 401)."
-            echo "   Generate a new fine-grained PAT with Contents: Read and write on Koriebonx98/Games.Database"
+            echo "⚠️  GAMES_DB_TOKEN is invalid or expired (HTTP 401)."
+            echo "   Admin game editing will show a configuration notice until the secret is updated."
+            echo "   To fix: generate a new fine-grained PAT with Contents: Read and write on Koriebonx98/Games.Database"
             echo "   and update the GAMES_DB_TOKEN repository secret, then re-run this workflow."
-            exit 1
+            echo "   Deployment will continue — only admin editing is affected."
           elif [ "$HTTP_STATUS" = "403" ]; then
-            echo "❌ GAMES_DB_TOKEN lacks write permission (HTTP 403)."
-            echo "   Ensure the PAT has Contents: Read and write permission scoped to Koriebonx98/Games.Database."
+            echo "⚠️  GAMES_DB_TOKEN lacks write permission (HTTP 403)."
+            echo "   Admin game editing will show a configuration notice until the secret is updated."
+            echo "   To fix: ensure the PAT has Contents: Read and write permission scoped to Koriebonx98/Games.Database."
             echo "   Update the GAMES_DB_TOKEN repository secret and re-run this workflow."
-            exit 1
+            echo "   Deployment will continue — only admin editing is affected."
           elif [ "$HTTP_STATUS" = "404" ]; then
             echo "⚠️  Repository Koriebonx98/Games.Database not found (HTTP 404)."
             echo "   Verify the repository exists and the token has access to it."
