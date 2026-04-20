@@ -721,12 +721,15 @@ public partial class GameDetailViewModel : ViewModelBase
         // ── ROM launch: use configured emulator if available ──────────────────
         if (IsRom)
         {
-            // Determine the ROM file path: saved override → auto-detected
+            // Determine the ROM file path: saved override → selected drive entry → auto-detected
             string romPath = "";
             if (!string.IsNullOrEmpty(saved.RomPath) && System.IO.File.Exists(saved.RomPath))
                 romPath = saved.RomPath;
             else if (_driveInstances.Count > 0)
-                romPath = _driveInstances[0].ExecutablePath ?? "";
+            {
+                int idx = System.Math.Clamp(SelectedDriveIndex, 0, _driveInstances.Count - 1);
+                romPath = _driveInstances[idx].ExecutablePath ?? "";
+            }
 
             if (!string.IsNullOrEmpty(romPath))
             {
@@ -1390,21 +1393,34 @@ public partial class GameDetailViewModel : ViewModelBase
 
         // Store the ROM's directory as the "folder path" so the Open Folder button works
         _currentLocalRom = rom;
-        _driveInstances = new List<LocalGameDriveEntry>
+
+        // Build one drive entry per distinct drive root.  Paths from AdditionalPaths that share
+        // the same drive root as the primary file are multi-disk entries (handled by the ROM
+        // settings ComboBox); paths on different drives are exposed as the multi-drive switcher.
+        var allRomPaths = new List<string> { rom.FilePath };
+        if (rom.AdditionalPaths != null)
+            allRomPaths.AddRange(rom.AdditionalPaths);
+
+        var seenRomDrives = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        _driveInstances   = new List<LocalGameDriveEntry>();
+        foreach (var path in allRomPaths)
         {
-            new LocalGameDriveEntry
+            string driveRoot = System.IO.Path.GetPathRoot(path) ?? "";
+            if (!seenRomDrives.Add(driveRoot)) continue;
+            _driveInstances.Add(new LocalGameDriveEntry
             {
-                DriveRoot      = System.IO.Path.GetPathRoot(rom.FilePath) ?? "",
-                FolderPath     = System.IO.Path.GetDirectoryName(rom.FilePath) ?? "",
-                ExecutablePath = rom.FilePath,
+                DriveRoot      = driveRoot,
+                FolderPath     = System.IO.Path.GetDirectoryName(path) ?? "",
+                ExecutablePath = path,
                 ExecutableType = rom.FileType,
-            }
-        };
+            });
+        }
+
         DriveLabels.Clear();
         foreach (var d in _driveInstances)
             DriveLabels.Add(d.DriveRoot);
 
-        HasMultipleDrives  = false;
+        HasMultipleDrives  = _driveInstances.Count > 1;
         SelectedDriveIndex = 0;
         ActiveDriveLabel   = _driveInstances[0].DriveRoot;
         ActiveDrivePath    = _driveInstances[0].FolderPath;
@@ -1459,22 +1475,32 @@ public partial class GameDetailViewModel : ViewModelBase
             RepackPath       = "";
             RepackSizeLabel  = "";
 
-            _driveInstances = new List<LocalGameDriveEntry>
+            // Build one drive entry per distinct drive root so the multi-drive switcher
+            // appears when the same ROM is present on several drives.
+            var allRomPaths2 = new List<string> { localRom.FilePath };
+            if (localRom.AdditionalPaths != null)
+                allRomPaths2.AddRange(localRom.AdditionalPaths);
+
+            var seenRomDrives2 = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            _driveInstances    = new List<LocalGameDriveEntry>();
+            foreach (var path in allRomPaths2)
             {
-                new LocalGameDriveEntry
+                string driveRoot = System.IO.Path.GetPathRoot(path) ?? "";
+                if (!seenRomDrives2.Add(driveRoot)) continue;
+                _driveInstances.Add(new LocalGameDriveEntry
                 {
-                    DriveRoot      = System.IO.Path.GetPathRoot(localRom.FilePath) ?? "",
-                    FolderPath     = System.IO.Path.GetDirectoryName(localRom.FilePath) ?? "",
-                    ExecutablePath = localRom.FilePath,
+                    DriveRoot      = driveRoot,
+                    FolderPath     = System.IO.Path.GetDirectoryName(path) ?? "",
+                    ExecutablePath = path,
                     ExecutableType = localRom.FileType,
-                }
-            };
+                });
+            }
 
             DriveLabels.Clear();
             foreach (var d in _driveInstances)
                 DriveLabels.Add(d.DriveRoot);
 
-            HasMultipleDrives  = false;
+            HasMultipleDrives  = _driveInstances.Count > 1;
             SelectedDriveIndex = 0;
             ActiveDriveLabel   = _driveInstances[0].DriveRoot;
             ActiveDrivePath    = _driveInstances[0].FolderPath;

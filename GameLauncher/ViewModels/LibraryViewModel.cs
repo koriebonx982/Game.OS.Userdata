@@ -56,6 +56,9 @@ public partial class LibraryViewModel : ViewModelBase
     /// <summary>Invoked when the user clicks any card in the unified My Games section.</summary>
     public Action<LocalGameCardVm>? OnOpenMyGameDetail { get; set; }
 
+    // ── Debounce flag to avoid triple-rebuild when all three scanner events fire ──
+    private bool _rebuildScheduled = false;
+
     public void Load(List<Game> games)
     {
         _allGames = games;
@@ -68,45 +71,61 @@ public partial class LibraryViewModel : ViewModelBase
     /// <summary>Called by MainViewModel when the scanner emits new results.</summary>
     public void UpdateLocalGames(IReadOnlyList<LocalGame> games)
     {
+        var newGames = games.ToList();
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            _allLocalGames = games.ToList();
+            _allLocalGames = newGames;
             LocalGames.Clear();
-            foreach (var g in games) LocalGames.Add(g);
+            foreach (var g in newGames) LocalGames.Add(g);
             HasLocalGames = LocalGames.Count > 0;
-            RebuildMyGames();
-            RebuildPlatforms();
-            ApplyFilter();
-        });
+            ScheduleRebuild();
+        }, Avalonia.Threading.DispatcherPriority.Background);
     }
 
     /// <summary>Called by MainViewModel when the scanner emits new repacks.</summary>
     public void UpdateRepacks(IReadOnlyList<LocalRepack> repacks)
     {
+        var newRepacks = repacks.ToList();
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            _allRepacks = repacks.ToList();
+            _allRepacks = newRepacks;
             ReadyToInstall.Clear();
-            foreach (var r in repacks) ReadyToInstall.Add(r);
+            foreach (var r in newRepacks) ReadyToInstall.Add(r);
             HasRepacks = ReadyToInstall.Count > 0;
-            RebuildMyGames();
-            ApplyFilter();
-        });
+            ScheduleRebuild();
+        }, Avalonia.Threading.DispatcherPriority.Background);
     }
 
     /// <summary>Called by MainViewModel when the scanner emits new ROMs.</summary>
     public void UpdateRoms(IReadOnlyList<LocalRom> roms)
     {
+        var newRoms = roms.ToList();
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            _allRoms = roms.ToList();
+            _allRoms = newRoms;
             LocalRoms.Clear();
-            foreach (var r in roms) LocalRoms.Add(r);
+            foreach (var r in newRoms) LocalRoms.Add(r);
             HasRoms = LocalRoms.Count > 0;
+            ScheduleRebuild();
+        }, Avalonia.Threading.DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Schedules a single deferred rebuild (RebuildMyGames + RebuildPlatforms + ApplyFilter).
+    /// Multiple rapid calls collapse into one background pass so the three scanner events
+    /// that fire together never trigger more than one expensive rebuild.
+    /// </summary>
+    private void ScheduleRebuild()
+    {
+        if (_rebuildScheduled) return;
+        _rebuildScheduled = true;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _rebuildScheduled = false;
             RebuildMyGames();
             RebuildPlatforms();
             ApplyFilter();
-        });
+        }, Avalonia.Threading.DispatcherPriority.Background);
     }
 
     /// <summary>

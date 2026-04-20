@@ -730,98 +730,9 @@
                     </StackPanel>
                 </Border>
 
-                <!-- ── Trailer section (embedded preview, opens YouTube on click) ── -->
-                <Border IsVisible="{Binding HasTrailer}"
-                        Background="#161b22" CornerRadius="10"
-                        Padding="20,16" Margin="0,0,0,24">
-                    <StackPanel Spacing="12">
-                        <TextBlock Text="🎬  Trailer"
-                                   Classes="section-header" Margin="0"/>
-
-                        <!-- YouTube embed-style player preview -->
-                        <Button Background="Transparent" BorderThickness="0"
-                                Padding="0" HorizontalAlignment="Left"
-                                Command="{Binding OpenTrailerCommand}"
-                                Cursor="Hand">
-                            <Border CornerRadius="10" ClipToBounds="True"
-                                    Width="480" Height="270">
-                                <Border.Background>
-                                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                                        <GradientStop Color="#0d1117" Offset="0"/>
-                                        <GradientStop Color="#161b22" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Border.Background>
-                                <!-- Black letterbox with play icon — like an embedded player -->
-                                <Grid>
-                                    <!-- Centered play button (YouTube-style) -->
-                                    <StackPanel HorizontalAlignment="Center"
-                                                VerticalAlignment="Center" Spacing="12">
-                                        <Border Width="80" Height="80" CornerRadius="40"
-                                                HorizontalAlignment="Center"
-                                                Opacity="0.90">
-                                            <Border.Background>
-                                                <SolidColorBrush Color="#FF0000"/>
-                                            </Border.Background>
-                                            <TextBlock Text="▶" FontSize="34"
-                                                       FontWeight="Black"
-                                                       Foreground="White"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
-                                                       Margin="6,0,0,0"/>
-                                        </Border>
-                                        <TextBlock Text="▶  Watch Trailer on YouTube"
-                                                   FontSize="13" FontWeight="SemiBold"
-                                                   Foreground="#c9d1d9"
-                                                   HorizontalAlignment="Center"/>
-                                    </StackPanel>
-                                    <!-- YouTube URL bar at bottom -->
-                                    <Border VerticalAlignment="Bottom"
-                                            Background="#0000008a"
-                                            Padding="12,6">
-                                        <TextBlock Text="{Binding TrailerUrl}"
-                                                   FontSize="10" Foreground="#8b949e"
-                                                   TextTrimming="CharacterEllipsis"/>
-                                    </Border>
-                                </Grid>
-                            </Border>
-                        </Button>
-                    </StackPanel>
-                </Border>
-
-                <!-- ── Screenshots section ── -->
-                <Border IsVisible="{Binding HasScreenshots}"
-                        Margin="0,0,0,0">
-                    <StackPanel Spacing="14">
-                        <TextBlock Text="📸  Screenshots"
-                                   Classes="section-header" Margin="0"/>
-                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                                      VerticalScrollBarVisibility="Disabled">
-                            <ItemsControl ItemsSource="{Binding Screenshots}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal" Spacing="12"/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border CornerRadius="8" ClipToBounds="True"
-                                                Width="340" Height="192">
-                                            <views:CoverImage
-                                                ImageUrl="{Binding}"
-                                                LetterFontSize="1"
-                                                ImageCornerRadius="8"
-                                                Width="340" Height="192"/>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </StackPanel>
-                </Border>
-
-                <!-- ── Achievements section ── -->
+                <!-- ── Achievements section (above media) ── -->
                 <Border IsVisible="{Binding HasAchievements}"
-                        Margin="0,24,0,0">
+                        Margin="0,0,0,24">
                     <StackPanel Spacing="14">
                         <TextBlock Text="{Binding AchievementsLabel}"
                                    Classes="section-header" Margin="0"/>
@@ -880,6 +791,101 @@
                         </Button>
                     </StackPanel>
                 </Border>
+
+                <!-- ── Media row: Trailer (left) + Screenshots (right) on the same row.
+                     WrapPanel collapses gracefully when only one child is visible. ── -->
+                <WrapPanel Orientation="Horizontal" Margin="0,0,0,24">
+
+                    <!-- Trailer (first in media) -->
+                    <Border IsVisible="{Binding HasTrailer}"
+                            Background="#161b22" CornerRadius="10"
+                            Padding="20,16" Margin="0,0,16,16">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="🎬  Trailer"
+                                       Classes="section-header" Margin="0"/>
+
+                            <!-- YouTube embed-style player preview -->
+                            <Button Background="Transparent" BorderThickness="0"
+                                    Padding="0" HorizontalAlignment="Left"
+                                    Command="{Binding OpenTrailerCommand}"
+                                    Cursor="Hand">
+                                <Border CornerRadius="10" ClipToBounds="True"
+                                        Width="400" Height="225">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                            <GradientStop Color="#0d1117" Offset="0"/>
+                                            <GradientStop Color="#161b22" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <!-- Black letterbox with play icon — like an embedded player -->
+                                    <Grid>
+                                        <!-- Centered play button (YouTube-style) -->
+                                        <StackPanel HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center" Spacing="12">
+                                            <Border Width="80" Height="80" CornerRadius="40"
+                                                    HorizontalAlignment="Center"
+                                                    Opacity="0.90">
+                                                <Border.Background>
+                                                    <SolidColorBrush Color="#FF0000"/>
+                                                </Border.Background>
+                                                <TextBlock Text="▶" FontSize="34"
+                                                           FontWeight="Black"
+                                                           Foreground="White"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Margin="6,0,0,0"/>
+                                            </Border>
+                                            <TextBlock Text="▶  Watch Trailer on YouTube"
+                                                       FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="#c9d1d9"
+                                                       HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                        <!-- YouTube URL bar at bottom -->
+                                        <Border VerticalAlignment="Bottom"
+                                                Background="#0000008a"
+                                                Padding="12,6">
+                                            <TextBlock Text="{Binding TrailerUrl}"
+                                                       FontSize="10" Foreground="#8b949e"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Screenshots (same row as trailer when trailer is present) -->
+                    <Border IsVisible="{Binding HasScreenshots}"
+                            Background="#161b22" CornerRadius="10"
+                            Padding="20,16" Margin="0,0,0,16">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="📸  Screenshots"
+                                       Classes="section-header" Margin="0"/>
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Disabled">
+                                <ItemsControl ItemsSource="{Binding Screenshots}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="12"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border CornerRadius="8" ClipToBounds="True"
+                                                    Width="300" Height="169">
+                                                <views:CoverImage
+                                                    ImageUrl="{Binding}"
+                                                    LetterFontSize="1"
+                                                    ImageCornerRadius="8"
+                                                    Width="300" Height="169"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Border>
+                </WrapPanel>
 
             </StackPanel>
         </ScrollViewer>
