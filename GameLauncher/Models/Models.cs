@@ -53,6 +53,25 @@ namespace GameLauncher.Models
         [JsonPropertyName("url")]  public string Url  { get; set; } = "";
     }
 
+    // ── Ryujinx mod management (Nintendo Switch) ──────────────────────────────
+
+    /// <summary>
+    /// A single mod entry from a Ryujinx <c>mods.json</c> file.
+    /// Located at <c>{RyujinxPortableDir}\games\{titleId}\mods.json</c>.
+    /// </summary>
+    public class RyujinxMod
+    {
+        [JsonPropertyName("name")]    public string Name    { get; set; } = "";
+        [JsonPropertyName("path")]    public string Path    { get; set; } = "";
+        [JsonPropertyName("enabled")] public bool   Enabled { get; set; }
+    }
+
+    /// <summary>Root wrapper for <c>mods.json</c>: <c>{ "mods": [ … ] }</c>.</summary>
+    public class RyujinxModConfig
+    {
+        [JsonPropertyName("mods")] public List<RyujinxMod> Mods { get; set; } = new();
+    }
+
     public class SystemSpec
     {
         [JsonPropertyName("cpu")]    public string? Cpu    { get; set; }

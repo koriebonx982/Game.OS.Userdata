@@ -390,6 +390,13 @@ class Program
         if (!epicPassed) passed = false;
         Console.WriteLine();
 
+        // ── STEAM ACF MANIFEST TESTS ───────────────────────────────────────────
+        Console.WriteLine("🎮 Steam ACF Manifest Detection:");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool steamAcfPassed = TestSteamAcfManifests();
+        if (!steamAcfPassed) passed = false;
+        Console.WriteLine();
+
         // ── STEAM VDF LIBRARY TESTS ────────────────────────────────────────────
         Console.WriteLine("🎮 Steam VDF Library Folder Detection:");
         Console.WriteLine("───────────────────────────────────────────────────────────────");
@@ -727,6 +734,119 @@ class Program
         }
 
         return passed;
+    }
+
+    /// <summary>
+    /// Tests that ScanSteamAcfManifests() correctly parses Steam appmanifest_*.acf files
+    /// and detects games with their canonical DisplayName, including games whose executable
+    /// is in a subdirectory (which the folder scan alone would miss).
+    /// </summary>
+    private static bool TestSteamAcfManifests()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), "GameOS_SteamAcfTest_" + Path.GetRandomFileName());
+        bool passed = true;
+
+        try
+        {
+            // Create a fake steamapps directory with common/ sub-folder
+            string steamAppsDir = Path.Combine(tempRoot, "steamapps");
+            string commonDir    = Path.Combine(steamAppsDir, "common");
+
+            // Game 1: exe at root of install folder (same as directory scan would find)
+            string game1Dir = Path.Combine(commonDir, "SteamAcfGame1");
+            Directory.CreateDirectory(game1Dir);
+            File.WriteAllText(Path.Combine(game1Dir, "game1.exe"), "fake exe");
+
+            // Game 2: exe in a sub-directory (only ACF scan can find this reliably)
+            string game2Dir    = Path.Combine(commonDir, "SteamAcfGame2Folder");
+            string game2BinDir = Path.Combine(game2Dir, "Binaries", "Win64");
+            Directory.CreateDirectory(game2BinDir);
+            File.WriteAllText(Path.Combine(game2BinDir, "game2.exe"), "fake exe");
+
+            // Write ACF manifests
+            // ACF format: "appid"  "1234"  "name"  "Display Name"  "installdir"  "FolderName"  "StateFlags"  "4"
+            WriteAcfManifest(steamAppsDir, appId: "100001", name: "Steam ACF Game One",
+                             installDir: "SteamAcfGame1", stateFlags: "4");
+            WriteAcfManifest(steamAppsDir, appId: "100002", name: "Steam ACF Game Two",
+                             installDir: "SteamAcfGame2Folder", stateFlags: "4");
+            // A partially-downloaded game (StateFlags != 4) — should be skipped
+            string game3Dir = Path.Combine(commonDir, "SteamAcfGame3Partial");
+            Directory.CreateDirectory(game3Dir);
+            WriteAcfManifest(steamAppsDir, appId: "100003", name: "Steam ACF Game Three Partial",
+                             installDir: "SteamAcfGame3Partial", stateFlags: "2");
+
+            var results = new List<LocalGame>();
+            GameScannerService.ScanSteamAcfManifests(steamAppsDir, results);
+
+            // ── Game 1 ────────────────────────────────────────────────────────
+            var g1 = results.FirstOrDefault(g =>
+                string.Equals(g.Title, "Steam ACF Game One", StringComparison.OrdinalIgnoreCase));
+            if (g1 != null)
+                Console.WriteLine($"  ✅  Game 1 (top-level exe):  Title=\"{g1.Title}\"  Source={g1.Source}  exe={Path.GetFileName(g1.ExecutablePath)}");
+            else
+            {
+                Console.WriteLine("  ❌  Game 1 (appmanifest with top-level exe) was NOT detected");
+                passed = false;
+            }
+
+            // ── Game 2: sub-directory exe (key feature of ACF scanning) ──────
+            var g2 = results.FirstOrDefault(g =>
+                string.Equals(g.Title, "Steam ACF Game Two", StringComparison.OrdinalIgnoreCase));
+            if (g2 != null)
+                Console.WriteLine($"  ✅  Game 2 (nested exe):    Title=\"{g2.Title}\"  Source={g2.Source}  exe=...{g2.ExecutablePath.Substring(Math.Max(0, g2.ExecutablePath.Length - 30))}");
+            else
+            {
+                Console.WriteLine("  ❌  Game 2 (appmanifest with nested exe) was NOT detected — ACF deep-search may be broken");
+                passed = false;
+            }
+
+            // ── Partial download should be skipped ────────────────────────────
+            var g3 = results.FirstOrDefault(g =>
+                string.Equals(g.Title, "Steam ACF Game Three Partial", StringComparison.OrdinalIgnoreCase));
+            if (g3 == null)
+                Console.WriteLine("  ✅  Partial download (StateFlags=2) correctly skipped");
+            else
+            {
+                Console.WriteLine("  ❌  Partial download was NOT skipped (StateFlags=2 should be filtered)");
+                passed = false;
+            }
+
+            // ── All detected games should have Source="Steam" ─────────────────
+            bool allSteam = results.All(g =>
+                string.Equals(g.Source, "Steam", StringComparison.OrdinalIgnoreCase));
+            if (allSteam && results.Count > 0)
+                Console.WriteLine($"  ✅  All {results.Count} ACF-detected game(s) have Source=\"Steam\"");
+            else if (results.Count > 0)
+            {
+                Console.WriteLine("  ❌  Some ACF-detected games do not have Source=\"Steam\"");
+                passed = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ❌  Steam ACF test threw: {ex.Message}");
+            passed = false;
+        }
+        finally
+        {
+            try { if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true); } catch { }
+        }
+
+        return passed;
+    }
+
+    private static void WriteAcfManifest(string steamAppsDir, string appId, string name,
+                                          string installDir, string stateFlags)
+    {
+        string content =
+            "\"AppState\"\n{\n" +
+            $"\t\"appid\"\t\t\"{appId}\"\n" +
+            $"\t\"name\"\t\t\"{name}\"\n" +
+            $"\t\"installdir\"\t\"{installDir}\"\n" +
+            $"\t\"StateFlags\"\t\"{stateFlags}\"\n" +
+            "}\n";
+        Directory.CreateDirectory(steamAppsDir);
+        File.WriteAllText(Path.Combine(steamAppsDir, $"appmanifest_{appId}.acf"), content);
     }
 
     /// <summary>
