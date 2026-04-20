@@ -398,8 +398,11 @@ namespace GameLauncher.Models
             if (string.IsNullOrEmpty(platform)) return platform;
             // Case-insensitive comparison so user folder names like
             // "Sony - Playstation 4" (lowercase 's') map correctly to "PS4".
-            return platform.ToLowerInvariant() switch
+            // Also handles abbreviated/truncated values (e.g. "S" → "Switch",
+            // "2" → "PS2") that can appear when platform tags are cut off.
+            return platform.Trim().ToLowerInvariant() switch
             {
+                // ── Verbose RetroArch/Libretro-style names ─────────────────
                 "microsoft - xbox 360"    => "Xbox 360",
                 "microsoft - xbox one"    => "Xbox One",
                 "nintendo - switch"       => "Switch",
@@ -411,6 +414,28 @@ namespace GameLauncher.Models
                 "sony - psp"              => "PSP",
                 "sony - ps vita"          => "PS Vita",
                 "sony - playstation vita" => "PS Vita",
+                // ── Common shortened aliases ───────────────────────────────
+                "pc"                      => "PC",
+                "ps1"                     => "PS1",
+                "ps2"                     => "PS2",
+                "ps3"                     => "PS3",
+                "ps4"                     => "PS4",
+                "ps5"                     => "PS5",
+                "psp"                     => "PSP",
+                "ps vita"                 => "PS Vita",
+                "vita"                    => "PS Vita",
+                "switch"                  => "Switch",
+                "xbox 360"                => "Xbox 360",
+                "xbox360"                 => "Xbox 360",
+                "xbox one"                => "Xbox One",
+                "xbone"                   => "Xbox One",
+                // ── Single-character / truncated tags ─────────────────────
+                // "S" → Switch, "2" → PS2, "3" → PS3, "4" → PS4, "5" → PS5
+                "s"                       => "Switch",
+                "2"                       => "PS2",
+                "3"                       => "PS3",
+                "4"                       => "PS4",
+                "5"                       => "PS5",
                 _                         => platform,
             };
         }

@@ -13,6 +13,7 @@ public partial class LoginViewModel : ViewModelBase
 {
     private readonly GameOsClient        _client;
     private readonly SessionCacheService _cache;
+    private readonly OfflineDataCacheService _offlineCache;
 
     [ObservableProperty] private string _username  = "";
     [ObservableProperty] private string _password  = "";
@@ -30,22 +31,28 @@ public partial class LoginViewModel : ViewModelBase
     /// reflects real previously-logged-in accounts.</summary>
     public ObservableCollection<SavedSession> SavedAccounts { get; } = new();
 
-    public System.Action<UserProfile, List<Game>, List<Achievement>>? OnLoginSuccess { get; set; }
+    /// <summary>
+    /// Invoked on successful login/restore.  The bool parameter is <c>true</c>
+    /// when the session was restored from the local cache (offline mode).
+    /// </summary>
+    public System.Action<UserProfile, List<Game>, List<Achievement>, bool>? OnLoginSuccess { get; set; }
 
-    public LoginViewModel(GameOsClient client, SessionCacheService cache)
+    public LoginViewModel(GameOsClient client, SessionCacheService cache,
+                          OfflineDataCacheService offlineCache)
     {
-        _client = client;
-        _cache  = cache;
+        _client       = client;
+        _cache        = cache;
+        _offlineCache = offlineCache;
         RefreshSavedAccounts();
     }
 
     // ── Auto-login on startup ─────────────────────────────────────────────
 
     /// <summary>
-    /// Called once at application startup.  If the user previously ticked
-    /// "Remember me" the session is restored silently — exactly like the
-    /// website returning you to the dashboard because <c>gameOSUser</c> is
-    /// still in <c>localStorage</c>.
+    /// Called once at application startup.  Tries to restore the session online
+    /// first; if the server is unreachable and local cached data exists the session
+    /// is restored in offline mode.  Shows a clear error if there is no cache and
+    /// no internet — the user must log in online at least once.
     /// </summary>
     public async System.Threading.Tasks.Task TryAutoLoginAsync()
     {
@@ -56,20 +63,48 @@ public partial class LoginViewModel : ViewModelBase
         ErrorMessage = "";
         try
         {
+            // ── Online path ───────────────────────────────────────────────
             var profile      = await _client.RestoreSessionAsync(saved.Token, saved.Username);
             var games        = await _client.GetGamesAsync();
             var achievements = await _client.GetAchievementsAsync();
             EnrichGames(games);
-            OnLoginSuccess?.Invoke(profile, games, achievements);
+            OnLoginSuccess?.Invoke(profile, games, achievements, false);
         }
         catch (Exception ex) when (ex is GameOsException or System.Net.Http.HttpRequestException)
         {
-            // Token expired or server unavailable — clear the stale token so
-            // the user sees the login form (same as the web invalidating an old session).
-            _cache.ClearToken(saved.Username);
-            _client.Logout();
-            System.Diagnostics.Debug.WriteLine($"[AutoLogin] Session restore failed: {ex.Message}");
-            ErrorMessage = "";
+            System.Diagnostics.Debug.WriteLine($"[AutoLogin] Online restore failed: {ex.Message}");
+
+            // ── Offline fallback ──────────────────────────────────────────
+            // If the failure is a definitive auth rejection (401/403) from the
+            // server, clear the stale token.  For connectivity errors, try the
+            // local cache instead of showing the login form.
+            bool isAuthFailure = ex is GameOsException ge && (ge.StatusCode == 401 || ge.StatusCode == 403);
+
+            if (isAuthFailure)
+            {
+                _cache.ClearToken(saved.Username);
+                _client.Logout();
+                ErrorMessage = "";
+                return;
+            }
+
+            // Network/server unavailable — attempt offline login from cache
+            var cached = _offlineCache.Load(saved.Username);
+            if (cached?.Profile != null && cached.Games != null && cached.Achievements != null)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[AutoLogin] Falling back to offline cache for '{saved.Username}'.");
+                EnrichGames(cached.Games);
+                OnLoginSuccess?.Invoke(
+                    cached.Profile, cached.Games, cached.Achievements, true);
+            }
+            else
+            {
+                // No cache — clear the token and show the login form
+                _cache.ClearToken(saved.Username);
+                _client.Logout();
+                ErrorMessage = "";
+            }
         }
         finally
         {
@@ -110,11 +145,39 @@ public partial class LoginViewModel : ViewModelBase
             });
             RefreshSavedAccounts();
 
-            OnLoginSuccess?.Invoke(profile, games, achievements);
+            OnLoginSuccess?.Invoke(profile, games, achievements, false);
         }
         catch (GameOsException ex)
         {
             ErrorMessage = ex.Message;
+        }
+        catch (System.Net.Http.HttpRequestException)
+        {
+            // Server unreachable — try offline login if a cache exists
+            var cached = _offlineCache.Load(Username.Trim());
+            if (cached?.Profile != null && cached.Games != null && cached.Achievements != null)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[SignIn] Server unreachable — loading offline cache for '{Username}'.");
+                EnrichGames(cached.Games);
+                _cache.SaveSession(new CachedSession
+                {
+                    Username    = cached.Profile.Username,
+                    Email       = cached.Profile.Email,
+                    Token       = "",          // no valid token in offline mode
+                    AvatarColor = "#1e90ff",
+                    SavedAt     = System.DateTime.UtcNow.ToString("o"),
+                    RememberMe  = RememberMe,
+                });
+                RefreshSavedAccounts();
+                OnLoginSuccess?.Invoke(cached.Profile, cached.Games, cached.Achievements, true);
+            }
+            else
+            {
+                ErrorMessage =
+                    "Cannot reach the Game.OS server and no local cache was found. " +
+                    "Please connect to the internet to log in for the first time.";
+            }
         }
         catch (System.Exception ex)
         {
@@ -163,7 +226,7 @@ public partial class LoginViewModel : ViewModelBase
             });
             RefreshSavedAccounts();
 
-            OnLoginSuccess?.Invoke(profile, new List<Game>(), new List<Achievement>());
+            OnLoginSuccess?.Invoke(profile, new List<Game>(), new List<Achievement>(), false);
         }
         catch (GameOsException ex)
         {
@@ -188,8 +251,9 @@ public partial class LoginViewModel : ViewModelBase
 
     /// <summary>
     /// Quick-login — if the saved session has a token, restore it silently.
-    /// Otherwise pre-fill the username field so the user just needs to type
-    /// the password (same UX as the web's single-session model).
+    /// Falls back to offline cached data when the server is unreachable.
+    /// Otherwise pre-fills the username field so the user just needs to type
+    /// the password.
     /// </summary>
     [RelayCommand]
     private async System.Threading.Tasks.Task QuickLogin(SavedSession? session)
@@ -208,15 +272,34 @@ public partial class LoginViewModel : ViewModelBase
                 var games        = await _client.GetGamesAsync();
                 var achievements = await _client.GetAchievementsAsync();
                 EnrichGames(games);
-                OnLoginSuccess?.Invoke(profile, games, achievements);
+                OnLoginSuccess?.Invoke(profile, games, achievements, false);
                 return;
             }
-            catch (Exception ex) when (ex is GameOsException or System.Net.Http.HttpRequestException)
+            catch (Exception ex) when (ex is GameOsException ge &&
+                                        (ge.StatusCode == 401 || ge.StatusCode == 403))
             {
-                // Token expired — clear it and fall through to password form
+                // Definitive auth failure — clear token and fall through to password form
                 _cache.ClearToken(session.Username);
                 _client.Logout();
-                System.Diagnostics.Debug.WriteLine($"[QuickLogin] Session restore failed: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[QuickLogin] Auth rejected: {ex.Message}");
+            }
+            catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or GameOsException)
+            {
+                // Network/server unavailable — try offline cache
+                System.Diagnostics.Debug.WriteLine($"[QuickLogin] Offline fallback: {ex.Message}");
+                var offlineData = _offlineCache.Load(session.Username);
+                if (offlineData?.Profile != null && offlineData.Games != null
+                    && offlineData.Achievements != null)
+                {
+                    EnrichGames(offlineData.Games);
+                    OnLoginSuccess?.Invoke(
+                        offlineData.Profile, offlineData.Games, offlineData.Achievements, true);
+                    return;
+                }
+                else
+                {
+                    ErrorMessage = "Cannot reach the server. Connect to the internet to sign in.";
+                }
             }
             finally
             {
@@ -249,6 +332,9 @@ public partial class LoginViewModel : ViewModelBase
     {
         foreach (var g in games)
         {
+            // Normalize platform names that may be abbreviated in stored data
+            g.Platform = PlatformHelper.NormalizePlatform(g.Platform);
+
             var meta = GameCatalog.Metadata.FirstOrDefault(d =>
                 d.Title.Equals(g.Title, System.StringComparison.OrdinalIgnoreCase));
             if (meta != null)
@@ -262,3 +348,4 @@ public partial class LoginViewModel : ViewModelBase
         }
     }
 }
+

@@ -17,10 +17,12 @@ namespace GameLauncher.ViewModels;
 /// </summary>
 public partial class MainViewModel : ViewModelBase, IDisposable
 {
-    private readonly GameOsClient        _client;
-    private readonly GameScannerService  _scanner;
-    private readonly SessionCacheService _sessionCache;
-    private readonly PlaytimeService     _playtimeSvc = new();
+    private readonly GameOsClient            _client;
+    private readonly GameScannerService      _scanner;
+    private readonly SessionCacheService     _sessionCache;
+    private readonly OfflineDataCacheService _offlineCache   = new();
+    private readonly PendingChangesService   _pendingChanges = new();
+    private readonly PlaytimeService         _playtimeSvc    = new();
 
     // ── Message polling ────────────────────────────────────────────────────
     /// <summary>Fires every 60 seconds after login to check for new direct messages.</summary>
@@ -63,6 +65,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private bool _isNavExpanded     = false;
     /// <summary>Username of the friend currently being viewed (shown in the friend-profile overlay).</summary>
     [ObservableProperty] private string _viewingFriendName = "";
+    /// <summary>
+    /// True when the user is logged in via a locally-cached session because the
+    /// server is unreachable.  Drives the Offline/Online mode badge in the UI.
+    /// </summary>
+    [ObservableProperty] private bool _isOfflineMode = false;
 
     public bool IsHome        => ActivePage == "dashboard";
     public bool IsLibrary     => ActivePage == "library";
@@ -86,7 +93,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _client       = new GameOsClient();
         _sessionCache = new SessionCacheService();
 
-        LoginVm        = new LoginViewModel(_client, _sessionCache);
+        LoginVm        = new LoginViewModel(_client, _sessionCache, _offlineCache);
         DashboardVm    = new DashboardViewModel();
         LibraryVm      = new LibraryViewModel();
         StoreVm        = new StoreViewModel();
@@ -258,11 +265,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     private void OnLoginSuccess(UserProfile profile, List<Game> library,
-                                List<Achievement> achievements)
+                                List<Achievement> achievements, bool isOffline)
     {
         _profile      = profile;
         _library      = library;
         _achievements = achievements;
+
+        IsOfflineMode = isOffline;
 
         bool isAdmin = _client.IsAdmin;
 
@@ -285,11 +294,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 game.GameAchievements = matching;
         }
 
-        // Update presence immediately on login so the user appears "Online" to friends,
-        // then start a background heartbeat that refreshes it every 2 minutes — mirroring
-        // the web app's updatePresence() call at startup + setInterval every 2 minutes.
-        _ = _client.UpdatePresenceAsync();
-        StartPresenceHeartbeat();
+        // Save data to local cache so the next launch can restore it offline.
+        // Only save when we actually fetched from the server (isOffline = false).
+        if (!isOffline)
+        {
+            _offlineCache.Save(profile.Username, profile, library, achievements);
+
+            // Flush any pending offline changes now that we are back online
+            _ = FlushPendingChangesAsync(profile.Username);
+        }
+
+        if (!isOffline)
+        {
+            // Update presence immediately on login so the user appears "Online" to friends,
+            // then start a background heartbeat that refreshes it every 2 minutes — mirroring
+            // the web app's updatePresence() call at startup + setInterval every 2 minutes.
+            _ = _client.UpdatePresenceAsync();
+            StartPresenceHeartbeat();
+        }
 
         var localCards = LibraryVm.GetMyGameSources()
             .Select(s => LibraryVm.FindMyGameCard(s.Title, s.Platform))
@@ -303,19 +325,76 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ProfileVm.Load(profile, library, achievements, isAdmin);
         FriendsVm.Load(_client, profile.Username);
 
-        // Asynchronously enrich library games with cover/desc/trailer from Games.Database.
-        _ = EnrichLibraryFromDatabaseAsync(library);
+        if (!isOffline)
+        {
+            // Asynchronously enrich library games with cover/desc/trailer from Games.Database.
+            _ = EnrichLibraryFromDatabaseAsync(library);
 
-        // Pre-fetch cover art for the unified My Games cards (scanner may already
-        // have found games before login, so enrich what's there right away).
-        _ = EnrichMyGamesListAsync();
+            // Pre-fetch cover art for the unified My Games cards (scanner may already
+            // have found games before login, so enrich what's there right away).
+            _ = EnrichMyGamesListAsync();
 
-        // Start background message polling (checks for new DMs every 60 seconds)
-        StartMessagePolling();
+            // Start background message polling (checks for new DMs every 60 seconds)
+            StartMessagePolling();
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"[MainViewModel] Offline mode — loaded cached data for '{profile.Username}'.");
+        }
 
         ShowLogin = false;
         ShowMain  = true;
         ActivePage = "dashboard";
+    }
+
+    /// <summary>
+    /// Replays queued offline mutations (AddGame / RemoveGame) against the live
+    /// backend once the user is back online.  Runs silently in the background.
+    /// </summary>
+    private async Task FlushPendingChangesAsync(string username)
+    {
+        if (!_pendingChanges.HasPending(username)) return;
+
+        var changes = _pendingChanges.GetAll(username);
+        System.Diagnostics.Debug.WriteLine(
+            $"[PendingChanges] Flushing {changes.Count} offline change(s) for '{username}'.");
+
+        bool allOk = true;
+        foreach (var change in changes)
+        {
+            try
+            {
+                switch (change.Kind)
+                {
+                    case Services.PendingChangeKind.AddGame when change.GameData != null:
+                        await _client.AddGameAsync(change.GameData);
+                        System.Diagnostics.Debug.WriteLine(
+                            $"[PendingChanges] Synced AddGame '{change.GameData.Title}'.");
+                        break;
+
+                    case Services.PendingChangeKind.RemoveGame
+                        when change.Platform != null && change.Title != null:
+                        await _client.RemoveGameAsync(change.Platform, change.Title);
+                        System.Diagnostics.Debug.WriteLine(
+                            $"[PendingChanges] Synced RemoveGame '{change.Title}'.");
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[PendingChanges] Failed to sync change ({change.Kind}): {ex.Message}");
+                allOk = false;
+            }
+        }
+
+        if (allOk)
+        {
+            _pendingChanges.Clear(username);
+            System.Diagnostics.Debug.WriteLine(
+                $"[PendingChanges] All changes synced and queue cleared for '{username}'.");
+        }
     }
 
     /// <summary>
@@ -920,6 +999,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ShowMain  = false;
         ShowDetail = false;
         ShowLogin = true;
+        IsOfflineMode = false;
     }
 
     public void Dispose()

@@ -21,7 +21,24 @@
 
             <!-- Content area (full width) -->
             <Border Background="#0d1117">
-                <Panel>
+                <Grid RowDefinitions="Auto,*">
+                    <!-- Offline mode banner (shown at the top of the content area) -->
+                    <Border Grid.Row="0"
+                            IsVisible="{Binding IsOfflineMode}"
+                            Background="#2d1b00"
+                            Padding="20,8">
+                        <StackPanel Orientation="Horizontal" Spacing="10"
+                                    HorizontalAlignment="Center">
+                            <TextBlock Text="⚠" FontSize="14" Foreground="#f0883e"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock FontSize="13" Foreground="#f0883e"
+                                       VerticalAlignment="Center">
+                                Offline Mode — showing cached data. Changes will sync when you reconnect.
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <Panel Grid.Row="1">
                     <!-- Main page views -->
                     <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                                   VerticalScrollBarVisibility="Auto"
@@ -84,7 +101,8 @@
                             </ScrollViewer>
                         </Grid>
                     </Border>
-                </Panel>
+                    </Panel>
+                </Grid>
             </Border>
 
             <!-- Nav sidebar overlay (slides over content when IsNavExpanded) -->
@@ -122,6 +140,33 @@
                             <TextBlock Text="Sign Out"/>
                         </StackPanel>
                     </Button>
+
+                    <!-- Online badge -->
+                    <Border DockPanel.Dock="Bottom"
+                            CornerRadius="8" Padding="10,6"
+                            Margin="8,0,8,8"
+                            Background="#0d2b0d"
+                            IsVisible="{Binding !IsOfflineMode}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Ellipse Width="8" Height="8" Fill="#3fb950"/>
+                            <TextBlock Text="Online" FontSize="12"
+                                       Foreground="#3fb950" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Offline badge -->
+                    <Border DockPanel.Dock="Bottom"
+                            CornerRadius="8" Padding="10,6"
+                            Margin="8,0,8,8"
+                            Background="#2d1b00"
+                            IsVisible="{Binding IsOfflineMode}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="⚠" FontSize="12" Foreground="#f0883e"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="Offline Mode" FontSize="12"
+                                       Foreground="#f0883e" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
 
                     <Rectangle DockPanel.Dock="Bottom" Height="1"
                                Fill="#21262d" Margin="16,0"/>

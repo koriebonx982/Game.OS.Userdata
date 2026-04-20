@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using GameLauncher;
+using GameLauncher.Models;
 using GameLauncher.Services;
 
 /// <summary>
@@ -63,6 +64,15 @@ class Program
 
         // ── 7. backend API round-trip using Admin.GameOS (requires GAMEOS_BACKEND_URL) ──
         allPassed &= await TestBackendAdminLoginAsync();
+
+        // ── 8. OfflineDataCacheService round-trip ──────────────────────────────
+        allPassed &= TestOfflineDataCacheRoundTrip();
+
+        // ── 9. PendingChangesService queue ─────────────────────────────────────
+        allPassed &= TestPendingChangesQueue();
+
+        // ── 10. PlatformHelper.NormalizePlatform (abbreviated names) ───────────
+        allPassed &= TestPlatformNormalization();
 
         // ── Summary ───────────────────────────────────────────────────────────
         Console.WriteLine();
@@ -490,6 +500,208 @@ class Program
             Pass(false, $"Unexpected: {ex.Message}");
             return false;
         }
+    }
+
+    // ── Test 8: OfflineDataCacheService round-trip ────────────────────────────
+    static bool TestOfflineDataCacheRoundTrip()
+    {
+        Section("8. OfflineDataCacheService  (save → load round-trip)");
+        bool passed = true;
+
+        string testUser = "__testuser_offline__";
+        var svc = new OfflineDataCacheService();
+
+        try
+        {
+            // Ensure clean state
+            svc.Clear(testUser);
+
+            // Verify no cache initially
+            bool hadCache = svc.HasCache(testUser);
+            Pass(!hadCache, $"No cache before first save: {!hadCache}");
+            passed &= !hadCache;
+
+            // Save
+            var profile = new GameLauncher.Models.UserProfile
+            {
+                Username = testUser,
+                Email    = "test@example.com",
+            };
+            var games = new System.Collections.Generic.List<GameLauncher.Models.Game>
+            {
+                new() { Title = "Test Game 1", Platform = "PC",  AddedAt = "2025-01-01T00:00:00Z" },
+                new() { Title = "Test Game 2", Platform = "PS4", AddedAt = "2025-01-02T00:00:00Z" },
+            };
+            var achievements = new System.Collections.Generic.List<GameLauncher.Models.Achievement>
+            {
+                new() { Name = "First Achievement", GameTitle = "Test Game 1", UnlockedAt = "2025-01-05T00:00:00Z" },
+            };
+            svc.Save(testUser, profile, games, achievements);
+
+            // Verify HasCache
+            bool hasCache = svc.HasCache(testUser);
+            Pass(hasCache, $"Cache exists after save: {hasCache}");
+            passed &= hasCache;
+
+            // Load and verify
+            var loaded = svc.Load(testUser);
+            bool loadOk = loaded != null;
+            Pass(loadOk, $"Load returns non-null: {loadOk}");
+            passed &= loadOk;
+
+            if (loaded != null)
+            {
+                bool userOk = loaded.Profile?.Username == testUser;
+                Pass(userOk, $"Profile.Username matches: {userOk}");
+                passed &= userOk;
+
+                bool gameCountOk = loaded.Games?.Count == 2;
+                Pass(gameCountOk, $"Games count = 2: {gameCountOk}");
+                passed &= gameCountOk;
+
+                bool achCountOk = loaded.Achievements?.Count == 1;
+                Pass(achCountOk, $"Achievements count = 1: {achCountOk}");
+                passed &= achCountOk;
+
+                bool cachedAtOk = !string.IsNullOrEmpty(loaded.CachedAt);
+                Pass(cachedAtOk, $"CachedAt is set: {cachedAtOk}");
+                passed &= cachedAtOk;
+
+                bool freshOk = svc.IsFresh(testUser);
+                Pass(freshOk, $"IsFresh = true immediately after save: {freshOk}");
+                passed &= freshOk;
+            }
+        }
+        finally
+        {
+            // Clean up test data
+            svc.Clear(testUser);
+            bool clearedOk = !svc.HasCache(testUser);
+            Pass(clearedOk, $"Cache cleared after test: {clearedOk}");
+            passed &= clearedOk;
+        }
+
+        return passed;
+    }
+
+    // ── Test 9: PendingChangesService queue ───────────────────────────────────
+    static bool TestPendingChangesQueue()
+    {
+        Section("9. PendingChangesService  (offline changes queue)");
+        bool passed = true;
+
+        string testUser = "__testuser_pending__";
+        var svc = new PendingChangesService();
+
+        try
+        {
+            // Ensure clean state
+            svc.Clear(testUser);
+
+            // No pending initially
+            bool noPending = !svc.HasPending(testUser);
+            Pass(noPending, $"No pending changes initially: {noPending}");
+            passed &= noPending;
+
+            // Enqueue an AddGame
+            var game = new GameLauncher.Models.Game
+            {
+                Title    = "Offline Added Game",
+                Platform = "PC",
+                AddedAt  = DateTime.UtcNow.ToString("o"),
+            };
+            svc.EnqueueAddGame(testUser, game);
+
+            bool hasPending = svc.HasPending(testUser);
+            Pass(hasPending, $"HasPending = true after AddGame: {hasPending}");
+            passed &= hasPending;
+
+            // Enqueue a RemoveGame
+            svc.EnqueueRemoveGame(testUser, "Switch", "Game to Remove");
+
+            var all = svc.GetAll(testUser);
+            bool countOk = all.Count == 2;
+            Pass(countOk, $"Queue has 2 pending changes: {countOk}");
+            passed &= countOk;
+
+            bool firstIsAdd = all[0].Kind == PendingChangeKind.AddGame;
+            Pass(firstIsAdd, $"First change is AddGame: {firstIsAdd}");
+            passed &= firstIsAdd;
+
+            bool secondIsRemove = all[1].Kind == PendingChangeKind.RemoveGame;
+            Pass(secondIsRemove, $"Second change is RemoveGame: {secondIsRemove}");
+            passed &= secondIsRemove;
+
+            bool gameDataOk = all[0].GameData?.Title == "Offline Added Game";
+            Pass(gameDataOk, $"AddGame has correct title: {gameDataOk}");
+            passed &= gameDataOk;
+
+            bool removeTitleOk = all[1].Title == "Game to Remove";
+            Pass(removeTitleOk, $"RemoveGame has correct title: {removeTitleOk}");
+            passed &= removeTitleOk;
+        }
+        finally
+        {
+            svc.Clear(testUser);
+            bool cleared = !svc.HasPending(testUser);
+            Pass(cleared, $"Queue cleared after test: {cleared}");
+            passed &= cleared;
+        }
+
+        return passed;
+    }
+
+    // ── Test 10: PlatformHelper.NormalizePlatform ─────────────────────────────
+    static bool TestPlatformNormalization()
+    {
+        Section("10. PlatformHelper.NormalizePlatform  (abbreviated and full names)");
+        bool passed = true;
+
+        var cases = new (string input, string expected)[]
+        {
+            // Abbreviated single-char tags (the bug reported in the issue)
+            ("S",                         "Switch"),
+            ("2",                         "PS2"),
+            ("3",                         "PS3"),
+            ("4",                         "PS4"),
+            ("5",                         "PS5"),
+            // Canonical names pass through unchanged
+            ("PC",                        "PC"),
+            ("Switch",                    "Switch"),
+            ("PS1",                       "PS1"),
+            ("PS2",                       "PS2"),
+            ("PS3",                       "PS3"),
+            ("PS4",                       "PS4"),
+            ("PS5",                       "PS5"),
+            ("PSP",                       "PSP"),
+            ("PS Vita",                   "PS Vita"),
+            ("Xbox 360",                  "Xbox 360"),
+            ("Xbox One",                  "Xbox One"),
+            // Aliases
+            ("vita",                      "PS Vita"),
+            ("xbox360",                   "Xbox 360"),
+            ("xbone",                     "Xbox One"),
+            // RetroArch/Libretro verbose names
+            ("Microsoft - Xbox 360",      "Xbox 360"),
+            ("Nintendo - Switch",         "Switch"),
+            ("Sony - PlayStation 4",      "PS4"),
+            ("Sony - PlayStation 3",      "PS3"),
+            ("Sony - PSP",                "PSP"),
+            // Already-canonical should be unchanged
+            ("Unknown Platform",          "Unknown Platform"),
+        };
+
+        foreach (var (input, expected) in cases)
+        {
+            var actual = GameLauncher.Models.PlatformHelper.NormalizePlatform(input);
+            bool ok = string.Equals(actual, expected, StringComparison.Ordinal);
+            Pass(ok, ok
+                ? $"NormalizePlatform(\"{input,-28}\") → \"{actual}\""
+                : $"NormalizePlatform(\"{input}\") → expected \"{expected}\" but got \"{actual}\"");
+            passed &= ok;
+        }
+
+        return passed;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
