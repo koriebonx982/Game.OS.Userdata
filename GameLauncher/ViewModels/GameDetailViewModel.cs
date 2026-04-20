@@ -104,6 +104,12 @@ public partial class GameDetailViewModel : ViewModelBase
     [ObservableProperty] private bool _isExtracting;
     /// <summary>Status message shown in the main info panel during/after archive installation (not the settings panel).</summary>
     [ObservableProperty] private string _installStatusMessage = "";
+    /// <summary>True when <see cref="InstallStatusMessage"/> represents an error (drives red foreground in the UI).</summary>
+    [ObservableProperty] private bool _installStatusIsError;
+    /// <summary>Foreground colour for <see cref="InstallStatusMessage"/>: red on error, green on success.</summary>
+    public string InstallStatusForeground => InstallStatusIsError ? "#f85149" : "#3fb950";
+
+    partial void OnInstallStatusIsErrorChanged(bool value) => OnPropertyChanged(nameof(InstallStatusForeground));
 
     // ── Repack-available badge (shown alongside an installed game) ────────────
     /// <summary>True when the game is installed AND a matching repack archive is also available.</summary>
@@ -135,6 +141,14 @@ public partial class GameDetailViewModel : ViewModelBase
     [ObservableProperty] private bool _showModsPanel;
     /// <summary>Status message shown at the bottom of the mods section (save confirmation / error).</summary>
     [ObservableProperty] private string _switchModsStatus = "";
+    /// <summary>True when mods.json was found but contained no entries (vs. the file not existing at all).</summary>
+    [ObservableProperty] private bool _modsJsonExistsButEmpty;
+    /// <summary>True when no mods are loaded AND the mods.json file was not found (shows "no file" empty state).</summary>
+    public bool ShowModsNotFoundMessage => !HasSwitchMods && !ModsJsonExistsButEmpty;
+
+    partial void OnHasSwitchModsChanged(bool value)    => OnPropertyChanged(nameof(ShowModsNotFoundMessage));
+    partial void OnModsJsonExistsButEmptyChanged(bool value) => OnPropertyChanged(nameof(ShowModsNotFoundMessage));
+
     /// <summary>Full path to the mods.json currently loaded (null when mods are not available).</summary>
     private string? _ryujinxModsJsonPath;
     /// <summary>All Ryujinx mods for the current game, populated by <see cref="LoadSwitchMods"/>.</summary>
@@ -993,10 +1007,11 @@ public partial class GameDetailViewModel : ViewModelBase
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            SettingsStatus       = "Extracting ZIP…";
-            InstallStatusMessage = "⏳  Extracting archive…";
-            ExtractionProgress   = 0;
-            IsExtracting         = true;
+            SettingsStatus          = "Extracting ZIP…";
+            InstallStatusMessage    = "⏳  Extracting archive…";
+            InstallStatusIsError    = false;
+            ExtractionProgress      = 0;
+            IsExtracting            = true;
         });
         try
         {
@@ -1028,19 +1043,21 @@ public partial class GameDetailViewModel : ViewModelBase
 
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                SettingsStatus       = $"✓  Extracted to {destFolder}";
-                InstallStatusMessage = $"✓  Installed to {destFolder}";
-                ExtractionProgress   = 100;
-                IsExtracting         = false;
+                SettingsStatus          = $"✓  Extracted to {destFolder}";
+                InstallStatusMessage    = $"✓  Installed to {destFolder}";
+                InstallStatusIsError    = false;
+                ExtractionProgress      = 100;
+                IsExtracting            = false;
             });
         }
         catch (Exception ex)
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                SettingsStatus       = $"Extraction failed: {ex.Message}";
-                InstallStatusMessage = $"⛔  Extraction failed: {ex.Message}";
-                IsExtracting         = false;
+                SettingsStatus          = $"Extraction failed: {ex.Message}";
+                InstallStatusMessage    = $"⛔  Extraction failed: {ex.Message}";
+                InstallStatusIsError    = true;
+                IsExtracting            = false;
             });
         }
     }
@@ -1066,15 +1083,32 @@ public partial class GameDetailViewModel : ViewModelBase
             sevenZip = windowsCandidates.FirstOrDefault(System.IO.File.Exists);
         }
 
-        // Fall back to "7z" on PATH (works on Linux/macOS with p7zip installed)
-        sevenZip ??= "7z";
+        if (sevenZip == null)
+        {
+            // Verify "7z" actually exists on PATH before using it as a fallback,
+            // so we can return false (and let the caller open with the system handler)
+            // instead of showing a confusing "system cannot find the file" error.
+            bool isWindows = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                System.Runtime.InteropServices.OSPlatform.Windows);
+            string exeName = isWindows ? "7z.exe" : "7z";
+            bool foundOnPath = (Environment.GetEnvironmentVariable("PATH") ?? "")
+                .Split(System.IO.Path.PathSeparator)
+                .Where(dir => !string.IsNullOrWhiteSpace(dir))
+                .Any(dir => System.IO.File.Exists(System.IO.Path.Combine(dir.Trim(), exeName)));
+
+            if (!foundOnPath)
+                return false;
+
+            sevenZip = "7z";
+        }
 
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            SettingsStatus       = "Extracting archive with 7-Zip…";
-            InstallStatusMessage = "⏳  Extracting archive with 7-Zip…";
-            ExtractionProgress   = 0;
-            IsExtracting         = true;
+            SettingsStatus          = "Extracting archive with 7-Zip…";
+            InstallStatusMessage    = "⏳  Extracting archive with 7-Zip…";
+            InstallStatusIsError    = false;
+            ExtractionProgress      = 0;
+            IsExtracting            = true;
         });
 
         // Safely escape paths to avoid issues with special characters
@@ -1117,19 +1151,21 @@ public partial class GameDetailViewModel : ViewModelBase
 
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    SettingsStatus       = $"✓  Extracted to {destFolder}";
-                    InstallStatusMessage = $"✓  Installed to {destFolder}";
-                    ExtractionProgress   = 100;
-                    IsExtracting         = false;
+                    SettingsStatus          = $"✓  Extracted to {destFolder}";
+                    InstallStatusMessage    = $"✓  Installed to {destFolder}";
+                    InstallStatusIsError    = false;
+                    ExtractionProgress      = 100;
+                    IsExtracting            = false;
                 });
             }
             catch (Exception ex)
             {
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    SettingsStatus       = $"Extraction failed: {ex.Message}";
-                    InstallStatusMessage = $"⛔  Extraction failed: {ex.Message}";
-                    IsExtracting         = false;
+                    SettingsStatus          = $"Extraction failed: {ex.Message}";
+                    InstallStatusMessage    = $"⛔  Extraction failed: {ex.Message}";
+                    InstallStatusIsError    = true;
+                    IsExtracting            = false;
                 });
             }
         });
@@ -1378,6 +1414,7 @@ public partial class GameDetailViewModel : ViewModelBase
         HasMatchingRepack    = false;
         MatchingRepackLabel  = "";
         InstallStatusMessage = "";
+        InstallStatusIsError = false;
         _driveInstances      = new List<LocalGameDriveEntry>();
         DriveLabels.Clear();
         HasMultipleDrives    = false;
@@ -1866,6 +1903,9 @@ public partial class GameDetailViewModel : ViewModelBase
     [RelayCommand]
     private void OpenModsPanel()
     {
+        // Reload mods each time the panel is opened so that newly added mods are shown
+        // without requiring the user to navigate away and back.
+        LoadSwitchMods();
         ShowModsPanel = true;
     }
 
@@ -1885,10 +1925,11 @@ public partial class GameDetailViewModel : ViewModelBase
     private void LoadSwitchMods()
     {
         SwitchMods.Clear();
-        HasSwitchMods        = false;
-        ShowModsPanel        = false;
-        SwitchModsStatus     = "";
-        _ryujinxModsJsonPath = null;
+        HasSwitchMods           = false;
+        ModsJsonExistsButEmpty  = false;
+        ShowModsPanel           = false;
+        SwitchModsStatus        = "";
+        _ryujinxModsJsonPath    = null;
 
         IsSwitch = string.Equals(Platform, "Switch", StringComparison.OrdinalIgnoreCase);
         if (!IsSwitch) return;
@@ -1914,9 +1955,10 @@ public partial class GameDetailViewModel : ViewModelBase
         foreach (var mod in mods)
             SwitchMods.Add(new RyujinxModVm { Name = mod.Name, Path = mod.Path, Enabled = mod.Enabled });
 
-        HasSwitchMods = SwitchMods.Count > 0;
-        // HasSwitchMods stays false when the file exists but is empty;
-        // the panel (ShowModsPanel) shows the appropriate empty-state message.
+        HasSwitchMods          = SwitchMods.Count > 0;
+        // ModsJsonExistsButEmpty = file was found but contained no mod entries.
+        // (When modsJsonPath == null we already returned above, so here the file exists.)
+        ModsJsonExistsButEmpty = !HasSwitchMods;
     }
 
     /// <summary>Toggles the enabled state of a Ryujinx mod and persists the change to <c>mods.json</c>.</summary>

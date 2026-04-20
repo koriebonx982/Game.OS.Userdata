@@ -893,7 +893,7 @@ public sealed class GameScannerService : IDisposable
                         string? setupExe = FindSetupExe(sub);
                         results.Add(new LocalRepack
                         {
-                            Title     = StripRepackMarkers(Path.GetFileName(sub)),
+                            Title     = _fileSizeAnnotationRegex.Replace(StripRepackMarkers(Path.GetFileName(sub)), "").Trim(),
                             FilePath  = setupExe ?? sub,
                             FileType  = setupExe != null ? "setup" : "folder",
                             SizeBytes = GetDirectorySize(sub),
@@ -1107,12 +1107,20 @@ public sealed class GameScannerService : IDisposable
         @"\.(com|net|org|io)\s*$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    // Matches parenthetical file-size annotations such as "(4.67 GB)", "(12 GB)", "(850 MB)".
+    // These appear in folder/file names created by some repacking tools and should be stripped
+    // so the clean game title can be matched against the Games.Database.
+    private static readonly Regex _fileSizeAnnotationRegex = new(
+        @"\s*\(\d+(?:\.\d+)?\s*(?:GB|MB|KB|TB)\)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
     /// <summary>
     /// Normalises an archive filename stem into a human-readable game title.
     /// <list type="bullet">
     ///   <item>Replaces hyphens and underscores with spaces ("A-Way-Out" → "A Way Out").</item>
     ///   <item>Strips trailing domain suffixes (.com/.net/.org/.io) left by site-tagged filenames.</item>
     ///   <item>Strips common scene/RIP group suffixes ("A Way Out SteamRIP" → "A Way Out").</item>
+    ///   <item>Strips parenthetical file-size annotations ("Assassin's Creed (4.67 GB)" → "Assassin's Creed").</item>
     ///   <item>Collapses repeated spaces.</item>
     /// </list>
     /// </summary>
@@ -1125,6 +1133,8 @@ public sealed class GameScannerService : IDisposable
         result = _domainSuffixRegex.Replace(result, "").TrimEnd();
         // Strip trailing scene/RIP markers
         result = _archiveSuffixRegex.Replace(result, "").TrimEnd();
+        // Strip parenthetical file-size annotations (e.g. "(4.67 GB)", "(12 GB)")
+        result = _fileSizeAnnotationRegex.Replace(result, "").TrimEnd();
         // Collapse multiple spaces
         result = Regex.Replace(result, @"\s{2,}", " ").Trim();
         return result;
