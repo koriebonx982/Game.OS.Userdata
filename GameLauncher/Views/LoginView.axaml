@@ -104,6 +104,65 @@
                     </StackPanel>
                 </Border>
 
+                <!-- ══ OFFLINE PROFILES (profiles with local cache but no active session) ══ -->
+                <Border Background="#161b22" CornerRadius="12" Padding="20,16"
+                        IsVisible="{Binding HasOfflineCachedProfiles}">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="⚡" FontSize="13" Foreground="#f0883e"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="Offline Profiles" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="#8b949e"/>
+                        </StackPanel>
+                        <TextBlock Text="These profiles have local cached data and can be loaded without an internet connection."
+                                   FontSize="11" Foreground="#484f58" TextWrapping="Wrap"/>
+                        <ItemsControl ItemsSource="{Binding OfflineCachedProfiles}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                    <Button Background="Transparent" BorderThickness="0"
+                                            HorizontalAlignment="Stretch"
+                                            Padding="0"
+                                            Command="{Binding $parent[UserControl].DataContext.QuickLoginOfflineCommand}"
+                                            CommandParameter="{Binding}">
+                                        <Border Background="#0d1117" CornerRadius="10"
+                                                Padding="14,10">
+                                            <Grid ColumnDefinitions="48,*,Auto">
+                                                <!-- Avatar placeholder -->
+                                                <Border Grid.Column="0"
+                                                        Width="40" Height="40"
+                                                        CornerRadius="20"
+                                                        Background="#2d1b00">
+                                                    <TextBlock Text="{Binding [0]}"
+                                                               FontSize="18" FontWeight="Bold"
+                                                               Foreground="#f0883e"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"/>
+                                                </Border>
+                                                <!-- Name -->
+                                                <StackPanel Grid.Column="1"
+                                                            VerticalAlignment="Center"
+                                                            Spacing="2" Margin="0">
+                                                    <TextBlock Text="{Binding}"
+                                                               FontSize="15" FontWeight="SemiBold"
+                                                               Foreground="White"/>
+                                                    <TextBlock Text="Offline profile  ·  Load without internet"
+                                                               FontSize="11" Foreground="#8b949e"/>
+                                                </StackPanel>
+                                                <!-- Offline icon -->
+                                                <TextBlock Grid.Column="2"
+                                                           Text="⚡" FontSize="18"
+                                                           Foreground="#f0883e"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,4,0"/>
+                                            </Grid>
+                                        </Border>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
                 <!-- Login Card -->
                 <Border Classes="login-card">
                     <StackPanel Spacing="16">

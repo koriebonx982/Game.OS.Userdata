@@ -172,6 +172,43 @@ namespace GameLauncher.Services
             }
         }
 
+        /// <summary>
+        /// Enumerates all usernames that have a valid local cache file.
+        /// Discovers profiles by looking for <c>userdata.json</c> under each
+        /// per-user subfolder of <see cref="BaseDir"/>.
+        /// Returns an empty list when the base directory does not exist.
+        /// </summary>
+        public List<string> EnumerateAllCachedUsers()
+        {
+            var result = new List<string>();
+            if (!Directory.Exists(BaseDir)) return result;
+
+            try
+            {
+                foreach (var dir in Directory.GetDirectories(BaseDir))
+                {
+                    var cacheFile = Path.Combine(dir, "userdata.json");
+                    if (!File.Exists(cacheFile)) continue;
+
+                    try
+                    {
+                        var data = JsonSerializer.Deserialize<CachedUserData>(
+                            File.ReadAllText(cacheFile), _json);
+                        if (!string.IsNullOrWhiteSpace(data?.Username))
+                            result.Add(data.Username);
+                    }
+                    catch { /* skip corrupt cache files */ }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[OfflineCache] Could not enumerate cached users: {ex.Message}");
+            }
+
+            return result;
+        }
+
         // ── Private helpers ───────────────────────────────────────────────────
     }
 

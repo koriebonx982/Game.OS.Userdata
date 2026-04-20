@@ -32,6 +32,17 @@ public partial class LoginViewModel : ViewModelBase
     public ObservableCollection<SavedSession> SavedAccounts { get; } = new();
 
     /// <summary>
+    /// Cached profiles that have a local offline cache file but no active session
+    /// entry (e.g. sessions.json was cleared or the profile is from a different
+    /// install).  Shown as a secondary "Offline Profiles" section so the user can
+    /// select any previously-logged-in account while offline.
+    /// </summary>
+    public ObservableCollection<string> OfflineCachedProfiles { get; } = new();
+
+    /// <summary>True when <see cref="OfflineCachedProfiles"/> has at least one entry.</summary>
+    public bool HasOfflineCachedProfiles => OfflineCachedProfiles.Count > 0;
+
+    /// <summary>
     /// Invoked on successful login/restore.  The bool parameter is <c>true</c>
     /// when the session was restored from the local cache (offline mode).
     /// </summary>
@@ -44,6 +55,18 @@ public partial class LoginViewModel : ViewModelBase
         _cache        = cache;
         _offlineCache = offlineCache;
         RefreshSavedAccounts();
+        RefreshOfflineCachedProfiles();
+    }
+
+    /// <summary>
+    /// Refreshes both the session-cached accounts list and the offline-only
+    /// profiles list.  Called after logout / account-switch so the login screen
+    /// always shows up-to-date options.
+    /// </summary>
+    public void RefreshForAccountSwitch()
+    {
+        RefreshSavedAccounts();
+        RefreshOfflineCachedProfiles();
     }
 
     // ── Auto-login on startup ─────────────────────────────────────────────
@@ -321,6 +344,71 @@ public partial class LoginViewModel : ViewModelBase
         SavedAccounts.Clear();
         foreach (var s in _cache.GetSavedAccounts())
             SavedAccounts.Add(s);
+    }
+
+    /// <summary>
+    /// Refreshes <see cref="OfflineCachedProfiles"/> by enumerating all locally
+    /// cached users and filtering out those already shown in
+    /// <see cref="SavedAccounts"/> to avoid duplication.
+    /// </summary>
+    private void RefreshOfflineCachedProfiles()
+    {
+        OfflineCachedProfiles.Clear();
+
+        var sessionUsernames = new System.Collections.Generic.HashSet<string>(
+            SavedAccounts.Select(s => s.Username),
+            System.StringComparer.OrdinalIgnoreCase);
+
+        foreach (var username in _offlineCache.EnumerateAllCachedUsers())
+        {
+            if (!sessionUsernames.Contains(username))
+                OfflineCachedProfiles.Add(username);
+        }
+
+        OnPropertyChanged(nameof(HasOfflineCachedProfiles));
+    }
+
+    /// <summary>
+    /// Loads a cached profile directly from the local offline cache — no
+    /// network or password required.  Only available when a valid cache file
+    /// exists for <paramref name="username"/>.
+    /// </summary>
+    [RelayCommand]
+    private System.Threading.Tasks.Task QuickLoginOffline(string? username)
+    {
+        if (string.IsNullOrWhiteSpace(username)) return System.Threading.Tasks.Task.CompletedTask;
+
+        var offlineData = _offlineCache.Load(username);
+        if (offlineData?.Profile != null && offlineData.Games != null
+            && offlineData.Achievements != null)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"[OfflineProfile] Loading cached profile for '{username}'.");
+            EnrichGames(offlineData.Games);
+
+            // Persist a minimal session entry so the account appears in SavedAccounts
+            // after the user returns to the login screen.
+            _cache.SaveSession(new CachedSession
+            {
+                Username    = offlineData.Profile.Username,
+                Email       = offlineData.Profile.Email,
+                Token       = "",
+                AvatarColor = "#1e90ff",
+                SavedAt     = System.DateTime.UtcNow.ToString("o"),
+                RememberMe  = false,
+            });
+            RefreshSavedAccounts();
+            RefreshOfflineCachedProfiles();
+
+            OnLoginSuccess?.Invoke(
+                offlineData.Profile, offlineData.Games, offlineData.Achievements, true);
+        }
+        else
+        {
+            ErrorMessage = $"No valid offline cache found for '{username}'.";
+        }
+
+        return System.Threading.Tasks.Task.CompletedTask;
     }
 
     /// <summary>

@@ -752,6 +752,30 @@ namespace GameLauncher.Services
         }
 
         /// <summary>
+        /// Loads the disk-cached game list for <paramref name="platform"/> regardless of
+        /// its age (TTL).  Used as an offline fallback in the Store view so the user can
+        /// still browse previously-loaded platform catalogues without a network connection.
+        /// Returns <c>null</c> when no cache file exists.
+        /// </summary>
+        public static List<DatabaseGame>? TryLoadStaleDiskCacheForStore(string platform)
+        {
+            try
+            {
+                platform = NormalizePlatform(platform);
+                string file = Path.Combine(DbCacheDir, $"{platform}.json");
+                if (!File.Exists(file)) return null;
+
+                var opts  = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var games = JsonSerializer.Deserialize<List<DatabaseGame>>(File.ReadAllText(file), opts);
+                System.Diagnostics.Debug.WriteLine(
+                    $"[GitHubDataService] Stale disk cache for {platform}: " +
+                    $"{games?.Count ?? 0} games (last written {File.GetLastWriteTimeUtc(file):u}).");
+                return games?.Count > 0 ? games : null;
+            }
+            catch { return null; }
+        }
+
+        /// <summary>
         /// Removes the cached game list for <paramref name="platform"/> from both the
         /// in-memory and disk caches so the next call to <see cref="FetchGamesDatabaseAsync"/>
         /// re-fetches fresh data from GitHub.
