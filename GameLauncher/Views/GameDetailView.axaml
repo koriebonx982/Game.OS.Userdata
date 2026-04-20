@@ -137,8 +137,8 @@
                             </Button>
                             <!-- Mods button — visible for Nintendo Switch games -->
                             <Button Classes="btn-secondary"
-                                    Padding="16,12" ToolTip.Tip="Open Mods Folder"
-                                    Command="{Binding OpenSwitchModsFolderCommand}"
+                                    Padding="16,12" ToolTip.Tip="Manage Mods"
+                                    Command="{Binding OpenModsPanelCommand}"
                                     IsVisible="{Binding IsSwitch}">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
                                     <TextBlock Text="🧩" FontSize="14" VerticalAlignment="Center"/>
@@ -820,29 +820,42 @@
                 </Border>
 
                 <!-- ── Nintendo Switch Ryujinx Mods section ── -->
-                <Border IsVisible="{Binding HasSwitchMods}"
+                <Border IsVisible="{Binding ShowModsPanel}"
                         Background="#161b22" CornerRadius="12"
                         Padding="24,20" Margin="0,0,0,24">
                     <StackPanel Spacing="14">
 
                         <!-- Section header -->
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <TextBlock Text="🧩" FontSize="18" VerticalAlignment="Center"/>
-                            <TextBlock Text="Ryujinx Mods"
-                                       FontSize="16" FontWeight="Bold"
-                                       Foreground="White" VerticalAlignment="Center"/>
-                            <Border CornerRadius="10" Padding="8,3" Background="#1f6feb"
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="🧩" FontSize="18" VerticalAlignment="Center"/>
+                                <TextBlock Text="Ryujinx Mods"
+                                           FontSize="16" FontWeight="Bold"
+                                           Foreground="White" VerticalAlignment="Center"/>
+                                <Border CornerRadius="10" Padding="8,3" Background="#1f6feb"
+                                        VerticalAlignment="Center"
+                                        IsVisible="{Binding HasSwitchMods}">
+                                    <TextBlock Text="{Binding SwitchMods.Count}"
+                                               FontSize="12" FontWeight="Bold" Foreground="White"/>
+                                </Border>
+                            </StackPanel>
+                            <!-- Close button -->
+                            <Button Grid.Column="1"
+                                    Command="{Binding CloseModsPanelCommand}"
+                                    Background="Transparent" BorderThickness="0"
+                                    Padding="6,4" Cursor="Hand"
+                                    ToolTip.Tip="Close"
                                     VerticalAlignment="Center">
-                                <TextBlock Text="{Binding SwitchMods.Count}"
-                                           FontSize="12" FontWeight="Bold" Foreground="White"/>
-                            </Border>
-                        </StackPanel>
+                                <TextBlock Text="✕" FontSize="14" Foreground="#8b949e"/>
+                            </Button>
+                        </Grid>
 
                         <TextBlock Text="Enable or disable mods for this game in Ryujinx."
                                    FontSize="12" Foreground="#8b949e"/>
 
                         <!-- Mod list -->
-                        <ItemsControl ItemsSource="{Binding SwitchMods}">
+                        <ItemsControl ItemsSource="{Binding SwitchMods}"
+                                      IsVisible="{Binding HasSwitchMods}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:RyujinxModVm">
                                     <Border Background="#21262d" CornerRadius="8"
@@ -893,10 +906,33 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
+                        <!-- Empty state — shown when mods.json has no entries -->
+                        <Border IsVisible="{Binding !HasSwitchMods}"
+                                Background="#21262d" CornerRadius="8" Padding="16,12">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="No mods found in mods.json."
+                                           FontSize="13" Foreground="#8b949e"/>
+                                <TextBlock Text="Add mods to the mods folder, then re-open this panel."
+                                           FontSize="11" Foreground="#6e7681"/>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Status message -->
                         <TextBlock Text="{Binding SwitchModsStatus}"
                                    FontSize="12" Foreground="#3fb950"
                                    IsVisible="{Binding SwitchModsStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+                        <!-- Open Mods Folder button -->
+                        <Button Classes="btn-secondary"
+                                Padding="14,8"
+                                Command="{Binding OpenSwitchModsFolderCommand}"
+                                HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="📂" FontSize="13" VerticalAlignment="Center"/>
+                                <TextBlock Text="Open Mods Folder" FontSize="12"
+                                           FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
 
                     </StackPanel>
                 </Border>
