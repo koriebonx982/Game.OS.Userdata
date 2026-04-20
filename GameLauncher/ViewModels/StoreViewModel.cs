@@ -285,6 +285,46 @@ public partial class StoreViewModel : ViewModelBase, IDisposable
         {
             // Platform changed before load completed — silently discard
         }
+        catch (System.Net.Http.HttpRequestException ex)
+        {
+            if (ct.IsCancellationRequested) return;
+
+            // Network unavailable — try to serve from the stale disk cache so the Store
+            // remains functional offline (mirrors the offline-first goal from PR #218).
+            System.Diagnostics.Debug.WriteLine(
+                $"[StoreVM] Network unavailable loading {platform}: {ex.Message}. " +
+                "Trying local disk cache (may be stale).");
+
+            var stale = Services.GitHubDataService.TryLoadStaleDiskCacheForStore(platform);
+            if (stale != null && stale.Count > 0)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[StoreVM] Loaded {stale.Count} games for {platform} from local cache (offline).");
+                _allStore = stale
+                    .Select(g => new StoreGame
+                    {
+                        Title           = System.Net.WebUtility.HtmlDecode(g.Title ?? ""),
+                        Platform        = platform,
+                        Genre           = "Unknown",
+                        Price           = "N/A",
+                        Rating          = 0,
+                        CoverUrl        = g.CoverUrl,
+                        Description     = g.Description ?? "",
+                        TrailerUrl      = g.TrailerUrl,
+                        AchievementsUrl = g.AchievementsUrl,
+                        Screenshots     = g.Screenshots,
+                        StorePageUrl    = g.StorePageUrl,
+                    })
+                    .ToList();
+                StatusMessage = $"Offline — showing cached {platform} data.";
+            }
+            else
+            {
+                StatusMessage = $"Offline — no cached data available for {platform}.";
+                _allStore = new List<StoreGame>();
+            }
+            RebuildCollections();
+        }
         catch (Exception ex)
         {
             if (!ct.IsCancellationRequested)

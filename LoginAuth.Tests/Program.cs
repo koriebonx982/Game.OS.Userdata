@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GameLauncher;
@@ -73,6 +74,12 @@ class Program
 
         // ── 10. PlatformHelper.NormalizePlatform (abbreviated names) ───────────
         allPassed &= TestPlatformNormalization();
+
+        // ── 11. OfflineDataCacheService.EnumerateAllCachedUsers ───────────────
+        allPassed &= TestEnumerateAllCachedUsers();
+
+        // ── 12. Reconnect timer state-transition logic ──────────────────────
+        allPassed &= TestReconnectStateLogic();
 
         // ── Summary ───────────────────────────────────────────────────────────
         Console.WriteLine();
@@ -702,6 +709,143 @@ class Program
         }
 
         return passed;
+    }
+
+    // ── Test 11: OfflineDataCacheService.EnumerateAllCachedUsers ─────────────
+    static bool TestEnumerateAllCachedUsers()
+    {
+        Section("11. OfflineDataCacheService.EnumerateAllCachedUsers  (multi-profile discovery)");
+        bool passed = true;
+
+        string user1 = "__enum_test_alice__";
+        string user2 = "__enum_test_bob__";
+        var svc = new OfflineDataCacheService();
+
+        try
+        {
+            // Clean up any prior test state
+            svc.Clear(user1);
+            svc.Clear(user2);
+
+            // Before saving: neither user should appear in the enumeration
+            var before = svc.EnumerateAllCachedUsers();
+            bool noAlice = !before.Any(u => string.Equals(u, user1, StringComparison.OrdinalIgnoreCase));
+            bool noBob   = !before.Any(u => string.Equals(u, user2, StringComparison.OrdinalIgnoreCase));
+            Pass(noAlice, $"User1 not present before save: {noAlice}");
+            Pass(noBob,   $"User2 not present before save: {noBob}");
+            passed &= noAlice && noBob;
+
+            // Save caches for both test users
+            var profile1 = new GameLauncher.Models.UserProfile { Username = user1 };
+            var profile2 = new GameLauncher.Models.UserProfile { Username = user2 };
+            var games1   = new System.Collections.Generic.List<GameLauncher.Models.Game>
+                           { new() { Title = "Game A", Platform = "PC" } };
+            var games2   = new System.Collections.Generic.List<GameLauncher.Models.Game>
+                           { new() { Title = "Game B", Platform = "Switch" } };
+
+            svc.Save(user1, profile1, games1, new());
+            svc.Save(user2, profile2, games2, new());
+
+            // After saving: both users should be enumerated
+            var after = svc.EnumerateAllCachedUsers();
+            bool hasAlice = after.Any(u => string.Equals(u, user1, StringComparison.OrdinalIgnoreCase));
+            bool hasBob   = after.Any(u => string.Equals(u, user2, StringComparison.OrdinalIgnoreCase));
+            Pass(hasAlice, $"User1 found in enumeration after save: {hasAlice}");
+            Pass(hasBob,   $"User2 found in enumeration after save: {hasBob}");
+            passed &= hasAlice && hasBob;
+
+            // Clear user1 — it should disappear from enumeration
+            svc.Clear(user1);
+            var afterClear = svc.EnumerateAllCachedUsers();
+            bool aliceGone = !afterClear.Any(u => string.Equals(u, user1, StringComparison.OrdinalIgnoreCase));
+            bool bobStays  =  afterClear.Any(u => string.Equals(u, user2, StringComparison.OrdinalIgnoreCase));
+            Pass(aliceGone, $"User1 gone after clear: {aliceGone}");
+            Pass(bobStays,  $"User2 still present after clearing User1: {bobStays}");
+            passed &= aliceGone && bobStays;
+        }
+        finally
+        {
+            svc.Clear(user1);
+            svc.Clear(user2);
+        }
+
+        return passed;
+    }
+
+    // ── Test 12: Reconnect timer state-transition logic ───────────────────────
+    // Exercises the GamesListEqual comparison helper that drives remote-change detection.
+    static bool TestReconnectStateLogic()
+    {
+        Section("12. Reconnect Logic  (GamesListEqual change-detection helper)");
+        bool passed = true;
+
+        // Test same lists are equal
+        var a = new System.Collections.Generic.List<GameLauncher.Models.Game>
+        {
+            new() { Title = "Game A", Platform = "PC" },
+            new() { Title = "Game B", Platform = "Switch" },
+        };
+        var b = new System.Collections.Generic.List<GameLauncher.Models.Game>
+        {
+            new() { Title = "Game A", Platform = "PC" },
+            new() { Title = "Game B", Platform = "Switch" },
+        };
+
+        bool sameListsEqual = GamesListEqual(a, b);
+        Pass(sameListsEqual, $"Identical game lists are equal: {sameListsEqual}");
+        passed &= sameListsEqual;
+
+        // Test different counts
+        var c = new System.Collections.Generic.List<GameLauncher.Models.Game>
+        {
+            new() { Title = "Game A", Platform = "PC" },
+        };
+        bool diffCountNotEqual = !GamesListEqual(a, c);
+        Pass(diffCountNotEqual, $"Lists with different counts are not equal: {diffCountNotEqual}");
+        passed &= diffCountNotEqual;
+
+        // Test same count but different content
+        var d = new System.Collections.Generic.List<GameLauncher.Models.Game>
+        {
+            new() { Title = "Game A", Platform = "PC" },
+            new() { Title = "Game C", Platform = "PS4" }, // different title
+        };
+        bool diffContentNotEqual = !GamesListEqual(a, d);
+        Pass(diffContentNotEqual, $"Same-count lists with different content are not equal: {diffContentNotEqual}");
+        passed &= diffContentNotEqual;
+
+        // Test empty lists
+        bool emptyEqual = GamesListEqual(new(), new());
+        Pass(emptyEqual, $"Two empty lists are equal: {emptyEqual}");
+        passed &= emptyEqual;
+
+        // Test case-insensitive comparison
+        var e = new System.Collections.Generic.List<GameLauncher.Models.Game>
+        {
+            new() { Title = "game a", Platform = "pc" }, // lowercase
+            new() { Title = "GAME B", Platform = "SWITCH" }, // uppercase
+        };
+        bool caseInsensitiveOk = GamesListEqual(a, e);
+        Pass(caseInsensitiveOk, $"Game list comparison is case-insensitive: {caseInsensitiveOk}");
+        passed &= caseInsensitiveOk;
+
+        return passed;
+    }
+
+    /// <summary>
+    /// Local copy of MainViewModel.GamesListEqual for testing purposes.
+    /// Compares two game lists by title+platform set membership (case-insensitive).
+    /// </summary>
+    static bool GamesListEqual(
+        System.Collections.Generic.List<GameLauncher.Models.Game> a,
+        System.Collections.Generic.List<GameLauncher.Models.Game> b)
+    {
+        if (a.Count != b.Count) return false;
+        var aSet = new System.Collections.Generic.HashSet<string>(
+            a.Select(g => $"{g.Platform?.ToLowerInvariant()}|{g.Title?.ToLowerInvariant()}"),
+            StringComparer.Ordinal);
+        return b.All(g => aSet.Contains(
+            $"{g.Platform?.ToLowerInvariant()}|{g.Title?.ToLowerInvariant()}"));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

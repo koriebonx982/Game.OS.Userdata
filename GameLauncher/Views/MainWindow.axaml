@@ -129,15 +129,26 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Sign out -->
+                    <!-- Sign out / Switch account -->
                     <Button DockPanel.Dock="Bottom"
                             Classes="nav-item"
                             HorizontalAlignment="Stretch"
                             Command="{Binding SignOutCommand}"
-                            Margin="8,0,8,16">
+                            Margin="8,0,8,4">
                         <StackPanel Orientation="Horizontal" Spacing="12">
                             <TextBlock Text="⏻" FontSize="16"/>
                             <TextBlock Text="Sign Out"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button DockPanel.Dock="Bottom"
+                            Classes="nav-item"
+                            HorizontalAlignment="Stretch"
+                            Command="{Binding SwitchAccountCommand}"
+                            Margin="8,0,8,4">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock Text="⇄" FontSize="16"/>
+                            <TextBlock Text="Switch Account"/>
                         </StackPanel>
                     </Button>
 

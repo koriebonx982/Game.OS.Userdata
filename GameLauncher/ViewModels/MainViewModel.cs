@@ -39,6 +39,23 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     private Timer? _presenceTimer;
 
+    // ── Offline reconnect timer ────────────────────────────────────────────
+    /// <summary>
+    /// Fires every 5 minutes while the app is in Offline Mode to check whether
+    /// a live server connection is available.  Stopped and disposed as soon as
+    /// the app transitions back to Online Mode.
+    /// </summary>
+    private Timer? _offlineReconnectTimer;
+
+    // ── Periodic sync timer ────────────────────────────────────────────────
+    /// <summary>
+    /// Fires every 5 minutes while the app is Online to check whether the remote
+    /// user data (games, achievements) has changed and refresh the local cache if
+    /// so.  Also re-runs the Games.Database update check to invalidate any stale
+    /// platform caches.  Stopped when the app goes Offline.
+    /// </summary>
+    private Timer? _syncCheckTimer;
+
     // ── Session data ───────────────────────────────────────────────────────
     private UserProfile     _profile      = new();
     private List<Game>      _library      = new();
@@ -303,11 +320,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Flush any pending offline changes now that we are back online
             _ = FlushPendingChangesAsync(profile.Username);
 
-            // Update presence immediately on login so the user appears "Online" to friends,
+            // Update presence immediately on login so the user appears “Online” to friends,
             // then start a background heartbeat that refreshes it every 2 minutes — mirroring
             // the web app's updatePresence() call at startup + setInterval every 2 minutes.
             _ = _client.UpdatePresenceAsync();
             StartPresenceHeartbeat();
+
+            // Start periodic sync check (every 5 minutes while online): re-fetches remote
+            // user data and invalidates stale Games.Database caches.
+            StartSyncCheckTimer();
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"[MainViewModel] Offline mode — loaded cached data for '{profile.Username}'.");
+
+            // Start the reconnect timer so the app automatically transitions back online
+            // as soon as a live server connection becomes available.
+            StartOfflineReconnectTimer();
         }
 
         var localCards = LibraryVm.GetMyGameSources()
@@ -333,11 +363,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             // Start background message polling (checks for new DMs every 60 seconds)
             StartMessagePolling();
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine(
-                $"[MainViewModel] Offline mode — loaded cached data for '{profile.Username}'.");
         }
 
         ShowLogin = false;
@@ -970,13 +995,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void SignOut()
     {
-        // Stop message polling and presence heartbeat before clearing credentials
+        // Stop all background timers before clearing credentials
         _messagePoller?.Dispose();
         _messagePoller = null;
         _lastKnownMessageAt.Clear();
 
         _presenceTimer?.Dispose();
         _presenceTimer = null;
+
+        StopOfflineReconnectTimer();
+        StopSyncCheckTimer();
 
         // Clear the saved token so the next launch shows the login form
         // (equivalent to the web calling localStorage.removeItem('gameOSUser'))
@@ -987,6 +1015,50 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _library      = new();
         _achievements = new();
         _profile      = new();
+
+        // Refresh login screen with up-to-date saved accounts and offline profiles
+        LoginVm.RefreshForAccountSwitch();
+
+        LoginVm.Username = "";
+        LoginVm.Password = "";
+        LoginVm.ErrorMessage = "";
+        LoginVm.ShowRegister = false;
+
+        ShowMain  = false;
+        ShowDetail = false;
+        ShowLogin = true;
+        IsOfflineMode = false;
+    }
+
+    /// <summary>
+    /// Returns to the accounts / login section without clearing offline caches so
+    /// that all previously-logged-in profiles remain available for offline selection.
+    /// Unlike <see cref="SignOut"/>, this does not clear the saved token — the current
+    /// session can be silently restored if the user selects the same account again.
+    /// </summary>
+    [RelayCommand]
+    private void SwitchAccount()
+    {
+        // Stop all background timers
+        _messagePoller?.Dispose();
+        _messagePoller = null;
+        _lastKnownMessageAt.Clear();
+
+        _presenceTimer?.Dispose();
+        _presenceTimer = null;
+
+        StopOfflineReconnectTimer();
+        StopSyncCheckTimer();
+
+        // Keep the session token so the account can be silently restored; only clear
+        // in-memory state so the launcher returns to the account selection screen.
+        _client.Logout();
+        _library      = new();
+        _achievements = new();
+        _profile      = new();
+
+        // Refresh login screen showing all available accounts (session + offline profiles)
+        LoginVm.RefreshForAccountSwitch();
 
         LoginVm.Username = "";
         LoginVm.Password = "";
@@ -1005,6 +1077,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _messagePoller = null;
         _presenceTimer?.Dispose();
         _presenceTimer = null;
+        StopOfflineReconnectTimer();
+        StopSyncCheckTimer();
         _scanner.Dispose();
         (_client as IDisposable)?.Dispose();
         StoreVm.Dispose();
@@ -1032,6 +1106,259 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 catch { /* presence update failure is non-fatal */ }
             });
         }, null, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(2));
+    }
+
+    // ── Offline reconnect timer ───────────────────────────────────────────────
+
+    /// <summary>Interval used for both the offline reconnect timer and the online sync-check timer.</summary>
+    private static readonly TimeSpan PeriodicCheckInterval = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// Starts a background timer that fires every 5 minutes while the app is in Offline
+    /// Mode.  On each tick it performs a lightweight connectivity check; if the server is
+    /// reachable again the session is restored, local caches are refreshed, pending changes
+    /// are flushed, and the timer is stopped.
+    /// </summary>
+    private void StartOfflineReconnectTimer()
+    {
+        _offlineReconnectTimer?.Dispose();
+        _offlineReconnectTimer = new Timer(_ =>
+        {
+            Task.Run(async () =>
+            {
+                try   { await TryReconnectAsync().ConfigureAwait(false); }
+                catch { /* reconnect attempt failure is non-fatal */ }
+            });
+        }, null, PeriodicCheckInterval, PeriodicCheckInterval);
+
+        System.Diagnostics.Debug.WriteLine(
+            "[Reconnect] Offline reconnect timer started (every 5 minutes).");
+    }
+
+    private void StopOfflineReconnectTimer()
+    {
+        _offlineReconnectTimer?.Dispose();
+        _offlineReconnectTimer = null;
+    }
+
+    /// <summary>
+    /// Called by the offline reconnect timer.  Checks server connectivity; if online,
+    /// restores the session, re-fetches user data, saves the updated local cache, flushes
+    /// the pending-changes queue, and starts online-only background services.
+    /// </summary>
+    private async Task TryReconnectAsync()
+    {
+        if (!IsOfflineMode) return;
+
+        var username = _profile?.Username;
+        if (string.IsNullOrEmpty(username)) return;
+
+        System.Diagnostics.Debug.WriteLine(
+            $"[Reconnect] Checking connectivity for '{username}'...");
+
+        try
+        {
+            // Lightweight connectivity check — does not transfer user data
+            bool connected = await _client.CheckHealthAsync().ConfigureAwait(false);
+            if (!connected)
+            {
+                System.Diagnostics.Debug.WriteLine("[Reconnect] Still offline — no server response.");
+                return;
+            }
+
+            // Server is reachable — try to restore the session using the saved token
+            var session = _sessionCache.GetSession(username);
+            var token   = session?.Token ?? "";
+
+            UserProfile profile;
+            if (!string.IsNullOrEmpty(token))
+            {
+                profile = await _client.RestoreSessionAsync(token, username).ConfigureAwait(false);
+            }
+            else
+            {
+                // No saved token — server is reachable but we cannot silently re-auth.
+                // Transition out of offline mode and let the user sign in again.
+                System.Diagnostics.Debug.WriteLine(
+                    "[Reconnect] Server reachable but no saved token — returning to login.");
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    StopOfflineReconnectTimer();
+                    IsOfflineMode = false;
+                });
+                return;
+            }
+
+            var games        = await _client.GetGamesAsync().ConfigureAwait(false);
+            var achievements = await _client.GetAchievementsAsync().ConfigureAwait(false);
+
+            System.Diagnostics.Debug.WriteLine(
+                $"[Reconnect] Online! Restored session for '{username}'. " +
+                $"Fetched {games.Count} games, {achievements.Count} achievements.");
+
+            // Enrich platforms
+            foreach (var g in games)
+                g.Platform = Models.PlatformHelper.NormalizePlatform(g.Platform);
+
+            // Update in-memory state and save fresh cache on UI thread
+            var capturedProfile = profile;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                _profile      = capturedProfile;
+                _library      = games;
+                _achievements = achievements;
+                IsOfflineMode = false;
+
+                DashboardVm.Load(_profile, _library, _achievements);
+                LibraryVm.Load(_library);
+                StoreVm.Load(GameCatalog.Store, _library, _profile, _client, _client.IsAdmin);
+                ProfileVm.Load(_profile, _library, _achievements, _client.IsAdmin);
+            });
+
+            // Persist fresh cache so the next offline session is up to date
+            _offlineCache.Save(username, profile, games, achievements);
+
+            // Flush offline mutations now that we are back online
+            _ = FlushPendingChangesAsync(username);
+
+            // Stop reconnect timer and start online-only services
+            StopOfflineReconnectTimer();
+            _ = _client.UpdatePresenceAsync();
+            StartPresenceHeartbeat();
+            StartSyncCheckTimer();
+            StartMessagePolling();
+
+            // Enrich library in the background
+            _ = EnrichLibraryFromDatabaseAsync(games);
+
+            System.Diagnostics.Debug.WriteLine(
+                $"[Reconnect] Transitioned to online mode for '{username}'.");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"[Reconnect] Attempt failed: {ex.Message}");
+        }
+    }
+
+    // ── Periodic online sync-check timer ──────────────────────────────────────
+
+    /// <summary>
+    /// Starts a background timer that fires every 5 minutes while the app is Online.
+    /// On each tick it checks whether the remote user data or Games.Database files have
+    /// changed; if so the local caches are updated and the UI is refreshed.
+    /// </summary>
+    private void StartSyncCheckTimer()
+    {
+        _syncCheckTimer?.Dispose();
+        _syncCheckTimer = new Timer(_ =>
+        {
+            Task.Run(async () =>
+            {
+                try   { await TryRefreshUserDataAsync().ConfigureAwait(false); }
+                catch { /* sync check failure is non-fatal */ }
+            });
+        }, null, PeriodicCheckInterval, PeriodicCheckInterval);
+
+        System.Diagnostics.Debug.WriteLine(
+            "[SyncCheck] Online sync-check timer started (every 5 minutes).");
+    }
+
+    private void StopSyncCheckTimer()
+    {
+        _syncCheckTimer?.Dispose();
+        _syncCheckTimer = null;
+    }
+
+    /// <summary>
+    /// Called by the online sync-check timer.  Re-fetches the logged-in user's games
+    /// and achievements from the server; if they differ from the current in-memory data
+    /// the local cache and UI are updated.  Also triggers a Games.Database staleness check.
+    /// If the network is unavailable, the app transitions to Offline Mode.
+    /// </summary>
+    private async Task TryRefreshUserDataAsync()
+    {
+        if (IsOfflineMode) return;
+
+        var username = _profile?.Username;
+        if (string.IsNullOrEmpty(username)) return;
+
+        System.Diagnostics.Debug.WriteLine(
+            $"[SyncCheck] Checking for remote userdata updates for '{username}'...");
+
+        try
+        {
+            var games        = await _client.GetGamesAsync().ConfigureAwait(false);
+            var achievements = await _client.GetAchievementsAsync().ConfigureAwait(false);
+
+            bool gamesChanged = !GamesListEqual(_library, games);
+            bool achvChanged  = achievements.Count != _achievements.Count;
+
+            if (gamesChanged || achvChanged)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[SyncCheck] Remote userdata changed for '{username}' " +
+                    $"(games: {(gamesChanged ? "changed" : "same")}, " +
+                    $"achievements: {(achvChanged ? "changed" : "same")}). Updating local cache.");
+
+                foreach (var g in games)
+                    g.Platform = Models.PlatformHelper.NormalizePlatform(g.Platform);
+
+                _library      = games;
+                _achievements = achievements;
+
+                _offlineCache.Save(username, _profile ?? new Models.UserProfile(), games, achievements);
+
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    DashboardVm.Load(_profile ?? new Models.UserProfile(), _library, _achievements);
+                    LibraryVm.Load(_library);
+                });
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[SyncCheck] Remote userdata unchanged for '{username}' — skipping update.");
+            }
+
+            // Also check Games.Database for updated platform JSON files
+            _ = Services.GitHubDataService.CheckForUpdatesAsync();
+        }
+        catch (System.Net.Http.HttpRequestException ex)
+        {
+            // Network lost — transition to Offline Mode and start the reconnect timer
+            System.Diagnostics.Debug.WriteLine(
+                $"[SyncCheck] Network lost: {ex.Message}. Switching to Offline Mode.");
+
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                IsOfflineMode = true;
+                StopSyncCheckTimer();
+                _messagePoller?.Dispose();
+                _messagePoller = null;
+                _presenceTimer?.Dispose();
+                _presenceTimer = null;
+                StartOfflineReconnectTimer();
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SyncCheck] Sync check failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Compares two game lists by title+platform set membership.
+    /// Returns <c>true</c> when both lists contain exactly the same games.
+    /// </summary>
+    private static bool GamesListEqual(List<Game> a, List<Game> b)
+    {
+        if (a.Count != b.Count) return false;
+        var aSet = new HashSet<string>(
+            a.Select(g => $"{g.Platform?.ToLowerInvariant()}|{g.Title?.ToLowerInvariant()}"),
+            StringComparer.Ordinal);
+        return b.All(g => aSet.Contains(
+            $"{g.Platform?.ToLowerInvariant()}|{g.Title?.ToLowerInvariant()}"));
     }
 
     // ── Message polling & OS notifications ────────────────────────────────────
