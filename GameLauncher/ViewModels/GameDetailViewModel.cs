@@ -131,6 +131,8 @@ public partial class GameDetailViewModel : ViewModelBase
     [ObservableProperty] private bool _isSwitch;
     /// <summary>True when at least one Ryujinx mod is found for this game's TitleID.</summary>
     [ObservableProperty] private bool _hasSwitchMods;
+    /// <summary>Controls visibility of the mods management panel (toggled by the Mods button).</summary>
+    [ObservableProperty] private bool _showModsPanel;
     /// <summary>Status message shown at the bottom of the mods section (save confirmation / error).</summary>
     [ObservableProperty] private string _switchModsStatus = "";
     /// <summary>Full path to the mods.json currently loaded (null when mods are not available).</summary>
@@ -1386,6 +1388,7 @@ public partial class GameDetailViewModel : ViewModelBase
         IsSwitch             = false;
         SwitchMods.Clear();
         HasSwitchMods        = false;
+        ShowModsPanel        = false;
         SwitchModsStatus     = "";
     }
 
@@ -1859,6 +1862,21 @@ public partial class GameDetailViewModel : ViewModelBase
     // Nintendo Switch Ryujinx mod management
     // ─────────────────────────────────────────────────────────────────────────
 
+    /// <summary>Opens the mods management panel so the user can enable/disable mods.</summary>
+    [RelayCommand]
+    private void OpenModsPanel()
+    {
+        ShowModsPanel = true;
+    }
+
+    /// <summary>Closes the mods management panel.</summary>
+    [RelayCommand]
+    private void CloseModsPanel()
+    {
+        ShowModsPanel    = false;
+        SwitchModsStatus = "";
+    }
+
     /// <summary>
     /// Loads Ryujinx mods for the current Switch game from its <c>mods.json</c>.
     /// Silently clears the mods collection for non-Switch games or when no TitleID
@@ -1868,6 +1886,7 @@ public partial class GameDetailViewModel : ViewModelBase
     {
         SwitchMods.Clear();
         HasSwitchMods        = false;
+        ShowModsPanel        = false;
         SwitchModsStatus     = "";
         _ryujinxModsJsonPath = null;
 
@@ -1896,6 +1915,8 @@ public partial class GameDetailViewModel : ViewModelBase
             SwitchMods.Add(new RyujinxModVm { Name = mod.Name, Path = mod.Path, Enabled = mod.Enabled });
 
         HasSwitchMods = SwitchMods.Count > 0;
+        // HasSwitchMods stays false when the file exists but is empty;
+        // the panel (ShowModsPanel) shows the appropriate empty-state message.
     }
 
     /// <summary>Toggles the enabled state of a Ryujinx mod and persists the change to <c>mods.json</c>.</summary>
