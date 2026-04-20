@@ -697,7 +697,7 @@ public sealed class GameScannerService : IDisposable
         // Xbox 360 archive format
         ".zar",
         // Nintendo Switch
-        ".nsp", ".xci", ".nsz", ".xcz",
+        ".nsp", ".xci", ".nca", ".nsz", ".xcz",
         // Nintendo (other)
         ".gb", ".gbc", ".gba", ".nes", ".snes", ".ds", ".nds", ".3ds", ".nro",
         // Other

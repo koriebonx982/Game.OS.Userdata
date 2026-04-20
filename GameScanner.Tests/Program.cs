@@ -194,6 +194,20 @@ class Program
             Console.WriteLine("  ❌  Roms/Nintendo - Switch/ was NOT normalised to Platform=\"Switch\"");
             passed = false;
         }
+
+        // Switch .nca ROM type detection
+        var ncaRom = detectedRoms.FirstOrDefault(r =>
+            string.Equals(r.Platform, "Switch", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(r.FileType, "nca", StringComparison.OrdinalIgnoreCase));
+        if (ncaRom != null)
+        {
+            Console.WriteLine($"  ✅  Switch .nca ROM detected: \"{ncaRom.Title}\" (TitleId={ncaRom.TitleId ?? "—"})");
+        }
+        else
+        {
+            Console.WriteLine("  ❌  Switch .nca ROM was NOT detected — ensure TestData/Roms/Nintendo - Switch/Games/*.nca exists");
+            passed = false;
+        }
         Console.WriteLine();
 
         // Archive title normalisation: "A-Way-Out-SteamRIP.zip" → "A Way Out"
