@@ -102,6 +102,14 @@ public partial class GameDetailViewModel : ViewModelBase
     [ObservableProperty] private double _extractionProgress;
     /// <summary>True while an archive is being extracted — drives the progress bar visibility.</summary>
     [ObservableProperty] private bool _isExtracting;
+    /// <summary>Status message shown in the main info panel during/after archive installation (not the settings panel).</summary>
+    [ObservableProperty] private string _installStatusMessage = "";
+
+    // ── Repack-available badge (shown alongside an installed game) ────────────
+    /// <summary>True when the game is installed AND a matching repack archive is also available.</summary>
+    [ObservableProperty] private bool _hasMatchingRepack;
+    /// <summary>Human-readable label for the matching repack (e.g. "🗜 Repack available · 12.4 GB").</summary>
+    [ObservableProperty] private string _matchingRepackLabel = "";
 
     /// <summary>Available drives for archive-repack installation.</summary>
     public ObservableCollection<InstallDriveOption> InstallDrives { get; } = new();
@@ -117,6 +125,18 @@ public partial class GameDetailViewModel : ViewModelBase
 
     /// <summary>Cached reference to the current LocalRom (if any), used to expose AdditionalPaths in settings.</summary>
     private LocalRom? _currentLocalRom;
+
+    // ── Nintendo Switch / Ryujinx mod management ──────────────────────────────
+    /// <summary>True when the current game is a Nintendo Switch title.</summary>
+    [ObservableProperty] private bool _isSwitch;
+    /// <summary>True when at least one Ryujinx mod is found for this game's TitleID.</summary>
+    [ObservableProperty] private bool _hasSwitchMods;
+    /// <summary>Status message shown at the bottom of the mods section (save confirmation / error).</summary>
+    [ObservableProperty] private string _switchModsStatus = "";
+    /// <summary>Full path to the mods.json currently loaded (null when mods are not available).</summary>
+    private string? _ryujinxModsJsonPath;
+    /// <summary>All Ryujinx mods for the current game, populated by <see cref="LoadSwitchMods"/>.</summary>
+    public ObservableCollection<RyujinxModVm> SwitchMods { get; } = new();
 
     // ── Navigation back-action ────────────────────────────────────────────────
     public System.Action? OnClose { get; set; }
@@ -971,9 +991,10 @@ public partial class GameDetailViewModel : ViewModelBase
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            SettingsStatus      = "Extracting ZIP…";
-            ExtractionProgress  = 0;
-            IsExtracting        = true;
+            SettingsStatus       = "Extracting ZIP…";
+            InstallStatusMessage = "⏳  Extracting archive…";
+            ExtractionProgress   = 0;
+            IsExtracting         = true;
         });
         try
         {
@@ -1005,17 +1026,19 @@ public partial class GameDetailViewModel : ViewModelBase
 
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                SettingsStatus     = $"✓  Extracted to {destFolder}";
-                ExtractionProgress = 100;
-                IsExtracting       = false;
+                SettingsStatus       = $"✓  Extracted to {destFolder}";
+                InstallStatusMessage = $"✓  Installed to {destFolder}";
+                ExtractionProgress   = 100;
+                IsExtracting         = false;
             });
         }
         catch (Exception ex)
         {
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                SettingsStatus = $"Extraction failed: {ex.Message}";
-                IsExtracting   = false;
+                SettingsStatus       = $"Extraction failed: {ex.Message}";
+                InstallStatusMessage = $"⛔  Extraction failed: {ex.Message}";
+                IsExtracting         = false;
             });
         }
     }
@@ -1046,9 +1069,10 @@ public partial class GameDetailViewModel : ViewModelBase
 
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            SettingsStatus     = "Extracting archive with 7-Zip…";
-            ExtractionProgress = 0;
-            IsExtracting       = true;
+            SettingsStatus       = "Extracting archive with 7-Zip…";
+            InstallStatusMessage = "⏳  Extracting archive with 7-Zip…";
+            ExtractionProgress   = 0;
+            IsExtracting         = true;
         });
 
         // Safely escape paths to avoid issues with special characters
@@ -1091,17 +1115,19 @@ public partial class GameDetailViewModel : ViewModelBase
 
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    SettingsStatus     = $"✓  Extracted to {destFolder}";
-                    ExtractionProgress = 100;
-                    IsExtracting       = false;
+                    SettingsStatus       = $"✓  Extracted to {destFolder}";
+                    InstallStatusMessage = $"✓  Installed to {destFolder}";
+                    ExtractionProgress   = 100;
+                    IsExtracting         = false;
                 });
             }
             catch (Exception ex)
             {
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    SettingsStatus = $"Extraction failed: {ex.Message}";
-                    IsExtracting   = false;
+                    SettingsStatus       = $"Extraction failed: {ex.Message}";
+                    InstallStatusMessage = $"⛔  Extraction failed: {ex.Message}";
+                    IsExtracting         = false;
                 });
             }
         });
@@ -1206,10 +1232,8 @@ public partial class GameDetailViewModel : ViewModelBase
 
         PopulatePlaytime(game.Platform, game.Title);
         ApplyInstallState(localGame, repack, localRom);
+        LoadSwitchMods();
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Populate from a store StoreGame
     // ─────────────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -1342,20 +1366,27 @@ public partial class GameDetailViewModel : ViewModelBase
         HasScreenshots = false;
         PopulateAchievements(null);
 
-        IsLocalGame      = true;
-        IsInstalled      = false;
-        IsRepack         = true;
-        IsSetupRepack    = repack.FileType == "setup";
-        ShowDrivePicker  = false;
-        RepackPath       = repack.FilePath;
-        RepackSizeLabel  = repack.SizeLabel;
-        _driveInstances  = new List<LocalGameDriveEntry>();
+        IsLocalGame          = true;
+        IsInstalled          = false;
+        IsRepack             = true;
+        IsSetupRepack        = repack.FileType == "setup";
+        ShowDrivePicker      = false;
+        RepackPath           = repack.FilePath;
+        RepackSizeLabel      = repack.SizeLabel;
+        HasMatchingRepack    = false;
+        MatchingRepackLabel  = "";
+        InstallStatusMessage = "";
+        _driveInstances      = new List<LocalGameDriveEntry>();
         DriveLabels.Clear();
-        HasMultipleDrives  = false;
-        SelectedDriveIndex = 0;
-        ActiveDriveLabel   = "";
-        ActiveDrivePath    = "";
-        ActiveExeType      = "";
+        HasMultipleDrives    = false;
+        SelectedDriveIndex   = 0;
+        ActiveDriveLabel     = "";
+        ActiveDrivePath      = "";
+        ActiveExeType        = "";
+        IsSwitch             = false;
+        SwitchMods.Clear();
+        HasSwitchMods        = false;
+        SwitchModsStatus     = "";
     }
 
     public void LoadFromLocalRom(LocalRom rom)
@@ -1383,18 +1414,22 @@ public partial class GameDetailViewModel : ViewModelBase
         HasScreenshots = false;
         PopulateAchievements(null);
 
-        IsLocalGame      = true;
-        IsInstalled      = true;   // ROM is "installed" (the file exists on disk)
-        IsRepack         = false;
-        IsSetupRepack    = false;
-        ShowDrivePicker  = false;
-        RepackPath       = "";
-        RepackSizeLabel  = "";
+        IsLocalGame          = true;
+        IsInstalled          = true;   // ROM is "installed" (the file exists on disk)
+        IsRepack             = false;
+        IsSetupRepack        = false;
+        ShowDrivePicker      = false;
+        RepackPath           = "";
+        RepackSizeLabel      = "";
+        HasMatchingRepack    = false;
+        MatchingRepackLabel  = "";
+        InstallStatusMessage = "";
 
         // Store the ROM's directory as the "folder path" so the Open Folder button works
         _currentLocalRom = rom;
         ApplyRomDriveInstances(rom);
         PopulatePlaytime(rom.Platform, rom.Title);
+        LoadSwitchMods();
     }
 
 
@@ -1411,6 +1446,11 @@ public partial class GameDetailViewModel : ViewModelBase
             IsRepack        = false;
             RepackPath      = "";
             RepackSizeLabel = "";
+            // Show a repack-available badge when the game is installed AND a repack exists.
+            HasMatchingRepack  = repack != null;
+            MatchingRepackLabel = repack != null
+                ? $"🗜  Repack available  ·  {repack.SizeLabel}"
+                : "";
 
             _driveInstances = localGame.DriveInstances.Count > 0
                 ? localGame.DriveInstances
@@ -1436,13 +1476,15 @@ public partial class GameDetailViewModel : ViewModelBase
         else if (localRom != null)
         {
             // ROM file is on a local drive — show Play button using the ROM file
-            IsInstalled      = true;
-            IsRom            = true;
-            IsRepack         = false;
-            IsSetupRepack    = false;
-            ShowDrivePicker  = false;
-            RepackPath       = "";
-            RepackSizeLabel  = "";
+            IsInstalled         = true;
+            IsRom               = true;
+            IsRepack            = false;
+            IsSetupRepack       = false;
+            ShowDrivePicker     = false;
+            RepackPath          = "";
+            RepackSizeLabel     = "";
+            HasMatchingRepack   = false;
+            MatchingRepackLabel = "";
 
             // Build one drive entry per distinct drive root so the multi-drive switcher
             // appears when the same ROM is present on several drives.
@@ -1451,30 +1493,34 @@ public partial class GameDetailViewModel : ViewModelBase
         else if (repack != null)
         {
             // Repack archive available — show Install button
-            IsInstalled      = false;
-            IsRepack         = true;
-            IsSetupRepack    = repack.FileType == "setup";
-            ShowDrivePicker  = false;
-            RepackPath       = repack.FilePath;
-            RepackSizeLabel  = repack.SizeLabel;
-            _driveInstances  = new List<LocalGameDriveEntry>();
-            ActiveDriveLabel = "";
-            ActiveDrivePath  = "";
-            ActiveExeType    = "";
+            IsInstalled         = false;
+            IsRepack            = true;
+            IsSetupRepack       = repack.FileType == "setup";
+            ShowDrivePicker     = false;
+            RepackPath          = repack.FilePath;
+            RepackSizeLabel     = repack.SizeLabel;
+            HasMatchingRepack   = false;
+            MatchingRepackLabel = "";
+            _driveInstances     = new List<LocalGameDriveEntry>();
+            ActiveDriveLabel    = "";
+            ActiveDrivePath     = "";
+            ActiveExeType       = "";
         }
         else
         {
             // Neither installed nor a repack — no action buttons
-            IsInstalled      = false;
-            IsRepack         = false;
-            IsSetupRepack    = false;
-            ShowDrivePicker  = false;
-            RepackPath       = "";
-            RepackSizeLabel  = "";
-            _driveInstances  = new List<LocalGameDriveEntry>();
-            ActiveDriveLabel = "";
-            ActiveDrivePath  = "";
-            ActiveExeType    = "";
+            IsInstalled         = false;
+            IsRepack            = false;
+            IsSetupRepack       = false;
+            ShowDrivePicker     = false;
+            RepackPath          = "";
+            RepackSizeLabel     = "";
+            HasMatchingRepack   = false;
+            MatchingRepackLabel = "";
+            _driveInstances     = new List<LocalGameDriveEntry>();
+            ActiveDriveLabel    = "";
+            ActiveDrivePath     = "";
+            ActiveExeType       = "";
         }
     }
 
@@ -1807,5 +1853,75 @@ public partial class GameDetailViewModel : ViewModelBase
                 return val.GetString() ?? "";
         }
         return "";
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Nintendo Switch Ryujinx mod management
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Loads Ryujinx mods for the current Switch game from its <c>mods.json</c>.
+    /// Silently clears the mods collection for non-Switch games or when no TitleID
+    /// is available.
+    /// </summary>
+    private void LoadSwitchMods()
+    {
+        SwitchMods.Clear();
+        HasSwitchMods        = false;
+        SwitchModsStatus     = "";
+        _ryujinxModsJsonPath = null;
+
+        IsSwitch = string.Equals(Platform, "Switch", StringComparison.OrdinalIgnoreCase);
+        if (!IsSwitch) return;
+
+        // TitleID comes from the current ROM (if any)
+        string? titleId = _currentLocalRom?.TitleId;
+        if (string.IsNullOrEmpty(titleId)) return;
+
+        // Locate the Ryujinx executable from the configured emulator for Switch
+        var emuSettings = Services.EmulatorSettingsService.Load("Switch");
+        if (string.IsNullOrEmpty(emuSettings.EmulatorPath)) return;
+
+        // Only apply logic when the configured emulator is actually Ryujinx
+        string exeName = System.IO.Path.GetFileNameWithoutExtension(emuSettings.EmulatorPath)
+                         .ToLowerInvariant();
+        if (!exeName.Contains("ryujinx")) return;
+
+        string? modsJsonPath = Services.RyujinxModService.FindModsJson(emuSettings.EmulatorPath, titleId);
+        if (modsJsonPath == null) return;
+
+        _ryujinxModsJsonPath = modsJsonPath;
+        var mods = Services.RyujinxModService.LoadMods(modsJsonPath);
+        foreach (var mod in mods)
+            SwitchMods.Add(new RyujinxModVm { Name = mod.Name, Path = mod.Path, Enabled = mod.Enabled });
+
+        HasSwitchMods = SwitchMods.Count > 0;
+    }
+
+    /// <summary>Toggles the enabled state of a Ryujinx mod and persists the change to <c>mods.json</c>.</summary>
+    [RelayCommand]
+    private void ToggleSwitchMod(RyujinxModVm? mod)
+    {
+        if (mod == null || string.IsNullOrEmpty(_ryujinxModsJsonPath)) return;
+
+        mod.Enabled = !mod.Enabled;
+
+        // Persist all mods back to mods.json
+        var modList = SwitchMods.Select(m => new GameLauncher.Models.RyujinxMod
+        {
+            Name    = m.Name,
+            Path    = m.Path,
+            Enabled = m.Enabled,
+        }).ToList();
+
+        try
+        {
+            Services.RyujinxModService.SaveMods(_ryujinxModsJsonPath, modList);
+            SwitchModsStatus = "✓  Mod settings saved.";
+        }
+        catch (Exception ex)
+        {
+            SwitchModsStatus = $"Failed to save: {ex.Message}";
+        }
     }
 }

@@ -283,17 +283,20 @@ public sealed class GameScannerService : IDisposable
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             // ── Steam ──────────────────────────────────────────────────────
-            string steamCommon = Path.Combine(driveRoot,
-                "Program Files (x86)", "Steam", "steamapps", "common");
+            string steamApps = Path.Combine(driveRoot, "Program Files (x86)", "Steam", "steamapps");
+            string steamCommon = Path.Combine(steamApps, "common");
             ScanDir(steamCommon, results, driveRoot, "Steam");
+            // ACF manifest scanning finds Steam games whose exe isn't at the folder root
+            ScanSteamAcfManifests(steamApps, results);
 
             // Additional Steam library folders declared in libraryfolders.vdf
-            string vdfPath = Path.Combine(driveRoot,
-                "Program Files (x86)", "Steam", "steamapps", "libraryfolders.vdf");
+            string vdfPath = Path.Combine(steamApps, "libraryfolders.vdf");
             foreach (var libPath in ParseSteamLibraryFolders(vdfPath))
             {
-                string libCommon = Path.Combine(libPath, "steamapps", "common");
+                string libSteamApps = Path.Combine(libPath, "steamapps");
+                string libCommon    = Path.Combine(libSteamApps, "common");
                 ScanDir(libCommon, results, libPath, "Steam");
+                ScanSteamAcfManifests(libSteamApps, results);
             }
 
             // ── Epic Games — manifest-based discovery ──────────────────────
@@ -346,24 +349,27 @@ public sealed class GameScannerService : IDisposable
         {
             // Linux — Steam (Flatpak and native paths)
             string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            ScanDir(Path.Combine(home, ".steam", "steam", "steamapps", "common"),
-                    results, home, "Steam");
-            ScanDir(Path.Combine(home, ".local", "share", "Steam",
-                    "steamapps", "common"),
-                    results, home, "Steam");
-            // Flatpak Steam
-            ScanDir(Path.Combine(home, ".var", "app",
-                    "com.valvesoftware.Steam", "data", "Steam",
-                    "steamapps", "common"),
-                    results, home, "Steam");
+
+            string nativeSteamApps  = Path.Combine(home, ".steam", "steam", "steamapps");
+            string localSteamApps   = Path.Combine(home, ".local", "share", "Steam", "steamapps");
+            string flatpakSteamApps = Path.Combine(home, ".var", "app",
+                "com.valvesoftware.Steam", "data", "Steam", "steamapps");
+
+            ScanDir(Path.Combine(nativeSteamApps,  "common"), results, home, "Steam");
+            ScanDir(Path.Combine(localSteamApps,   "common"), results, home, "Steam");
+            ScanDir(Path.Combine(flatpakSteamApps, "common"), results, home, "Steam");
+            ScanSteamAcfManifests(nativeSteamApps,  results);
+            ScanSteamAcfManifests(localSteamApps,   results);
+            ScanSteamAcfManifests(flatpakSteamApps, results);
 
             // Additional Steam library folders from the VDF in the native location
             string vdfLinux = Path.Combine(home, ".local", "share",
                 "Steam", "steamapps", "libraryfolders.vdf");
             foreach (var libPath in ParseSteamLibraryFolders(vdfLinux))
             {
-                string libCommon = Path.Combine(libPath, "steamapps", "common");
-                ScanDir(libCommon, results, libPath, "Steam");
+                string libSteamApps = Path.Combine(libPath, "steamapps");
+                ScanDir(Path.Combine(libSteamApps, "common"), results, libPath, "Steam");
+                ScanSteamAcfManifests(libSteamApps, results);
             }
 
             // Heroic Games Launcher (Epic/GOG on Linux)
@@ -506,8 +512,125 @@ public sealed class GameScannerService : IDisposable
         catch (IOException) { }
     }
 
+    /// <summary>
+    /// Reads Steam <c>appmanifest_*.acf</c> files from <paramref name="steamAppsDir"/> and
+    /// adds fully-installed games to <paramref name="results"/>.
+    /// <para>
+    /// ACF files reliably provide the canonical display name and install folder for every
+    /// Steam game, including games whose main executable is not at the top level of the
+    /// install folder (e.g. games that launch through a sub-folder launcher or via a
+    /// Steam bootstrapper).
+    /// </para>
+    /// <para>
+    /// Only entries with <c>StateFlags == 4</c> (fully installed) are included.
+    /// Games already added by the common-folder directory scan are skipped.
+    /// </para>
+    /// </summary>
+    internal static void ScanSteamAcfManifests(string steamAppsDir, List<LocalGame> results)
+    {
+        if (!Directory.Exists(steamAppsDir)) return;
 
-    /// Expected layout: Roms/{PlatformName}/Games/{RomFile}
+        string commonDir = Path.Combine(steamAppsDir, "common");
+        if (!Directory.Exists(commonDir)) return;
+
+        try
+        {
+            foreach (var acfFile in Directory.EnumerateFiles(steamAppsDir, "appmanifest_*.acf"))
+            {
+                try
+                {
+                    string content = File.ReadAllText(acfFile);
+
+                    string? appId      = ExtractAcfValue(content, "appid");
+                    string? name       = ExtractAcfValue(content, "name");
+                    string? installDir = ExtractAcfValue(content, "installdir");
+                    string? stateFlags = ExtractAcfValue(content, "StateFlags");
+
+                    // Only fully-installed games (StateFlags 4)
+                    if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(installDir)) continue;
+                    if (!string.IsNullOrEmpty(stateFlags) && stateFlags != "4") continue;
+
+                    string fullPath = Path.Combine(commonDir, installDir);
+                    if (!Directory.Exists(fullPath)) continue;
+
+                    // Skip if the same install folder was already added by the directory scan
+                    if (results.Any(g => string.Equals(
+                            g.FolderPath, fullPath,
+                            StringComparison.OrdinalIgnoreCase)))
+                        continue;
+
+                    // Search for an executable: top-level first, then up to two levels deep
+                    var exe = FindExecutable(fullPath)
+                           ?? FindExecutableDeep(fullPath, maxDepth: 2);
+                    // If still no exe, record the game with the folder as a placeholder so
+                    // it appears in the library and the user can set the path in settings.
+                    string driveRoot = Path.GetPathRoot(fullPath) ?? "/";
+                    results.Add(new LocalGame
+                    {
+                        Title          = name,
+                        ExecutablePath = exe?.FullPath ?? fullPath,
+                        ExecutableType = exe?.Type     ?? "folder",
+                        FolderPath     = fullPath,
+                        DriveRoot      = driveRoot,
+                        Source         = "Steam",
+                    });
+                }
+                catch { /* skip malformed ACF */ }
+            }
+        }
+        catch (UnauthorizedAccessException) { }
+        catch (IOException) { }
+    }
+
+    /// <summary>
+    /// Extracts a single string value from a VDF/ACF file given its key.
+    /// Handles the <c>"key"  "value"</c> format used by Steam.
+    /// Uses a general field-capture regex and filters by key at match time to avoid
+    /// allocating a new <see cref="Regex"/> per field on every call.
+    /// </summary>
+    /// <remarks>
+    /// <c>_acfValueRegex</c> captures all key/value pairs in one scan; <c>ExtractAcfValue</c>
+    /// then iterates the matches to find the requested key (case-insensitive).
+    /// </remarks>
+    private static readonly Regex _acfValueRegex =
+        new(@"""(\w+)""\s+""([^""]*)""", RegexOptions.Compiled);
+
+    private static string? ExtractAcfValue(string content, string key)
+    {
+        foreach (Match m in _acfValueRegex.Matches(content))
+        {
+            if (string.Equals(m.Groups[1].Value, key, StringComparison.OrdinalIgnoreCase))
+                return m.Groups[2].Value;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Like <see cref="FindExecutable"/> but searches up to <paramref name="maxDepth"/>
+    /// levels of sub-directories before giving up.  Used as a fallback for Steam games
+    /// whose main executable is nested one level below the install folder.
+    /// </summary>
+    private static ExeInfo? FindExecutableDeep(string folder, int maxDepth)
+    {
+        if (maxDepth <= 0) return null;
+        try
+        {
+            foreach (var subDir in Directory.EnumerateDirectories(folder))
+            {
+                var exe = FindExecutable(subDir);
+                if (exe != null) return exe;
+                // Recurse one more level if depth allows
+                if (maxDepth > 1)
+                {
+                    exe = FindExecutableDeep(subDir, maxDepth - 1);
+                    if (exe != null) return exe;
+                }
+            }
+        }
+        catch (UnauthorizedAccessException) { }
+        catch (IOException) { }
+        return null;
+    }
     ///                   or Roms/{PlatformName}/Games/{GameName}/{RomFile}
     ///                   or Roms/{PlatformName}/Games/{TitleID}/  (PS3/PS4/Switch folder-based)
     /// </summary>

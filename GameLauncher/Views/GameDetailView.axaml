@@ -175,7 +175,23 @@
                                                  Background="#21262d"/>
                                 </StackPanel>
                             </Border>
+                            <!-- Install status message (visible after extraction completes / fails) -->
+                            <TextBlock Text="{Binding InstallStatusMessage}"
+                                       FontSize="12" FontWeight="SemiBold"
+                                       Foreground="#3fb950"
+                                       IsVisible="{Binding InstallStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                       TextWrapping="Wrap" Margin="0,4,0,0"/>
                         </StackPanel>
+
+                        <!-- ── Repack available badge (shown when game installed AND repack exists) ── -->
+                        <Border IsVisible="{Binding HasMatchingRepack}"
+                                Background="#2d1b00" CornerRadius="6"
+                                Padding="12,8" Margin="0,10,0,0"
+                                HorizontalAlignment="Left">
+                            <TextBlock Text="{Binding MatchingRepackLabel}"
+                                       FontSize="12" Foreground="#f0a030"
+                                       FontWeight="SemiBold"/>
+                        </Border>
 
                         <!-- ── Store page button ── -->
                         <Button Classes="btn-secondary"
@@ -789,6 +805,88 @@
                                            IsVisible="{Binding ShowAllAchievements}"/>
                             </StackPanel>
                         </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- ── Nintendo Switch Ryujinx Mods section ── -->
+                <Border IsVisible="{Binding HasSwitchMods}"
+                        Background="#161b22" CornerRadius="12"
+                        Padding="24,20" Margin="0,0,0,24">
+                    <StackPanel Spacing="14">
+
+                        <!-- Section header -->
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="🧩" FontSize="18" VerticalAlignment="Center"/>
+                            <TextBlock Text="Ryujinx Mods"
+                                       FontSize="16" FontWeight="Bold"
+                                       Foreground="White" VerticalAlignment="Center"/>
+                            <Border CornerRadius="10" Padding="8,3" Background="#1f6feb"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="{Binding SwitchMods.Count}"
+                                           FontSize="12" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                        </StackPanel>
+
+                        <TextBlock Text="Enable or disable mods for this game in Ryujinx."
+                                   FontSize="12" Foreground="#8b949e"/>
+
+                        <!-- Mod list -->
+                        <ItemsControl ItemsSource="{Binding SwitchMods}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:RyujinxModVm">
+                                    <Border Background="#21262d" CornerRadius="8"
+                                            Padding="14,10" Margin="0,0,0,6">
+                                        <Grid ColumnDefinitions="*,Auto">
+
+                                            <!-- Mod info -->
+                                            <StackPanel Grid.Column="0" Spacing="4"
+                                                        VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding Name}"
+                                                               FontSize="13" FontWeight="SemiBold"
+                                                               Foreground="White"/>
+                                                    <!-- Enabled/Disabled badge -->
+                                                    <Border CornerRadius="4" Padding="6,2"
+                                                            Background="{Binding StatusBackground}">
+                                                        <TextBlock Text="{Binding StatusLabel}"
+                                                                   FontSize="10" FontWeight="Bold"
+                                                                   Foreground="{Binding StatusForeground}"/>
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Path}"
+                                                           FontSize="10" Foreground="#6e7681"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           MaxWidth="500"/>
+                                            </StackPanel>
+
+                                            <!-- Toggle button -->
+                                            <Button Grid.Column="1"
+                                                    Padding="14,7"
+                                                    CornerRadius="6"
+                                                    BorderThickness="0"
+                                                    Cursor="Hand"
+                                                    VerticalAlignment="Center"
+                                                    Command="{Binding $parent[UserControl].DataContext.ToggleSwitchModCommand}"
+                                                    CommandParameter="{Binding}">
+                                                <Button.Background>
+                                                    <SolidColorBrush Color="{Binding ToggleBackground}"/>
+                                                </Button.Background>
+                                                <TextBlock Text="{Binding ToggleLabel}"
+                                                           FontSize="12" FontWeight="Bold"
+                                                           Foreground="{Binding ToggleForeground}"/>
+                                            </Button>
+
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Status message -->
+                        <TextBlock Text="{Binding SwitchModsStatus}"
+                                   FontSize="12" Foreground="#3fb950"
+                                   IsVisible="{Binding SwitchModsStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
                     </StackPanel>
                 </Border>
 
