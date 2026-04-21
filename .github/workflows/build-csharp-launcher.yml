@@ -426,6 +426,22 @@ jobs:
           echo "✅ Linux binary published to /tmp/GameOS-Launcher-linux-x64"
           ls -lh /tmp/GameOS-Launcher-linux-x64/
 
+      # ── Add Linux-specific extras (desktop entry, installer, checker) ─────
+      # These files let Bazzite / Linux users install the launcher into their
+      # application menu and run the same GitHub-mode diagnostics as the
+      # Windows check-github-mode.vbs — no Wine or VBScript required.
+      - name: Add Linux extras to Linux artifact
+        run: |
+          cp GameLauncher/GameOS-Launcher.desktop /tmp/GameOS-Launcher-linux-x64/
+          cp GameLauncher/install-linux.sh        /tmp/GameOS-Launcher-linux-x64/
+          cp check-github-mode.sh                 /tmp/GameOS-Launcher-linux-x64/
+          chmod +x /tmp/GameOS-Launcher-linux-x64/install-linux.sh
+          chmod +x /tmp/GameOS-Launcher-linux-x64/check-github-mode.sh
+          echo "✅ Linux extras added:"
+          echo "   • GameOS-Launcher.desktop  (application menu entry)"
+          echo "   • install-linux.sh         (run once to register in app menu)"
+          echo "   • check-github-mode.sh     (bash equivalent of check-github-mode.vbs)"
+
       # ── Publish macOS x64 ────────────────────────────────────────────────
       - name: Publish macOS x64 standalone binary
         run: |

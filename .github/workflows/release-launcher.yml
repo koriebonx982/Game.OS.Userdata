@@ -158,6 +158,22 @@ jobs:
           echo "✅ Linux x64 binary published"
           ls -lh /tmp/GameOS-Launcher-linux-x64/
 
+      # ── Add Linux-specific extras (desktop entry, installer, checker) ─────
+      # Lets Bazzite / Linux users install the launcher into their application
+      # menu and run the same GitHub-mode diagnostics as check-github-mode.vbs
+      # — no Wine or VBScript required.
+      - name: Add Linux extras to Linux release package
+        run: |
+          cp GameLauncher/GameOS-Launcher.desktop /tmp/GameOS-Launcher-linux-x64/
+          cp GameLauncher/install-linux.sh        /tmp/GameOS-Launcher-linux-x64/
+          cp check-github-mode.sh                 /tmp/GameOS-Launcher-linux-x64/
+          chmod +x /tmp/GameOS-Launcher-linux-x64/install-linux.sh
+          chmod +x /tmp/GameOS-Launcher-linux-x64/check-github-mode.sh
+          echo "✅ Linux extras added:"
+          echo "   • GameOS-Launcher.desktop  (application menu entry)"
+          echo "   • install-linux.sh         (run once to register in app menu)"
+          echo "   • check-github-mode.sh     (bash equivalent of check-github-mode.vbs)"
+
       - name: Publish macOS x64 standalone binary
         run: |
           dotnet publish GameLauncher/GameLauncher.csproj \
@@ -202,7 +218,10 @@ jobs:
           tar -czf /tmp/GameOS-Launcher-linux-x64.tar.gz \
             GameLauncher \
             gameos-backend.url \
-            gameos-token.dat
+            gameos-token.dat \
+            GameOS-Launcher.desktop \
+            install-linux.sh \
+            check-github-mode.sh
           echo "✅ Packaged: /tmp/GameOS-Launcher-linux-x64.tar.gz"
           ls -lh /tmp/GameOS-Launcher-linux-x64.tar.gz
 
@@ -317,7 +336,7 @@ jobs:
           | Platform | File | Notes |
           |----------|------|-------|
           | Windows 10/11 x64 | \`GameOS-Launcher-win-x64.zip\` | Extract and run \`GameLauncher.exe\` |
-          | Linux x64 | \`GameOS-Launcher-linux-x64.tar.gz\` | \`chmod +x GameLauncher && ./GameLauncher\` |
+          | Linux x64 (Bazzite / Fedora / Ubuntu / Arch) | \`GameOS-Launcher-linux-x64.tar.gz\` | Run \`install-linux.sh\` to add to app menu, or \`chmod +x GameLauncher && ./GameLauncher\` |
           | macOS Intel | \`GameOS-Launcher-osx-x64.tar.gz\` | \`chmod +x GameLauncher && ./GameLauncher\` |
           | macOS Apple Silicon | \`GameOS-Launcher-osx-arm64.tar.gz\` | \`chmod +x GameLauncher && ./GameLauncher\` |
 
@@ -336,6 +355,20 @@ jobs:
           2. Extract the zip to any folder
           3. Double-click \`GameLauncher.exe\`
           4. Sign in — same username and password as the [Game.OS website](https://koriebonx98.github.io/Game.OS.Userdata/)
+
+          ### Quick start (Linux — Bazzite, Fedora, Ubuntu, Arch, …)
+          1. Download \`GameOS-Launcher-linux-x64.tar.gz\` below
+          2. Extract: \`tar -xzf GameOS-Launcher-linux-x64.tar.gz\`
+          3. Run the installer to add it to your application menu:
+             \`\`\`
+             chmod +x install-linux.sh && ./install-linux.sh
+             \`\`\`
+          4. Launch from your application menu (**Game.OS Launcher**) or run \`~/.local/bin/GameLauncher\`
+          5. Sign in — same username and password as the [Game.OS website](https://koriebonx98.github.io/Game.OS.Userdata/)
+
+          > **Note for Bazzite users**: If the site appears stuck in demo mode,
+          > run \`check-github-mode.sh\` (included in the tarball) — it does the
+          > same diagnostics as \`check-github-mode.vbs\` on Windows, with no Wine needed.
 
           ### Requirements
           - No .NET runtime required — fully self-contained single binary per platform
