@@ -413,15 +413,7 @@ public partial class GameDetailViewModel : ViewModelBase
     private void OpenGameFolder()
     {
         if (string.IsNullOrEmpty(ActiveDrivePath)) return;
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName        = ActiveDrivePath,
-                UseShellExecute = true
-            });
-        }
-        catch { /* best-effort */ }
+        OpenWithSystem(ActiveDrivePath);
     }
 
     /// <summary>Deletes the game folder from disk after confirmation via SettingsStatus.</summary>
@@ -1177,11 +1169,31 @@ public partial class GameDetailViewModel : ViewModelBase
     {
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            System.Diagnostics.ProcessStartInfo psi;
+
+            // On Windows, passing a directory path directly as FileName can silently
+            // fail.  Invoke explorer.exe explicitly so folders always open correctly.
+            if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                    System.Runtime.InteropServices.OSPlatform.Windows)
+                && Directory.Exists(path))
             {
-                FileName        = path,
-                UseShellExecute = true
-            });
+                psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName        = "explorer.exe",
+                    Arguments       = $"\"{path}\"",
+                    UseShellExecute = true,
+                };
+            }
+            else
+            {
+                psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName        = path,
+                    UseShellExecute = true,
+                };
+            }
+
+            System.Diagnostics.Process.Start(psi);
         }
         catch { /* best-effort */ }
     }
@@ -2005,15 +2017,7 @@ public partial class GameDetailViewModel : ViewModelBase
         string modsDir = System.IO.Path.GetDirectoryName(modsJsonPath) ?? "";
         if (string.IsNullOrEmpty(modsDir)) return;
 
-        try
-        {
-            Directory.CreateDirectory(modsDir);
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName        = modsDir,
-                UseShellExecute = true,
-            });
-        }
-        catch { /* best-effort */ }
+        try { Directory.CreateDirectory(modsDir); } catch { /* best-effort */ }
+        OpenWithSystem(modsDir);
     }
 }
