@@ -1959,17 +1959,27 @@ public partial class GameDetailViewModel : ViewModelBase
                          .ToLowerInvariant();
         if (!exeName.Contains("ryujinx")) return;
 
-        string? modsJsonPath = Services.RyujinxModService.FindModsJson(emuSettings.EmulatorPath, titleId);
-        if (modsJsonPath == null) return;
+        // Try to find an existing mods.json; fall back to the default creation path so
+        // the panel has a valid target even before the file is first created.
+        string? modsJsonPath = Services.RyujinxModService.FindModsJson(emuSettings.EmulatorPath, titleId)
+                               ?? Services.RyujinxModService.GetDefaultModsJsonPath(emuSettings.EmulatorPath, titleId);
 
         _ryujinxModsJsonPath = modsJsonPath;
+
+        if (!System.IO.File.Exists(modsJsonPath))
+        {
+            // File not yet created — show the "no mods.json" empty state.
+            // _ryujinxModsJsonPath is already set so OpenSwitchModsFolder / SaveMods
+            // know where to write when the user clicks "Open Mods Folder".
+            return;
+        }
+
         var mods = Services.RyujinxModService.LoadMods(modsJsonPath);
         foreach (var mod in mods)
             SwitchMods.Add(new RyujinxModVm { Name = mod.Name, Path = mod.Path, Enabled = mod.Enabled });
 
         HasSwitchMods          = SwitchMods.Count > 0;
         // ModsJsonExistsButEmpty = file was found but contained no mod entries.
-        // (When modsJsonPath == null we already returned above, so here the file exists.)
         ModsJsonExistsButEmpty = !HasSwitchMods;
     }
 
@@ -2002,7 +2012,10 @@ public partial class GameDetailViewModel : ViewModelBase
 
     /// <summary>
     /// Opens the Ryujinx mods folder for the current Switch game in the system file manager.
-    /// Creates the folder if it does not yet exist so users can drop mod archives in straight away.
+    /// Creates the folder and an empty <c>mods.json</c> if they do not yet exist, then
+    /// refreshes the mods panel so the updated state is immediately reflected in the UI.
+    /// Path: <c>{ryujinxDir}\portable\games\{titleId}\mods.json</c> (portable mode) or
+    /// <c>%APPDATA%\Ryujinx\games\{titleId}\mods.json</c> (standard mode).
     /// </summary>
     [RelayCommand]
     private void OpenSwitchModsFolder()
@@ -2017,7 +2030,22 @@ public partial class GameDetailViewModel : ViewModelBase
         string modsDir = System.IO.Path.GetDirectoryName(modsJsonPath) ?? "";
         if (string.IsNullOrEmpty(modsDir)) return;
 
-        try { Directory.CreateDirectory(modsDir); } catch { /* best-effort */ }
+        try
+        {
+            Directory.CreateDirectory(modsDir);
+
+            // Create an empty mods.json if it does not exist yet so Ryujinx can
+            // recognise the folder and the mods panel can read/update the file.
+            if (!File.Exists(modsJsonPath))
+                Services.RyujinxModService.SaveMods(modsJsonPath,
+                    new System.Collections.Generic.List<GameLauncher.Models.RyujinxMod>());
+        }
+        catch { /* best-effort */ }
+
+        // Reload the panel to reflect the newly created (or existing) mods.json.
+        LoadSwitchMods();
+        ShowModsPanel = true;
+
         OpenWithSystem(modsDir);
     }
 }
