@@ -1180,7 +1180,7 @@ public partial class GameDetailViewModel : ViewModelBase
                 psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName        = "explorer.exe",
-                    Arguments       = path,
+                    Arguments       = $"\"{path}\"",
                     UseShellExecute = true,
                 };
             }
