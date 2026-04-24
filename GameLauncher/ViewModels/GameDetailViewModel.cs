@@ -2012,40 +2012,66 @@ public partial class GameDetailViewModel : ViewModelBase
 
     /// <summary>
     /// Opens the Ryujinx mods folder for the current Switch game in the system file manager.
-    /// Creates the folder and an empty <c>mods.json</c> if they do not yet exist, then
-    /// refreshes the mods panel so the updated state is immediately reflected in the UI.
-    /// Path: <c>{ryujinxDir}\portable\games\{titleId}\mods.json</c> (portable mode) or
-    /// <c>%APPDATA%\Ryujinx\games\{titleId}\mods.json</c> (standard mode).
+    /// Uses the same emulator exe path stored in Settings → Switch to derive the folder,
+    /// creates it together with an empty <c>mods.json</c> on first use, then opens the
+    /// directory exactly the way the "Open ROM Folder" button opens <see cref="ActiveDrivePath"/>.
+    /// Path: <c>{ryujinxDir}\portable\games\{titleId}\</c> (portable mode) or
+    /// <c>%APPDATA%\Ryujinx\games\{titleId}\</c> (standard mode).
     /// </summary>
     [RelayCommand]
     private void OpenSwitchModsFolder()
     {
-        string? titleId = _currentLocalRom?.TitleId;
-        if (string.IsNullOrEmpty(titleId)) return;
+        // ── 1. Resolve the mods.json path ────────────────────────────────────
+        // Prefer the path already computed by LoadSwitchMods; fall back to
+        // deriving it fresh from the emulator settings + titleId.
+        string? modsJsonPath = _ryujinxModsJsonPath;
 
-        var emuSettings = Services.EmulatorSettingsService.Load("Switch");
-        if (string.IsNullOrEmpty(emuSettings.EmulatorPath)) return;
+        if (string.IsNullOrEmpty(modsJsonPath))
+        {
+            string? titleId = _currentLocalRom?.TitleId;
+            if (string.IsNullOrEmpty(titleId))
+            {
+                SwitchModsStatus = "⚠  No TitleID found for this game.";
+                return;
+            }
 
-        string modsJsonPath = Services.RyujinxModService.GetDefaultModsJsonPath(emuSettings.EmulatorPath, titleId);
+            var emuSettings = Services.EmulatorSettingsService.Load("Switch");
+            if (string.IsNullOrEmpty(emuSettings.EmulatorPath))
+            {
+                SwitchModsStatus = "⚠  Ryujinx path not configured — set it in Settings.";
+                return;
+            }
+
+            modsJsonPath = Services.RyujinxModService.GetDefaultModsJsonPath(emuSettings.EmulatorPath, titleId);
+        }
+
         string modsDir = System.IO.Path.GetDirectoryName(modsJsonPath) ?? "";
-        if (string.IsNullOrEmpty(modsDir)) return;
+        if (string.IsNullOrEmpty(modsDir))
+        {
+            SwitchModsStatus = "⚠  Could not determine the mods folder path.";
+            return;
+        }
 
+        // ── 2. Create folder + empty mods.json on first use ──────────────────
         try
         {
             Directory.CreateDirectory(modsDir);
 
-            // Create an empty mods.json if it does not exist yet so Ryujinx can
-            // recognise the folder and the mods panel can read/update the file.
             if (!File.Exists(modsJsonPath))
                 Services.RyujinxModService.SaveMods(modsJsonPath,
                     new System.Collections.Generic.List<GameLauncher.Models.RyujinxMod>());
         }
-        catch { /* best-effort */ }
+        catch (Exception ex)
+        {
+            SwitchModsStatus = $"⚠  Could not create mods folder: {ex.Message}";
+            return;
+        }
 
-        // Reload the panel to reflect the newly created (or existing) mods.json.
+        // ── 3. Reload panel state ─────────────────────────────────────────────
         LoadSwitchMods();
         ShowModsPanel = true;
 
+        // ── 4. Open the folder — same as OpenGameFolder opens ActiveDrivePath ─
         OpenWithSystem(modsDir);
     }
 }
