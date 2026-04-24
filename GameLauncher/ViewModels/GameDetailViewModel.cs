@@ -1634,6 +1634,10 @@ public partial class GameDetailViewModel : ViewModelBase
             // no TitleID at the time, re-run it now that we have one from the database.
             // This handles the common case where async enrichment completes after the initial
             // detail view is shown.
+            // _ryujinxModsJsonPath is set by a successful LoadSwitchMods run; null means it
+            // either hasn't run yet for a Switch game or returned early due to no TitleID.
+            // The additional check on _currentLocalRom?.TitleId confirms the early-return
+            // was specifically because the ROM lacked a TitleID (not a non-Switch game).
             if (IsSwitch && _ryujinxModsJsonPath == null
                          && string.IsNullOrEmpty(_currentLocalRom?.TitleId))
                 LoadSwitchMods();

@@ -1133,7 +1133,7 @@ namespace GameLauncher.Services
                                     File.ReadAllText(file), opts);
                     }
                 }
-                catch { }
+                catch { /* best-effort — a corrupt or unreadable cache file is not fatal */ }
             }
 
             if (games == null || games.Count == 0) return null;
