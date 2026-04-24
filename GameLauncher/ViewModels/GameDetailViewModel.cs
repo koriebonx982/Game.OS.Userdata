@@ -1627,7 +1627,17 @@ public partial class GameDetailViewModel : ViewModelBase
         // Cache the TitleID from the database so LoadSwitchMods can use it even
         // when the scanned ROM does not carry a TitleID of its own.
         if (!string.IsNullOrEmpty(dbGame.TitleId))
+        {
             _databaseTitleId = dbGame.TitleId;
+
+            // If LoadSwitchMods ran earlier (synchronously inside LoadFromLocalRom) but had
+            // no TitleID at the time, re-run it now that we have one from the database.
+            // This handles the common case where async enrichment completes after the initial
+            // detail view is shown.
+            if (IsSwitch && _ryujinxModsJsonPath == null
+                         && string.IsNullOrEmpty(_currentLocalRom?.TitleId))
+                LoadSwitchMods();
+        }
 
         // Populate store URL from database (overrides any previously derived one)
         if (!string.IsNullOrEmpty(dbGame.StorePageUrl) || dbGame.AppId.HasValue || !string.IsNullOrEmpty(dbGame.TitleId))
@@ -1961,8 +1971,19 @@ public partial class GameDetailViewModel : ViewModelBase
         IsSwitch = string.Equals(Platform, "Switch", StringComparison.OrdinalIgnoreCase);
         if (!IsSwitch) return;
 
-        // TitleID comes from the current ROM (if any)
+        // Resolve TitleID using a three-tier fallback:
+        //   1. TitleID embedded in the scanned ROM file itself (most precise)
+        //   2. TitleID cached from EnrichFromDatabaseGame (set when async enrichment ran first)
+        //   3. Synchronous lookup from the local GamesDbCache/Switch.json — always prefers
+        //      the locally-downloaded file so mods work even without a network round-trip.
         string? titleId = _currentLocalRom?.TitleId;
+
+        if (string.IsNullOrEmpty(titleId))
+            titleId = _databaseTitleId;
+
+        if (string.IsNullOrEmpty(titleId) && !string.IsNullOrEmpty(Title))
+            titleId = Services.GitHubDataService.TryGetTitleIdFromLocalCache("Switch", Title);
+
         if (string.IsNullOrEmpty(titleId)) return;
 
         // Locate the Ryujinx executable from the configured emulator for Switch
@@ -2044,6 +2065,13 @@ public partial class GameDetailViewModel : ViewModelBase
         if (string.IsNullOrEmpty(modsJsonPath))
         {
             string? titleId = _currentLocalRom?.TitleId;
+
+            if (string.IsNullOrEmpty(titleId))
+                titleId = _databaseTitleId;
+
+            if (string.IsNullOrEmpty(titleId) && !string.IsNullOrEmpty(Title))
+                titleId = Services.GitHubDataService.TryGetTitleIdFromLocalCache("Switch", Title);
+
             if (string.IsNullOrEmpty(titleId))
             {
                 SwitchModsStatus = "⚠  No TitleID found for this game.";

@@ -1096,6 +1096,65 @@ namespace GameLauncher.Services
             return result;
         }
 
+        /// <summary>
+        /// Synchronously looks up the TitleID for <paramref name="title"/> on
+        /// <paramref name="platform"/> using only locally cached data.
+        ///
+        /// <para>Lookup order:</para>
+        /// <list type="number">
+        ///   <item>In-memory session cache (populated by any prior <see cref="FetchGamesDatabaseAsync"/> call).</item>
+        ///   <item>Disk cache at <c>%AppData%\GameOS\GamesDbCache\{platform}.json</c> —
+        ///         read regardless of TTL so the most recently downloaded file is always used.</item>
+        /// </list>
+        ///
+        /// Returns <c>null</c> when no matching entry is found or no cache exists.
+        /// </summary>
+        public static string? TryGetTitleIdFromLocalCache(string platform, string title)
+        {
+            if (string.IsNullOrWhiteSpace(title)) return null;
+            platform = NormalizePlatform(platform);
+
+            // 1. In-memory cache — instant when the database has already been loaded this session
+            List<DatabaseGame>? games;
+            lock (_dbMemoryCache)
+                _dbMemoryCache.TryGetValue(platform, out games);
+
+            // 2. Disk cache — read stale-or-fresh; local files are kept up-to-date by
+            //    CheckForUpdatesAsync so we always prefer them over a network fetch.
+            if (games == null || games.Count == 0)
+            {
+                try
+                {
+                    string file = Path.Combine(DbCacheDir, $"{platform}.json");
+                    if (File.Exists(file))
+                    {
+                        var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                        games = JsonSerializer.Deserialize<List<DatabaseGame>>(
+                                    File.ReadAllText(file), opts);
+                    }
+                }
+                catch { }
+            }
+
+            if (games == null || games.Count == 0) return null;
+
+            // Title matching: exact → normalised (Windows-safe separators) → symbol-stripped
+            // Inline the same normalisation used by MainViewModel.NormalizeGameTitle:
+            // replace the first " - " with ": " to reconstruct subtitle separators.
+            string normalised = System.Text.RegularExpressions.Regex.Replace(
+                title, @"^(.+?) - (.+)$", "$1: $2");
+            string stripped   = Models.PlatformHelper.StripSpecialSymbols(title);
+
+            var match =
+                games.FirstOrDefault(g => string.Equals(g.Title, title,       StringComparison.OrdinalIgnoreCase))
+             ?? games.FirstOrDefault(g => string.Equals(g.Title, normalised,  StringComparison.OrdinalIgnoreCase))
+             ?? games.FirstOrDefault(g => string.Equals(
+                    Models.PlatformHelper.StripSpecialSymbols(g.Title ?? ""),
+                    stripped, StringComparison.OrdinalIgnoreCase));
+
+            return string.IsNullOrEmpty(match?.TitleId) ? null : match.TitleId;
+        }
+
         // ── GitHub API response models ─────────────────────────────────────────
         private sealed class GitHubFileResponse
         {
