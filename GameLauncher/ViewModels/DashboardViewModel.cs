@@ -67,14 +67,15 @@ public partial class DashboardViewModel : ViewModelBase
 
         if (localCards != null)
         {
-            // Build a set of (platform, title) keys already counted from the cloud library
+            // Build a set of lowercase "platform||title" keys already counted from the cloud library
             // to avoid double-counting games that appear in both the library and local cards.
             var cloudKeys = new HashSet<string>(
-                library.Select(g => $"{g.Platform.ToLowerInvariant()}||{g.Title.ToLowerInvariant()}"),
-                StringComparer.OrdinalIgnoreCase);
+                library.Select(g => $"{g.Platform.ToLowerInvariant()}||{g.Title.ToLowerInvariant()}"));
 
             foreach (var c in localCards)
             {
+                // Use EffectiveTitle (resolved via DB enrichment) so that TitleID-named ROMs
+                // (e.g. "CUSA00572" → "God of War") are correctly matched against cloud titles.
                 string key = $"{c.Platform.ToLowerInvariant()}||{c.EffectiveTitle.ToLowerInvariant()}";
                 if (cloudKeys.Contains(key)) continue; // already counted via the library entry
                 totalMinutes += PlaytimeService.GetTotalMinutes(c.Platform, c.EffectiveTitle);
