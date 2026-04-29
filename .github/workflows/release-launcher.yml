@@ -322,6 +322,33 @@ jobs:
             fi
           fi
 
+      # ── Ensure git tag exists before creating the release ────────────────────
+      # gh release create requires the tag to exist as a valid git ref.
+      # Without this, GitHub creates the tag and the draft release atomically;
+      # if a stale draft from a prior failed run already exists it will then
+      # try to PATCH it — and GitHub's publish validation rejects the tag with
+      # HTTP 422 "tag_name is not well-formed".
+      - name: Create git tag and clean up any stale draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION:  ${{ github.event.inputs.version }}
+        run: |
+          # Push the tag if it does not yet exist remotely
+          if git ls-remote --tags origin "refs/tags/$VERSION" | grep -q "refs/tags/$VERSION"; then
+            echo "ℹ  Tag $VERSION already exists remotely"
+          else
+            git tag "$VERSION"
+            git push origin "$VERSION"
+            echo "✅ Created and pushed tag $VERSION"
+          fi
+
+          # Remove any stale draft release left by a previous failed run
+          DRAFT=$(gh release view "$VERSION" --json isDraft -q '.isDraft' 2>/dev/null || echo "")
+          if [ "$DRAFT" = "true" ]; then
+            gh release delete "$VERSION" --yes || true
+            echo "🗑️  Removed stale draft release for $VERSION"
+          fi
+
       # ── Create GitHub Release ─────────────────────────────────────────────────
       - name: Create GitHub Release and upload all platform binaries
         env:
