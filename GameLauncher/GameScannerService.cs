@@ -131,12 +131,18 @@ public sealed class GameScannerService : IDisposable
             }
         }, ct);
 
-        // Group same-title games found on multiple drives into a single LocalGame
+        // Group same-title games found on multiple drives into a single LocalGame.
+        // Use NormalizeGameTitle as the group key so "Call of Duty - Ghosts" and
+        // "Call of Duty: Ghosts" are treated as the same game.
         var foundGames = new List<LocalGame>();
-        foreach (var grp in foundGamesRaw.GroupBy(g => g.Title, System.StringComparer.OrdinalIgnoreCase))
+        foreach (var grp in foundGamesRaw.GroupBy(
+            g => NormalizeGameTitle(g.Title), System.StringComparer.OrdinalIgnoreCase))
         {
             var items = grp.ToList();
             var primary = items[0];
+            // Normalize the stored title so "Call of Duty - Ghosts" displays as
+            // "Call of Duty: Ghosts" consistently across all sources.
+            primary.Title = NormalizeGameTitle(primary.Title);
             primary.DriveInstances = items.Select(g => new Models.LocalGameDriveEntry
             {
                 DriveRoot      = g.DriveRoot,
@@ -169,16 +175,12 @@ public sealed class GameScannerService : IDisposable
         }
 
         // Mark repacks whose cleaned title matches an installed game as "Installed".
-        var gameTitleSet = new HashSet<string>(
-            foundGames.Select(g => g.Title), StringComparer.OrdinalIgnoreCase);
+        // Build the set with multiple normalized variants so matching works even when
+        // symbols differ (e.g. "LEGO® Harry Potter™ Collection" vs "LEGO Harry Potter Collection")
+        // or subtitle separators differ ("Call of Duty - Ghosts" vs "Call of Duty: Ghosts").
+        var gameTitleSet = BuildFuzzyTitleSet(foundGames.Select(g => g.Title));
         foreach (var repack in foundRepacks)
-        {
-            string cleanTitle = NormalizeGameTitle(StripRepackMarkers(repack.Title));
-            repack.IsInstalledGame =
-                gameTitleSet.Contains(repack.Title) ||
-                gameTitleSet.Contains(StripRepackMarkers(repack.Title)) ||
-                gameTitleSet.Contains(cleanTitle);
-        }
+            repack.IsInstalledGame = RepackMatchesInstalledTitle(repack.Title, gameTitleSet);
 
         await _lock.WaitAsync(ct);
         try
@@ -211,7 +213,10 @@ public sealed class GameScannerService : IDisposable
         {
             foreach (var gameFolder in Directory.EnumerateDirectories(gamesPath))
             {
-                var exe = FindExecutable(gameFolder);
+                // Try top-level first, then fall back to two levels deep for games
+                // whose main executable is inside a sub-directory (e.g. Binaries/Win64/).
+                var exe = FindExecutable(gameFolder)
+                       ?? FindExecutableDeep(gameFolder, maxDepth: 2);
                 if (exe is null) continue;
 
                 results.Add(new LocalGame
@@ -255,14 +260,26 @@ public sealed class GameScannerService : IDisposable
     private static void ScanStorefrontDirs(string driveRoot, List<LocalGame> results)
     {
         // ── Helper: scan one flat storefront directory ─────────────────────
+        // Skips any folder already present in results (e.g. added by an ACF or .item
+        // manifest with the proper display name) so manifest-based names take priority
+        // over raw folder names such as "LHPCR" (LEGO® Harry Potter™ Collection).
         static void ScanDir(string path, List<LocalGame> results, string driveRoot,
                             string source = "Local")
         {
             if (!Directory.Exists(path)) return;
             try
             {
+                // Pre-build the existing folder-path set (O(n)) so each per-folder
+                // duplicate check is O(1) instead of O(n), avoiding O(n²) in large libraries.
+                var existingPaths = new HashSet<string>(
+                    results.Select(g => g.FolderPath), StringComparer.OrdinalIgnoreCase);
+
                 foreach (var gameFolder in Directory.EnumerateDirectories(path))
                 {
+                    // Skip if a manifest scan already added this folder with a proper name
+                    if (existingPaths.Contains(gameFolder))
+                        continue;
+
                     var exe = FindExecutable(gameFolder);
                     if (exe is null) continue;
                     results.Add(new LocalGame
@@ -285,9 +302,11 @@ public sealed class GameScannerService : IDisposable
             // ── Steam ──────────────────────────────────────────────────────
             string steamApps = Path.Combine(driveRoot, "Program Files (x86)", "Steam", "steamapps");
             string steamCommon = Path.Combine(steamApps, "common");
-            ScanDir(steamCommon, results, driveRoot, "Steam");
-            // ACF manifest scanning finds Steam games whose exe isn't at the folder root
+            // Run ACF manifest scan FIRST so games get their proper display names
+            // (e.g. "LEGO® Harry Potter™ Collection" instead of raw folder name "LHPCR").
+            // ScanDir runs afterwards as a fallback and skips folders already added.
             ScanSteamAcfManifests(steamApps, results);
+            ScanDir(steamCommon, results, driveRoot, "Steam");
 
             // Additional Steam library folders declared in libraryfolders.vdf
             string vdfPath = Path.Combine(steamApps, "libraryfolders.vdf");
@@ -295,8 +314,8 @@ public sealed class GameScannerService : IDisposable
             {
                 string libSteamApps = Path.Combine(libPath, "steamapps");
                 string libCommon    = Path.Combine(libSteamApps, "common");
-                ScanDir(libCommon, results, libPath, "Steam");
                 ScanSteamAcfManifests(libSteamApps, results);
+                ScanDir(libCommon, results, libPath, "Steam");
             }
 
             // ── Epic Games — manifest-based discovery ──────────────────────
@@ -355,12 +374,13 @@ public sealed class GameScannerService : IDisposable
             string flatpakSteamApps = Path.Combine(home, ".var", "app",
                 "com.valvesoftware.Steam", "data", "Steam", "steamapps");
 
-            ScanDir(Path.Combine(nativeSteamApps,  "common"), results, home, "Steam");
-            ScanDir(Path.Combine(localSteamApps,   "common"), results, home, "Steam");
-            ScanDir(Path.Combine(flatpakSteamApps, "common"), results, home, "Steam");
+            // ACF manifests first (proper names), then ScanDir as fallback
             ScanSteamAcfManifests(nativeSteamApps,  results);
             ScanSteamAcfManifests(localSteamApps,   results);
             ScanSteamAcfManifests(flatpakSteamApps, results);
+            ScanDir(Path.Combine(nativeSteamApps,  "common"), results, home, "Steam");
+            ScanDir(Path.Combine(localSteamApps,   "common"), results, home, "Steam");
+            ScanDir(Path.Combine(flatpakSteamApps, "common"), results, home, "Steam");
 
             // Additional Steam library folders from the VDF in the native location
             string vdfLinux = Path.Combine(home, ".local", "share",
@@ -368,8 +388,8 @@ public sealed class GameScannerService : IDisposable
             foreach (var libPath in ParseSteamLibraryFolders(vdfLinux))
             {
                 string libSteamApps = Path.Combine(libPath, "steamapps");
-                ScanDir(Path.Combine(libSteamApps, "common"), results, libPath, "Steam");
                 ScanSteamAcfManifests(libSteamApps, results);
+                ScanDir(Path.Combine(libSteamApps, "common"), results, libPath, "Steam");
             }
 
             // Heroic Games Launcher (Epic/GOG on Linux)
@@ -1157,6 +1177,49 @@ public sealed class GameScannerService : IDisposable
     }
 
     /// <summary>
+    /// Builds a <see cref="HashSet{T}"/> of fuzzy title variants from <paramref name="titles"/>
+    /// for efficient O(1) deduplication.  Each title is stored in four forms:
+    /// <list type="bullet">
+    ///   <item>Raw (as-is)</item>
+    ///   <item>Subtitle-normalized (" - " → ": ")</item>
+    ///   <item>Symbol-stripped (™/®/© removed)</item>
+    ///   <item>Normalized then symbol-stripped</item>
+    /// </list>
+    /// This allows matching across common name variants, e.g.
+    /// "LEGO® Harry Potter™ Collection" ↔ "LEGO Harry Potter Collection",
+    /// "Call of Duty - Ghosts" ↔ "Call of Duty: Ghosts".
+    /// </summary>
+    internal static HashSet<string> BuildFuzzyTitleSet(IEnumerable<string> titles)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var t in titles)
+        {
+            set.Add(t);
+            set.Add(NormalizeGameTitle(t));
+            set.Add(PlatformHelper.StripSpecialSymbols(t));
+            set.Add(PlatformHelper.StripSpecialSymbols(NormalizeGameTitle(t)));
+        }
+        return set;
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="repackTitle"/>, after stripping
+    /// repack markers and normalizing, matches any entry in <paramref name="titleSet"/>.
+    /// Use together with <see cref="BuildFuzzyTitleSet"/> for efficient deduplication.
+    /// </summary>
+    internal static bool RepackMatchesInstalledTitle(string repackTitle,
+                                                      HashSet<string> titleSet)
+    {
+        string stripped      = StripRepackMarkers(repackTitle).Trim();
+        string normalized    = NormalizeGameTitle(stripped);
+        string symbolStripped = PlatformHelper.StripSpecialSymbols(normalized);
+        return titleSet.Contains(repackTitle)   ||
+               titleSet.Contains(stripped)      ||
+               titleSet.Contains(normalized)    ||
+               titleSet.Contains(symbolStripped);
+    }
+
+    /// <summary>
     /// Maps verbose RetroArch/Libretro-style platform folder names to the canonical
     /// Games.Database platform identifiers used in URL paths and the C# model.
     /// <para>
@@ -1203,7 +1266,14 @@ public sealed class GameScannerService : IDisposable
             // are detected without requiring a manual rescan.
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                TryWatch(Path.Combine(driveRoot, "Program Files (x86)", "Steam", "steamapps", "common"));
+                string steamApps = Path.Combine(driveRoot, "Program Files (x86)", "Steam", "steamapps");
+                TryWatch(Path.Combine(steamApps, "common"));
+                // Also watch additional Steam library folders declared in libraryfolders.vdf
+                // so games installed to non-default Steam libraries are detected instantly.
+                string vdfPath = Path.Combine(steamApps, "libraryfolders.vdf");
+                foreach (var libPath in ParseSteamLibraryFolders(vdfPath))
+                    TryWatch(Path.Combine(libPath, "steamapps", "common"));
+
                 TryWatch(Path.Combine(driveRoot, "Program Files", "Epic Games"));
                 TryWatch(Path.Combine(driveRoot, "Program Files (x86)", "GOG Galaxy", "Games"));
                 TryWatch(Path.Combine(driveRoot, "Program Files (x86)", "Origin Games"));

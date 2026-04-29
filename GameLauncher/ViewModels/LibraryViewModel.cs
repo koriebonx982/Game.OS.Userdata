@@ -211,9 +211,13 @@ public partial class LibraryViewModel : ViewModelBase
     {
         _allMyGames.Clear();
 
-        // Build a set of installed game titles for deduplication below.
-        var installedTitles = new HashSet<string>(
-            _allLocalGames.Select(g => g.Title), StringComparer.OrdinalIgnoreCase);
+        // Build a normalized installed-title set for fuzzy repack deduplication.
+        // BuildFuzzyTitleSet includes raw, subtitle-normalized ("- " → ": "),
+        // symbol-stripped, and combined variants so "LEGO Harry Potter Collection"
+        // matches "LEGO® Harry Potter™ Collection" and "Call of Duty - Ghosts" matches
+        // "Call of Duty: Ghosts".
+        var installedTitles = GameScannerService.BuildFuzzyTitleSet(
+            _allLocalGames.Select(g => g.Title));
 
         // Build a lookup of cloud library games by (normalizedPlatform, title) so we can
         // skip local ROM entries that are already represented in the cloud library.
@@ -252,12 +256,12 @@ public partial class LibraryViewModel : ViewModelBase
         }
 
         // Repacks → platform = "PC"
-        // Skip repacks that are already represented as installed LocalGames so the user
-        // doesn't see duplicate cards for the same title.
+        // Skip repacks whose game is already installed (detected in the Games folder).
+        // Use the shared fuzzy helper so name variants (symbols, "–" vs ":", spacing)
+        // don't create duplicate cards for the same title.
         foreach (var r in _allRepacks)
         {
-            if (r.IsInstalledGame && installedTitles.Contains(
-                    GameScannerService.StripRepackMarkers(r.Title)))
+            if (GameScannerService.RepackMatchesInstalledTitle(r.Title, installedTitles))
                 continue;
 
             _allMyGames.Add(new LocalGameCardVm

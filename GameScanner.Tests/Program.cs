@@ -404,6 +404,34 @@ class Program
         if (!steamVdfPassed) passed = false;
         Console.WriteLine();
 
+        // ── TITLE NORMALIZATION TESTS ──────────────────────────────────────────
+        Console.WriteLine("📝 Game Title Normalization (\" - \" → \":\"):");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool titleNormPassed = TestTitleNormalization();
+        if (!titleNormPassed) passed = false;
+        Console.WriteLine();
+
+        // ── STEAM ACF PRIORITY OVER FOLDER NAME ───────────────────────────────
+        Console.WriteLine("🏷️  Steam ACF Name Priority (ACF name overrides folder name):");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool acfPriorityPassed = TestSteamAcfNamePriority();
+        if (!acfPriorityPassed) passed = false;
+        Console.WriteLine();
+
+        // ── GAMES FOLDER DEEP EXE DETECTION ───────────────────────────────────
+        Console.WriteLine("🔍 Games Folder Deep Exe Detection (exe in subdirectory):");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool deepExePassed = await TestGamesFolderDeepExe();
+        if (!deepExePassed) passed = false;
+        Console.WriteLine();
+
+        // ── REPACK DEDUP WITH FUZZY TITLE MATCHING ────────────────────────────
+        Console.WriteLine("🔄 Repack Dedup with Fuzzy Title Matching:");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool repackDedupPassed = TestRepackDedupFuzzy();
+        if (!repackDedupPassed) passed = false;
+        Console.WriteLine();
+
         // ── SUMMARY ───────────────────────────────────────────────────────────
         Console.WriteLine("═══════════════════════════════════════════════════════════════");
         if (passed)
@@ -965,6 +993,234 @@ class Program
     /// <summary>Escapes a file path for embedding in a JSON string.</summary>
     private static string EscapeJson(string path) =>
         path.Replace(@"\", @"\\").Replace("\"", "\\\"");
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // New feature tests
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Verifies that NormalizeGameTitle converts " - " subtitle separators to ": ".
+    /// Examples: "Call of Duty - Ghosts" → "Call of Duty: Ghosts",
+    ///           "Mass Effect - Andromeda" → "Mass Effect: Andromeda".
+    /// </summary>
+    private static bool TestTitleNormalization()
+    {
+        bool passed = true;
+
+        var cases = new[]
+        {
+            ("Call of Duty - Ghosts",           "Call of Duty: Ghosts"),
+            ("Mass Effect - Andromeda",          "Mass Effect: Andromeda"),
+            ("The Elder Scrolls V - Skyrim",     "The Elder Scrolls V: Skyrim"),
+            ("Deadpool",                          "Deadpool"),                 // no separator — unchanged
+            ("LEGO® Harry Potter™ Collection",   "LEGO® Harry Potter™ Collection"), // symbols preserved
+            ("God of War - Ragnarok",            "God of War: Ragnarok"),
+        };
+
+        foreach (var (input, expected) in cases)
+        {
+            string result = GameScannerService.NormalizeGameTitle(input);
+            if (string.Equals(result, expected, StringComparison.Ordinal))
+                Console.WriteLine($"  ✅  \"{input}\" → \"{result}\"");
+            else
+            {
+                Console.WriteLine($"  ❌  \"{input}\" → \"{result}\" (expected \"{expected}\")");
+                passed = false;
+            }
+        }
+
+        return passed;
+    }
+
+    /// <summary>
+    /// Verifies that when the same game folder exists in Steam common/ AND has an ACF
+    /// manifest with a proper display name, the ACF name wins over the raw folder name.
+    /// E.g. folder "LHPCR" → ACF name "LEGO® Harry Potter™ Collection".
+    /// </summary>
+    private static bool TestSteamAcfNamePriority()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), "GameOS_AcfPrio_" + Path.GetRandomFileName());
+        bool passed = true;
+
+        try
+        {
+            string steamAppsDir = Path.Combine(tempRoot, "steamapps");
+            string commonDir    = Path.Combine(steamAppsDir, "common");
+
+            // Create a folder with a short/cryptic name, mimicking LHPCR
+            string gameDir = Path.Combine(commonDir, "LHPCR");
+            Directory.CreateDirectory(gameDir);
+            File.WriteAllText(Path.Combine(gameDir, "game.exe"), "fake");
+
+            // Write an ACF manifest that gives the proper display name
+            WriteAcfManifest(steamAppsDir, appId: "400750",
+                             name: "LEGO Harry Potter Collection",
+                             installDir: "LHPCR", stateFlags: "4");
+
+            // Run the ACF scan first (as the production code now does), then ScanDir
+            var results = new List<LocalGame>();
+            GameScannerService.ScanSteamAcfManifests(steamAppsDir, results);
+
+            // Simulate what ScanStorefrontDirs.ScanDir does (with the new duplicate check)
+            // by only adding if the folder is not already in results.
+            if (!results.Any(g => string.Equals(g.FolderPath, gameDir, StringComparison.OrdinalIgnoreCase)))
+            {
+                results.Add(new LocalGame
+                {
+                    Title      = Path.GetFileName(gameDir), // would be "LHPCR"
+                    FolderPath = gameDir,
+                    Source     = "Steam",
+                });
+            }
+
+            // There must be exactly one entry (no duplicate cards)
+            if (results.Count == 1)
+                Console.WriteLine($"  ✅  Exactly 1 entry (no duplicate): \"{results[0].Title}\"");
+            else
+            {
+                Console.WriteLine($"  ❌  Expected 1 entry but got {results.Count} — duplicate detection broken");
+                passed = false;
+            }
+
+            // The title must be the ACF display name, not the raw folder name
+            var entry = results.FirstOrDefault();
+            if (entry != null &&
+                string.Equals(entry.Title, "LEGO Harry Potter Collection", StringComparison.OrdinalIgnoreCase))
+                Console.WriteLine($"  ✅  Title from ACF manifest: \"{entry.Title}\" (not raw \"LHPCR\")");
+            else
+            {
+                Console.WriteLine($"  ❌  Title was \"{entry?.Title}\" — expected ACF name to take priority over \"LHPCR\"");
+                passed = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ❌  AcfNamePriority test threw: {ex.Message}");
+            passed = false;
+        }
+        finally
+        {
+            try { if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true); } catch { }
+        }
+
+        return passed;
+    }
+
+    /// <summary>
+    /// Verifies that ScanGamesDir detects games even when the main executable is
+    /// inside a sub-directory of the game folder (e.g. Binaries\Win64\game.exe).
+    /// This is the scenario that caused Deadpool to show as "Not Installed".
+    /// </summary>
+    private static async Task<bool> TestGamesFolderDeepExe()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), "GameOS_DeepExe_" + Path.GetRandomFileName());
+        bool passed = true;
+
+        try
+        {
+            // Create a Games folder with one game that has its exe in a subdirectory
+            string gamesDir = Path.Combine(tempRoot, "Games");
+            string deepDir  = Path.Combine(gamesDir, "DeadpoolGame", "Binaries", "Win64");
+            Directory.CreateDirectory(deepDir);
+            File.WriteAllText(Path.Combine(deepDir, "Deadpool.exe"), "fake exe");
+
+            // Run a real scanner scan using the temp root as the drive root
+            var scanner = new GameScannerService();
+            List<LocalGame> found = new();
+            scanner.GamesUpdated += g => found = g;
+
+            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string gamesLink = Path.Combine(home, "Games");
+            bool cleanLink = false;
+
+            try
+            {
+                if (!Directory.Exists(gamesLink))
+                {
+                    Directory.CreateSymbolicLink(gamesLink, gamesDir);
+                    cleanLink = true;
+                }
+                await scanner.StartAsync();
+            }
+            finally
+            {
+                if (cleanLink) try { Directory.Delete(gamesLink); } catch { }
+                scanner.Dispose();
+            }
+
+            var deadpool = found.FirstOrDefault(g =>
+                string.Equals(g.Title, "DeadpoolGame", StringComparison.OrdinalIgnoreCase));
+            if (deadpool != null)
+                Console.WriteLine($"  ✅  DeadpoolGame detected with exe in subdirectory: {deadpool.ExecutableType}/{Path.GetFileName(deadpool.ExecutablePath)}");
+            else
+            {
+                Console.WriteLine("  ❌  DeadpoolGame NOT detected — deep exe search in Games folder is broken");
+                passed = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ❌  DeepExe test threw: {ex.Message}");
+            passed = false;
+        }
+        finally
+        {
+            try { if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true); } catch { }
+        }
+
+        return passed;
+    }
+
+    /// <summary>
+    /// Verifies that IsInstalledGame is set on repacks even when the game title has
+    /// special symbols or subtitle separator differences.
+    /// E.g. game "LEGO Harry Potter Collection" (local folder, no symbols) should
+    /// match repack "LEGO® Harry Potter™ Collection" (with symbols).
+    /// Also tests that "Call of Duty - Ghosts" repack matches installed "Call of Duty: Ghosts".
+    /// </summary>
+    private static bool TestRepackDedupFuzzy()
+    {
+        bool passed = true;
+
+        // Test NormalizeGameTitle + StripSpecialSymbols chain used by the scanner
+        var normalizeCases = new[]
+        {
+            // (repackTitle, installedFolderTitle, shouldMatch)
+            // Symbols stripped: "LEGO® Harry Potter™ Collection" matches "LEGO Harry Potter Collection"
+            ("LEGO® Harry Potter™ Collection [FitGirl Repack]",  "LEGO Harry Potter Collection", true),
+            // Subtitle separator: "Call of Duty - Ghosts" repack matches installed "Call of Duty: Ghosts"
+            ("Call of Duty - Ghosts [DODI Repack]",              "Call of Duty: Ghosts",          true),
+            // Exact match
+            ("Deadpool",                                          "Deadpool",                      true),
+            // Bracketed repack marker stripped before comparing
+            ("Grand Theft Auto V [Repack]",                      "Grand Theft Auto V",            true),
+            // Different game — must not match
+            ("Forza Horizon 4 [ElAmigos Repack]",                "Forza Horizon 5",               false),
+        };
+
+        foreach (var (repackTitle, installedTitle, shouldMatch) in normalizeCases)
+        {
+            // Simulate the scanner's gameTitleSet which includes multiple normalized variants
+            var gameTitleSet = GameScannerService.BuildFuzzyTitleSet(
+                new[] { installedTitle });
+
+            bool matched = GameScannerService.RepackMatchesInstalledTitle(repackTitle, gameTitleSet);
+
+            if (matched == shouldMatch)
+            {
+                string verdict = shouldMatch ? "correctly matches installed" : "correctly not matched";
+                Console.WriteLine($"  ✅  \"{repackTitle}\" {verdict} \"{installedTitle}\"");
+            }
+            else
+            {
+                string expected = shouldMatch ? "should match" : "should NOT match";
+                Console.WriteLine($"  ❌  \"{repackTitle}\" {expected} installed \"{installedTitle}\" but {(matched ? "did" : "did not")}");
+                passed = false;
+            }
+        }
+
+        return passed;
+    }
 
     private static async Task ScanDirectory(GameScannerService scanner, string driveRoot)
     {
