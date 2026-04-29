@@ -333,6 +333,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION:  ${{ github.event.inputs.version }}
         run: |
+          VERSION=$(echo "$VERSION" | xargs)
           # Push the tag if it does not yet exist remotely
           if git ls-remote --tags origin "refs/tags/$VERSION" | grep -q "refs/tags/$VERSION"; then
             echo "ℹ  Tag $VERSION already exists remotely"
@@ -357,6 +358,7 @@ jobs:
           EXTRA_NOTES: ${{ github.event.inputs.release_notes }}
           IS_PRERELEASE: ${{ github.event.inputs.prerelease }}
         run: |
+          VERSION=$(echo "$VERSION" | xargs)
           NOTES="## Game.OS Launcher ${VERSION}
 
           Cross-platform game launcher for Windows, Linux and macOS.
