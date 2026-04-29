@@ -432,6 +432,13 @@ class Program
         if (!repackDedupPassed) passed = false;
         Console.WriteLine();
 
+        // ── .GAMEOS-TITLE METADATA FILE ───────────────────────────────────────
+        Console.WriteLine("📄 .gameos-title metadata file (ReadGameOsTitle):");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool gameOsTitlePassed = TestReadGameOsTitle();
+        if (!gameOsTitlePassed) passed = false;
+        Console.WriteLine();
+
         // ── SUMMARY ───────────────────────────────────────────────────────────
         Console.WriteLine("═══════════════════════════════════════════════════════════════");
         if (passed)
@@ -1300,6 +1307,69 @@ class Program
             if (cleanRepacks) try { Directory.Delete(repacksLink); } catch { }
             if (cleanRoms)    try { Directory.Delete(romsLink); }    catch { }
         }
+    }
+
+    private static bool TestReadGameOsTitle()
+    {
+        bool passed = true;
+        string tempDir = Path.Combine(Path.GetTempPath(), "GameOS_TitleTest_" + Path.GetRandomFileName());
+
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+
+            // Case 1: .gameos-title file exists with a real title
+            string gameFolderWithTitle = Path.Combine(tempDir, "LHPCR");
+            Directory.CreateDirectory(gameFolderWithTitle);
+            File.WriteAllText(Path.Combine(gameFolderWithTitle, ".gameos-title"),
+                              "LEGO® Harry Potter™ Collection",
+                              System.Text.Encoding.UTF8);
+            string? result1 = GameScannerService.ReadGameOsTitle(gameFolderWithTitle);
+            if (result1 == "LEGO® Harry Potter™ Collection")
+                Console.WriteLine("  ✅  Folder with .gameos-title: title read correctly as real display name");
+            else
+            {
+                Console.WriteLine($"  ❌  Folder with .gameos-title: expected \"LEGO® Harry Potter™ Collection\", got \"{result1}\"");
+                passed = false;
+            }
+
+            // Case 2: .gameos-title file does not exist — returns null so folder name is used
+            string gameFolderNoTitle = Path.Combine(tempDir, "SomeGame");
+            Directory.CreateDirectory(gameFolderNoTitle);
+            string? result2 = GameScannerService.ReadGameOsTitle(gameFolderNoTitle);
+            if (result2 == null)
+                Console.WriteLine("  ✅  Folder without .gameos-title: returns null (falls back to folder name)");
+            else
+            {
+                Console.WriteLine($"  ❌  Folder without .gameos-title: expected null, got \"{result2}\"");
+                passed = false;
+            }
+
+            // Case 3: .gameos-title exists but contains only whitespace — returns null
+            string gameFolderEmpty = Path.Combine(tempDir, "EMPTYNAME");
+            Directory.CreateDirectory(gameFolderEmpty);
+            File.WriteAllText(Path.Combine(gameFolderEmpty, ".gameos-title"), "   \n",
+                              System.Text.Encoding.UTF8);
+            string? result3 = GameScannerService.ReadGameOsTitle(gameFolderEmpty);
+            if (result3 == null)
+                Console.WriteLine("  ✅  Folder with whitespace-only .gameos-title: returns null");
+            else
+            {
+                Console.WriteLine($"  ❌  Folder with whitespace-only .gameos-title: expected null, got \"{result3}\"");
+                passed = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ❌  Exception: {ex.Message}");
+            passed = false;
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
+
+        return passed;
     }
 
     private static string FindRepoRoot()

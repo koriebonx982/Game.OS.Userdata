@@ -166,7 +166,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // On startup, check if any cached platform JSON files are outdated and
         // invalidate stale ones so the next database fetch pulls fresh data.
         // Mirrors the web app always fetching with ?t=Date.now() cache-busting.
-        _ = Services.GitHubDataService.CheckForUpdatesAsync();
+        // Respects the user's AutoUpdate preference from app settings.
+        if (Services.AppSettingsService.Load().AutoUpdate)
+            _ = Services.GitHubDataService.CheckForUpdatesAsync();
 
         // Attempt silent auto-login from cached session (mirrors web localStorage restore)
         _ = LoginVm.TryAutoLoginAsync();
@@ -1325,8 +1327,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     $"[SyncCheck] Remote userdata unchanged for '{username}' — skipping update.");
             }
 
-            // Also check Games.Database for updated platform JSON files
-            _ = Services.GitHubDataService.CheckForUpdatesAsync();
+            // Also check Games.Database for updated platform JSON files (respects AutoUpdate preference)
+            if (Services.AppSettingsService.Load().AutoUpdate)
+                _ = Services.GitHubDataService.CheckForUpdatesAsync();
         }
         catch (System.Net.Http.HttpRequestException ex)
         {

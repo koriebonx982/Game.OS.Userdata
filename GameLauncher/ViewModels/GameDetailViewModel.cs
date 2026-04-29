@@ -979,6 +979,11 @@ public partial class GameDetailViewModel : ViewModelBase
         string destFolder = Path.Combine(option.GamesFolderPath, Title);
         try { Directory.CreateDirectory(destFolder); } catch { }
 
+        // Write a metadata file with the real display title so the scanner can show
+        // the correct game name even when the folder name is an abbreviation (e.g.
+        // "LHPCR" installed as "LEGO® Harry Potter™ Collection").
+        WriteGameOsTitle(destFolder, Title);
+
         string ext = Path.GetExtension(RepackPath).ToLowerInvariant();
         if (ext == ".zip")
         {
@@ -995,6 +1000,21 @@ public partial class GameDetailViewModel : ViewModelBase
         {
             OpenWithSystem(RepackPath);
         }
+    }
+
+    /// <summary>
+    /// Writes a <c>.gameos-title</c> file inside <paramref name="gameFolder"/> containing
+    /// <paramref name="title"/>, so that the scanner can resolve the real display name
+    /// even when the folder name is an opaque abbreviation (e.g. "LHPCR").
+    /// </summary>
+    private static void WriteGameOsTitle(string gameFolder, string title)
+    {
+        try
+        {
+            string path = Path.Combine(gameFolder, ".gameos-title");
+            File.WriteAllText(path, title.Trim(), System.Text.Encoding.UTF8);
+        }
+        catch { /* best-effort */ }
     }
 
     /// <summary>Dismisses the drive-picker without installing.</summary>

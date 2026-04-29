@@ -14,6 +14,51 @@
             <TextBlock Text="Configure emulators, paths, and launcher preferences."
                        Classes="page-subtitle" Margin="0,0,0,28"/>
 
+            <!-- ── App Preferences ── -->
+            <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,24">
+                <StackPanel Spacing="16">
+
+                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,4">
+                        <TextBlock Text="⚙" FontSize="18" VerticalAlignment="Center"/>
+                        <TextBlock Text="App Preferences" FontSize="17" FontWeight="Bold"
+                                   Foreground="#e6edf3" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Auto-update toggle -->
+                    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Auto-update Games Database on startup"
+                                       FontSize="13" Foreground="#e6edf3"/>
+                            <TextBlock Text="Checks for updated game metadata (covers, achievements) each time the launcher starts."
+                                       FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1"
+                                      IsChecked="{Binding AutoUpdate}"
+                                      OffContent="" OnContent=""
+                                      VerticalAlignment="Center"
+                                      Margin="16,0,0,0"/>
+                    </Grid>
+
+                    <Rectangle Height="1" Fill="#21262d"/>
+
+                    <!-- Intro video toggle -->
+                    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Show intro video on startup"
+                                       FontSize="13" Foreground="#e6edf3"/>
+                            <TextBlock Text="Plays the Game.OS intro animation each time the launcher opens. Disable for a faster startup."
+                                       FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1"
+                                      IsChecked="{Binding ShowIntroVideo}"
+                                      OffContent="" OnContent=""
+                                      VerticalAlignment="Center"
+                                      Margin="16,0,0,0"/>
+                    </Grid>
+
+                </StackPanel>
+            </Border>
+
             <!-- ── Emulator Configuration ── -->
             <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,24">
                 <StackPanel Spacing="16">

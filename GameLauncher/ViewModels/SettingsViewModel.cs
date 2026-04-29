@@ -18,6 +18,12 @@ public partial class SettingsViewModel : ViewModelBase
     // ── Platform emulator groups ───────────────────────────────────────────
     public ObservableCollection<EmulatorPlatformGroupVm> EmulatorGroups { get; } = new();
 
+    // ── Application-wide settings ──────────────────────────────────────────
+    /// <summary>Check for Games.Database updates on startup.</summary>
+    [ObservableProperty] private bool _autoUpdate = true;
+    /// <summary>Play the Game.OS intro animation when the launcher starts.</summary>
+    [ObservableProperty] private bool _showIntroVideo = true;
+
     // ── Status message ─────────────────────────────────────────────────────
     [ObservableProperty] private string _statusMessage = "";
     [ObservableProperty] private bool   _isSaveSuccess;
@@ -38,6 +44,11 @@ public partial class SettingsViewModel : ViewModelBase
                 group.Emulators.Add(new EmulatorRowVm(platform, s));
             EmulatorGroups.Add(group);
         }
+
+        var appSettings = AppSettingsService.Load();
+        AutoUpdate     = appSettings.AutoUpdate;
+        ShowIntroVideo = appSettings.ShowIntroVideo;
+
         StatusMessage = "";
     }
 
@@ -56,6 +67,13 @@ public partial class SettingsViewModel : ViewModelBase
             }).ToList();
             EmulatorSettingsService.SaveAll(group.Platform, list);
         }
+
+        AppSettingsService.Save(new Models.AppSettings
+        {
+            AutoUpdate = AutoUpdate,
+            ShowIntroVideo = ShowIntroVideo,
+        });
+
         StatusMessage = "✅ Settings saved!";
         IsSaveSuccess = true;
     }

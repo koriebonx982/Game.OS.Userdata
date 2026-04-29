@@ -273,6 +273,28 @@ namespace GameLauncher.Models
         public bool   GamesExists   { get; set; }
     }
 
+    // ── Application-wide settings ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Application-wide preferences persisted by <see cref="GameLauncher.Services.AppSettingsService"/>.
+    /// </summary>
+    public class AppSettings
+    {
+        /// <summary>
+        /// When <see langword="true"/> (the default), the launcher checks whether the
+        /// Games.Database platform JSON files are stale on every startup and downloads
+        /// fresh data as needed.  Set to <see langword="false"/> to skip the network
+        /// check and always use the locally cached database.
+        /// </summary>
+        [JsonPropertyName("autoUpdate")]    public bool AutoUpdate    { get; set; } = true;
+
+        /// <summary>
+        /// When <see langword="true"/> (the default), the launcher plays the Game.OS
+        /// intro animation on startup.  Set to <see langword="false"/> to skip it.
+        /// </summary>
+        [JsonPropertyName("showIntroVideo")] public bool ShowIntroVideo { get; set; } = true;
+    }
+
     // ── Game launch settings (saved locally per game title) ───────────────────
 
     /// <summary>

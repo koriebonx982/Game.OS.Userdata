@@ -219,9 +219,13 @@ public sealed class GameScannerService : IDisposable
                        ?? FindExecutableDeep(gameFolder, maxDepth: 2);
                 if (exe is null) continue;
 
+                // Prefer the real display name stored in .gameos-title (written by the
+                // launcher when a repack is installed) over the raw folder name.
+                string title = ReadGameOsTitle(gameFolder) ?? Path.GetFileName(gameFolder);
+
                 results.Add(new LocalGame
                 {
-                    Title          = Path.GetFileName(gameFolder),
+                    Title          = title,
                     ExecutablePath = exe.FullPath,
                     ExecutableType = exe.Type,
                     FolderPath     = gameFolder,
@@ -282,9 +286,14 @@ public sealed class GameScannerService : IDisposable
 
                     var exe = FindExecutable(gameFolder);
                     if (exe is null) continue;
+
+                    // Prefer the real display name stored in .gameos-title (written by the
+                    // launcher when a repack is installed) over the raw folder name.
+                    string title = ReadGameOsTitle(gameFolder) ?? Path.GetFileName(gameFolder);
+
                     results.Add(new LocalGame
                     {
-                        Title          = Path.GetFileName(gameFolder),
+                        Title          = title,
                         ExecutablePath = exe.FullPath,
                         ExecutableType = exe.Type,
                         FolderPath     = gameFolder,
@@ -940,6 +949,23 @@ public sealed class GameScannerService : IDisposable
     // ─────────────────────────────────────────────────────────────────────────
 
     private sealed record ExeInfo(string FullPath, string Type);
+
+    /// <summary>
+    /// Reads the <c>.gameos-title</c> metadata file written by the launcher when a
+    /// repack is installed to a folder.  Returns the stored title string, or
+    /// <see langword="null"/> when the file does not exist or cannot be read.
+    /// </summary>
+    internal static string? ReadGameOsTitle(string folder)
+    {
+        try
+        {
+            string path = Path.Combine(folder, ".gameos-title");
+            if (!File.Exists(path)) return null;
+            string title = File.ReadAllText(path, System.Text.Encoding.UTF8).Trim();
+            return string.IsNullOrEmpty(title) ? null : title;
+        }
+        catch { return null; }
+    }
 
     /// <summary>
     /// Looks for a setup/install executable inside a repack folder.
