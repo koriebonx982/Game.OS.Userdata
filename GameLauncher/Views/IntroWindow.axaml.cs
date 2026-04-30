@@ -8,11 +8,16 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace GameLauncher.Views;
 
 public partial class IntroWindow : Window
 {
+    // Guard so Core.Initialize is only ever called once per process.
+    // volatile ensures the write is visible to all threads without a lock.
+    private static volatile bool _vlcCoreInitialized;
+
     private LibVLC? _libVlc;
     private MediaPlayer? _mediaPlayer;
     private Media? _media;
@@ -48,31 +53,31 @@ public partial class IntroWindow : Window
 
         try
         {
-            // Provide the app directory so VLC can locate its native DLLs even
-            // when the working directory differs from the executable's location.
-            var appDir = AppContext.BaseDirectory;
-            DevLogService.Log($"[IntroWindow] App directory for VLC search: '{appDir}'");
-
-            if (!string.IsNullOrEmpty(appDir) && Directory.Exists(appDir))
+            if (!_vlcCoreInitialized)
             {
-                try
+                // Provide the app directory so VLC can locate its native DLLs even
+                // when the working directory differs from the executable's location.
+                var appDir = AppContext.BaseDirectory;
+                DevLogService.Log($"[IntroWindow] App directory for VLC search: '{appDir}'");
+
+                if (!string.IsNullOrEmpty(appDir) && Directory.Exists(appDir))
                 {
                     DevLogService.Log($"[IntroWindow] Calling Core.Initialize('{appDir}')…");
                     Core.Initialize(appDir);
                     DevLogService.Log("[IntroWindow] Core.Initialize(appDir) succeeded.");
                 }
-                catch (Exception initEx)
+                else
                 {
-                    DevLogService.Log($"[IntroWindow] Core.Initialize(appDir) failed: {initEx.Message} — falling back to Core.Initialize().");
+                    DevLogService.Log("[IntroWindow] appDir is empty or missing — calling Core.Initialize().");
                     Core.Initialize();
-                    DevLogService.Log("[IntroWindow] Core.Initialize() fallback succeeded.");
+                    DevLogService.Log("[IntroWindow] Core.Initialize() succeeded.");
                 }
+
+                _vlcCoreInitialized = true;
             }
             else
             {
-                DevLogService.Log("[IntroWindow] appDir is empty or missing — calling Core.Initialize().");
-                Core.Initialize();
-                DevLogService.Log("[IntroWindow] Core.Initialize() succeeded.");
+                DevLogService.Log("[IntroWindow] Core already initialized — skipping Core.Initialize().");
             }
 
             DevLogService.Log("[IntroWindow] Creating LibVLC instance…");
@@ -89,14 +94,22 @@ public partial class IntroWindow : Window
             DevLogService.Log($"[IntroWindow] Opening media: {path}");
             _media = new Media(_libVlc, new Uri(path));
 
-            // Attach the media player after the first layout pass so the
+            // Attach the media player after the first render pass so the
             // VideoView has a valid native window handle.
+            // DispatcherPriority.Background fires after layout AND rendering,
+            // guaranteeing the native drawable surface is ready for VLC.
             Dispatcher.UIThread.Post(() =>
             {
                 DevLogService.Log("[IntroWindow] Attaching MediaPlayer to VideoView and starting playback.");
                 IntroVideoView.MediaPlayer = _mediaPlayer;
-                _mediaPlayer.Play(_media);
-            }, Avalonia.Threading.DispatcherPriority.Loaded);
+                bool started = _mediaPlayer.Play(_media);
+                DevLogService.Log($"[IntroWindow] MediaPlayer.Play() returned {started}.");
+                if (!started)
+                {
+                    DevLogService.Log("[IntroWindow] Play() returned false — finishing intro immediately.");
+                    FinishIntro();
+                }
+            }, DispatcherPriority.Background);
         }
         catch (Exception ex)
         {
@@ -109,14 +122,17 @@ public partial class IntroWindow : Window
     private void OnEndReached(object? sender, EventArgs e)
     {
         DevLogService.Log("[IntroWindow] Playback ended (EndReached).");
-        // VLC fires this on a background thread; marshal to the UI thread.
-        Dispatcher.UIThread.Post(FinishIntro);
+        // VLC fires EndReached on its own internal thread.  Calling Stop() (inside
+        // FinishIntro) from within that same thread context — even via Post — can
+        // deadlock in LibVLCSharp 3.x because Stop() joins the VLC event thread.
+        // Wrapping in Task.Run breaks the VLC-thread chain before marshalling to UI.
+        Task.Run(() => Dispatcher.UIThread.Post(FinishIntro));
     }
 
     private void OnEncounteredError(object? sender, EventArgs e)
     {
         DevLogService.Log("[IntroWindow] VLC EncounteredError — finishing intro.");
-        Dispatcher.UIThread.Post(FinishIntro);
+        Task.Run(() => Dispatcher.UIThread.Post(FinishIntro));
     }
 
     // Prevent the user from closing the intro while it is playing.
