@@ -1,9 +1,11 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using LibVLCSharp.Shared;
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 
 namespace GameLauncher.Views;
@@ -12,14 +14,15 @@ public partial class IntroWindow : Window
 {
     private LibVLC? _libVlc;
     private MediaPlayer? _mediaPlayer;
+    private Media? _media;
     private bool _finished;
 
     public IntroWindow()
     {
         InitializeComponent();
-        Opened   += OnOpened;
-        Closing  += OnClosing;
-        Closed   += OnClosed;
+        Opened  += OnOpened;
+        Closing += OnClosing;
+        Closed  += OnClosed;
     }
 
     private void OnOpened(object? sender, EventArgs e)
@@ -30,22 +33,25 @@ public partial class IntroWindow : Window
         {
             Core.Initialize();
 
-            _libVlc = new LibVLC(enableDebugLogs: false);
+            _libVlc      = new LibVLC(enableDebugLogs: false);
             _mediaPlayer = new MediaPlayer(_libVlc);
 
             // Attach the media player to the VideoView so it renders inside the window.
             IntroVideoView.MediaPlayer = _mediaPlayer;
 
-            _mediaPlayer.EndReached += OnEndReached;
+            _mediaPlayer.EndReached       += OnEndReached;
             _mediaPlayer.EncounteredError += OnEncounteredError;
 
             var settings = Services.AppSettingsService.Load();
-            var path = settings.IntroVideoPath;
+            var path     = settings.IntroVideoPath;
 
             if (!string.IsNullOrEmpty(path) && File.Exists(path))
             {
-                using var media = new Media(_libVlc, new Uri(path));
-                _mediaPlayer.Play(media);
+                // Keep a reference to the Media so it isn't disposed before VLC
+                // finishes reading it (disposing immediately after Play() can cut
+                // off playback on some builds).
+                _media = new Media(_libVlc, new Uri(path));
+                _mediaPlayer.Play(_media);
             }
             else
             {
@@ -53,8 +59,9 @@ public partial class IntroWindow : Window
                 FinishIntro();
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Debug.WriteLine($"[IntroWindow] Failed to start playback: {ex.Message}");
             FinishIntro();
         }
     }
@@ -87,13 +94,14 @@ public partial class IntroWindow : Window
         if (_finished) return;
         _finished = true;
 
-        try { _mediaPlayer?.Stop(); } catch { /* ignore */ }
+        try { _mediaPlayer?.Stop(); }
+        catch (ObjectDisposedException) { /* already cleaned up */ }
 
         DisposeVlc();
 
         // Show the main window fullscreen, then close the intro overlay.
         if (Application.Current?.ApplicationLifetime is
-            Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop &&
+            IClassicDesktopStyleApplicationLifetime desktop &&
             desktop.MainWindow is { } main)
         {
             main.WindowState = WindowState.FullScreen;
@@ -108,11 +116,14 @@ public partial class IntroWindow : Window
     {
         if (_mediaPlayer != null)
         {
-            _mediaPlayer.EndReached      -= OnEndReached;
+            _mediaPlayer.EndReached       -= OnEndReached;
             _mediaPlayer.EncounteredError -= OnEncounteredError;
             _mediaPlayer.Dispose();
             _mediaPlayer = null;
         }
+
+        _media?.Dispose();
+        _media = null;
 
         _libVlc?.Dispose();
         _libVlc = null;
