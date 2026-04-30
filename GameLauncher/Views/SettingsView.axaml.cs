@@ -16,8 +16,9 @@ public partial class SettingsView : UserControl
     {
         if (DataContext is SettingsViewModel vm)
         {
-            vm.BrowseRequested           = OnBrowseRequested;
-            vm.BrowseIntroVideoRequested = OnBrowseIntroVideoRequested;
+            vm.BrowseRequested                    = OnBrowseRequested;
+            vm.BrowseIntroVideoRequested          = OnBrowseIntroVideoRequested;
+            vm.PickIntroVideoFromGalleryRequested = OnPickIntroVideoFromGalleryRequested;
         }
     }
 
@@ -67,5 +68,17 @@ public partial class SettingsView : UserControl
 
         if (files.Count > 0 && DataContext is SettingsViewModel vm)
             vm.IntroVideoPath = files[0].Path.LocalPath;
+    }
+
+    private async void OnPickIntroVideoFromGalleryRequested()
+    {
+        var ownerWindow = TopLevel.GetTopLevel(this) as Window;
+        if (ownerWindow == null) return;
+
+        var picker = new IntroVideoPickerWindow();
+        var result = await picker.ShowDialog<string?>(ownerWindow);
+
+        if (!string.IsNullOrEmpty(result) && DataContext is SettingsViewModel vm)
+            vm.IntroVideoPath = result;
     }
 }
