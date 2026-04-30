@@ -29,35 +29,48 @@ public partial class IntroWindow : Window
     {
         Opened -= OnOpened;
 
+        var settings = Services.AppSettingsService.Load();
+        var path     = settings.IntroVideoPath;
+
+        if (string.IsNullOrEmpty(path) || !File.Exists(path))
+        {
+            FinishIntro();
+            return;
+        }
+
         try
         {
-            Core.Initialize();
+            // Provide the app directory so VLC can locate its native DLLs even
+            // when the working directory differs from the executable's location.
+            var appDir = AppContext.BaseDirectory;
+            if (!string.IsNullOrEmpty(appDir) && Directory.Exists(appDir))
+            {
+                try { Core.Initialize(appDir); }
+                catch { Core.Initialize(); }
+            }
+            else
+            {
+                Core.Initialize();
+            }
 
             _libVlc      = new LibVLC(enableDebugLogs: false);
             _mediaPlayer = new MediaPlayer(_libVlc);
 
-            // Attach the media player to the VideoView so it renders inside the window.
-            IntroVideoView.MediaPlayer = _mediaPlayer;
-
             _mediaPlayer.EndReached       += OnEndReached;
             _mediaPlayer.EncounteredError += OnEncounteredError;
 
-            var settings = Services.AppSettingsService.Load();
-            var path     = settings.IntroVideoPath;
+            // Keep a reference to the Media so it isn't disposed before VLC
+            // finishes reading it (disposing immediately after Play() can cut
+            // off playback on some builds).
+            _media = new Media(_libVlc, new Uri(path));
 
-            if (!string.IsNullOrEmpty(path) && File.Exists(path))
+            // Attach the media player after the first layout pass so the
+            // VideoView has a valid native window handle.
+            Dispatcher.UIThread.Post(() =>
             {
-                // Keep a reference to the Media so it isn't disposed before VLC
-                // finishes reading it (disposing immediately after Play() can cut
-                // off playback on some builds).
-                _media = new Media(_libVlc, new Uri(path));
+                IntroVideoView.MediaPlayer = _mediaPlayer;
                 _mediaPlayer.Play(_media);
-            }
-            else
-            {
-                // No valid video path — skip straight to main window.
-                FinishIntro();
-            }
+            }, Avalonia.Threading.DispatcherPriority.Loaded);
         }
         catch (Exception ex)
         {
