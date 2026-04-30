@@ -5,267 +5,331 @@
              x:DataType="vm:SettingsViewModel"
              Background="#0d1117">
 
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                  VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="32,28,32,28" Spacing="0">
+    <!-- Steam-style two-pane settings layout -->
+    <Grid ColumnDefinitions="220,*">
 
-            <!-- Header -->
-            <TextBlock Text="Settings" Classes="page-title" Margin="0,0,0,4"/>
-            <TextBlock Text="Configure emulators, paths, and launcher preferences."
-                       Classes="page-subtitle" Margin="0,0,0,28"/>
+        <!-- ══════════ LEFT: Category navigation ══════════ -->
+        <Border Grid.Column="0"
+                Background="#0d1117"
+                BorderBrush="#21262d"
+                BorderThickness="0,0,1,0"
+                Padding="0,24,0,24">
+            <StackPanel Spacing="0">
 
-            <!-- ── App Preferences ── -->
-            <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,24">
-                <StackPanel Spacing="16">
+                <TextBlock Text="Settings"
+                           FontSize="20" FontWeight="Bold"
+                           Foreground="White"
+                           Margin="16,0,16,20"/>
 
-                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,4">
-                        <TextBlock Text="⚙" FontSize="18" VerticalAlignment="Center"/>
-                        <TextBlock Text="App Preferences" FontSize="17" FontWeight="Bold"
-                                   Foreground="#e6edf3" VerticalAlignment="Center"/>
+                <Button Classes="settings-nav-item"
+                        Classes.active="{Binding IsAppSection}"
+                        HorizontalAlignment="Stretch"
+                        Command="{Binding SelectSectionCommand}"
+                        CommandParameter="app">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="⚙" FontSize="16" VerticalAlignment="Center"/>
+                        <TextBlock Text="App Preferences" VerticalAlignment="Center"/>
                     </StackPanel>
+                </Button>
 
-                    <!-- Auto-update toggle -->
-                    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-                        <StackPanel Grid.Column="0" Spacing="2">
-                            <TextBlock Text="Auto-update Games Database on startup"
-                                       FontSize="13" Foreground="#e6edf3"/>
-                            <TextBlock Text="Checks for updated game metadata (covers, achievements) each time the launcher starts."
-                                       FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
-                        </StackPanel>
-                        <ToggleSwitch Grid.Column="1"
-                                      IsChecked="{Binding AutoUpdate}"
-                                      OffContent="" OnContent=""
-                                      VerticalAlignment="Center"
-                                      Margin="16,0,0,0"/>
-                    </Grid>
-
-                    <Rectangle Height="1" Fill="#21262d"/>
-
-                    <!-- Intro video toggle -->
-                    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-                        <StackPanel Grid.Column="0" Spacing="2">
-                            <TextBlock Text="Show intro video on startup"
-                                       FontSize="13" Foreground="#e6edf3"/>
-                            <TextBlock Text="Plays the Game.OS intro animation each time the launcher opens. Disable for a faster startup."
-                                       FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
-                        </StackPanel>
-                        <ToggleSwitch Grid.Column="1"
-                                      IsChecked="{Binding ShowIntroVideo}"
-                                      OffContent="" OnContent=""
-                                      VerticalAlignment="Center"
-                                      Margin="16,0,0,0"/>
-                    </Grid>
-
-                    <!-- Intro video path -->
-                    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center"
-                          IsVisible="{Binding ShowIntroVideo}">
-                        <StackPanel Grid.Column="0" Spacing="2">
-                            <TextBlock Text="Custom intro video file"
-                                       FontSize="13" Foreground="#e6edf3"/>
-                            <TextBlock Text="Choose a video file to use as the startup intro. Leave blank to use the built-in animation."
-                                       FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
-                            <TextBox Classes="form-input"
-                                     Text="{Binding IntroVideoPath}"
-                                     Watermark="(built-in animation)"
-                                     FontSize="11"
-                                     Margin="0,4,0,0"/>
-                        </StackPanel>
-                        <Button Grid.Column="1"
-                                Classes="btn-secondary"
-                                Content="Browse…"
-                                FontSize="11"
-                                Padding="8,6"
-                                Margin="16,0,0,0"
-                                VerticalAlignment="Center"
-                                Command="{Binding BrowseIntroVideoCommand}"/>
-                    </Grid>
-
-                    <Rectangle Height="1" Fill="#21262d"/>
-
-                    <!-- Switch log reading toggle -->
-                    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-                        <StackPanel Grid.Column="0" Spacing="2">
-                            <TextBlock Text="Read Switch game log after session"
-                                       FontSize="13" Foreground="#e6edf3"/>
-                            <TextBlock Text="After a Nintendo Switch (Ryujinx) game exits, Game.OS reads the emulator log and shows relevant output in the launcher."
-                                       FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
-                        </StackPanel>
-                        <ToggleSwitch Grid.Column="1"
-                                      IsChecked="{Binding ReadSwitchLog}"
-                                      OffContent="" OnContent=""
-                                      VerticalAlignment="Center"
-                                      Margin="16,0,0,0"/>
-                    </Grid>
-
-                </StackPanel>
-            </Border>
-
-            <!-- ── Emulator Configuration ── -->
-            <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,24">
-                <StackPanel Spacing="16">
-
-                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,4">
-                        <TextBlock Text="🎮" FontSize="18" VerticalAlignment="Center"/>
-                        <TextBlock Text="Emulator Setup" FontSize="17" FontWeight="Bold"
-                                   Foreground="#e6edf3" VerticalAlignment="Center"/>
+                <Button Classes="settings-nav-item"
+                        Classes.active="{Binding IsEmulatorSection}"
+                        HorizontalAlignment="Stretch"
+                        Command="{Binding SelectSectionCommand}"
+                        CommandParameter="emulator">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="🎮" FontSize="16" VerticalAlignment="Center"/>
+                        <TextBlock Text="Emulator Setup" VerticalAlignment="Center"/>
                     </StackPanel>
-                    <TextBlock Text="Set the emulator executable for each platform. Use {rom} in Arguments as the ROM path placeholder. You can add multiple emulators per platform."
-                               FontSize="12" Foreground="#8b949e" Margin="0,0,0,8"/>
+                </Button>
 
-                    <!-- Platform groups -->
-                    <ItemsControl ItemsSource="{Binding EmulatorGroups}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:EmulatorPlatformGroupVm">
-                                <Border Background="#1c2128" CornerRadius="8"
-                                        Padding="12,10" Margin="0,0,0,8">
-                                    <StackPanel Spacing="6">
+                <Button Classes="settings-nav-item"
+                        Classes.active="{Binding IsPlaytimeSection}"
+                        HorizontalAlignment="Stretch"
+                        Command="{Binding SelectSectionCommand}"
+                        CommandParameter="playtime">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="⏱" FontSize="16" VerticalAlignment="Center"/>
+                        <TextBlock Text="Playtime Tracking" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
 
-                                        <!-- Platform header row -->
-                                        <Grid ColumnDefinitions="Auto,*,Auto">
-                                            <Border Grid.Column="0"
-                                                    Background="#1f6feb"
-                                                    CornerRadius="4" Padding="8,4"
-                                                    HorizontalAlignment="Left"
-                                                    VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Platform}"
-                                                           FontSize="11" FontWeight="Bold"
-                                                           Foreground="White"/>
-                                            </Border>
-                                            <!-- Column labels placeholder -->
-                                            <StackPanel Grid.Column="1"
-                                                        Orientation="Horizontal" Spacing="0"
-                                                        Margin="12,0,0,0">
-                                                <!-- Platform badge above; emulator rows below -->
-                                            </StackPanel>
-                                            <Button Grid.Column="2"
-                                                    Classes="btn-secondary"
-                                                    Content="+ Add Emulator"
-                                                    FontSize="11"
-                                                    Padding="8,4"
-                                                    VerticalAlignment="Center"
-                                                    Command="{Binding AddEmulatorCommand}"/>
-                                        </Grid>
-
-                                        <!-- Column headers (shown once per platform group) -->
-                                        <Grid ColumnDefinitions="*,160,80,44,38" Margin="0,4,0,0">
-                                            <TextBlock Grid.Column="0" Text="Emulator Executable"
-                                                       FontSize="10" Foreground="#484f58"/>
-                                            <TextBlock Grid.Column="1" Text="Arguments"
-                                                       FontSize="10" Foreground="#484f58" Margin="8,0,0,0"/>
-                                            <TextBlock Grid.Column="2" Text="Name"
-                                                       FontSize="10" Foreground="#484f58" Margin="4,0,0,0"/>
-                                            <TextBlock Grid.Column="3" Text="On"
-                                                       FontSize="10" Foreground="#484f58"
-                                                       HorizontalAlignment="Center"/>
-                                        </Grid>
-
-                                        <!-- Emulator rows for this platform -->
-                                        <ItemsControl ItemsSource="{Binding Emulators}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:EmulatorRowVm">
-                                                    <Grid ColumnDefinitions="*,160,80,44,38"
-                                                          Margin="0,2,0,2">
-
-                                                        <!-- Emulator path + Browse -->
-                                                        <Grid Grid.Column="0" ColumnDefinitions="*,Auto">
-                                                            <TextBox Grid.Column="0"
-                                                                     Classes="form-input"
-                                                                     Text="{Binding EmulatorPath}"
-                                                                     Watermark="Path to emulator .exe…"
-                                                                     FontSize="12"
-                                                                     VerticalAlignment="Center"/>
-                                                            <Button Grid.Column="1"
-                                                                    Classes="btn-secondary"
-                                                                    Content="Browse…"
-                                                                    FontSize="11"
-                                                                    Padding="8,6"
-                                                                    Margin="4,0,0,0"
-                                                                    Command="{Binding $parent[UserControl].DataContext.BrowseEmulatorCommand}"
-                                                                    CommandParameter="{Binding}"
-                                                                    VerticalAlignment="Center"/>
-                                                        </Grid>
-
-                                                        <!-- Arguments -->
-                                                        <TextBox Grid.Column="1"
-                                                                 Classes="form-input"
-                                                                 Text="{Binding Arguments}"
-                                                                 Watermark="{}{rom}"
-                                                                 FontSize="12"
-                                                                 Margin="8,0,4,0"
-                                                                 VerticalAlignment="Center"/>
-
-                                                        <!-- Emulator name -->
-                                                        <TextBox Grid.Column="2"
-                                                                 Classes="form-input"
-                                                                 Text="{Binding EmulatorName}"
-                                                                 Watermark="e.g. Ryujinx"
-                                                                 FontSize="12"
-                                                                 Margin="0,0,4,0"
-                                                                 VerticalAlignment="Center"/>
-
-                                                        <!-- Enabled toggle -->
-                                                        <CheckBox Grid.Column="3"
-                                                                  IsChecked="{Binding Enabled}"
-                                                                  HorizontalAlignment="Center"
-                                                                  VerticalAlignment="Center"/>
-
-                                                        <!-- Remove button -->
-                                                        <Button Grid.Column="4"
-                                                                Classes="btn-secondary"
-                                                                Content="✕"
-                                                                FontSize="11"
-                                                                Padding="6,4"
-                                                                Foreground="#f85149"
-                                                                HorizontalAlignment="Center"
-                                                                VerticalAlignment="Center"
-                                                                Command="{Binding $parent[ItemsControl].DataContext.RemoveEmulatorCommand}"
-                                                                CommandParameter="{Binding}"/>
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-
-                </StackPanel>
-            </Border>
-
-            <!-- ── Save Button + Status ── -->
-            <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,24">
-                <Button Classes="btn-primary"
-                        Content="💾  Save Settings"
-                        Command="{Binding SaveCommand}"
-                        Width="180"/>
-                <TextBlock Text="{Binding StatusMessage}"
-                           Foreground="#3fb950"
-                           FontSize="13"
-                           VerticalAlignment="Center"
-                           IsVisible="{Binding IsSaveSuccess}"/>
             </StackPanel>
+        </Border>
 
-            <!-- ── Playtime Info ── -->
-            <Border Background="#161b22" CornerRadius="10" Padding="24,20">
-                <StackPanel Spacing="8">
-                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,4">
-                        <TextBlock Text="⏱" FontSize="18" VerticalAlignment="Center"/>
-                        <TextBlock Text="Playtime Tracking" FontSize="17" FontWeight="Bold"
-                                   Foreground="#e6edf3" VerticalAlignment="Center"/>
+        <!-- ══════════ RIGHT: Section content ══════════ -->
+        <ScrollViewer Grid.Column="1"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="32,28,32,28" Spacing="0">
+
+                <!-- ── App Preferences ── -->
+                <StackPanel IsVisible="{Binding IsAppSection}" Spacing="0">
+
+                    <TextBlock Text="App Preferences" Classes="page-title" Margin="0,0,0,4"/>
+                    <TextBlock Text="Configure launcher behaviour and startup options."
+                               Classes="page-subtitle" Margin="0,0,0,24"/>
+
+                    <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,24">
+                        <StackPanel Spacing="16">
+
+                            <!-- Auto-update toggle -->
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Auto-update Games Database on startup"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Checks for updated game metadata (covers, achievements) each time the launcher starts."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding AutoUpdate}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <!-- Intro video toggle -->
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Show intro video on startup"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Plays the Game.OS intro animation each time the launcher opens. Disable for a faster startup."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding ShowIntroVideo}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
+                            <!-- Intro video path (shown when toggle is on) -->
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center"
+                                  IsVisible="{Binding ShowIntroVideo}">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Custom intro video file"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Choose a video file (.mp4, .avi, .mkv, .mov, .webm). Leave blank to disable the intro."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                    <TextBox Classes="form-input"
+                                             Text="{Binding IntroVideoPath}"
+                                             Watermark="Path to video file…"
+                                             FontSize="11"
+                                             Margin="0,4,0,0"/>
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Classes="btn-secondary"
+                                        Content="Browse…"
+                                        FontSize="11"
+                                        Padding="8,6"
+                                        Margin="16,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding BrowseIntroVideoCommand}"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <!-- Switch log reading toggle -->
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Read Switch game log after session"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="After a Nintendo Switch (Ryujinx) game exits, Game.OS reads the emulator log and shows relevant output in the launcher."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding ReadSwitchLog}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Save button -->
+                    <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,24">
+                        <Button Classes="btn-primary"
+                                Content="💾  Save Settings"
+                                Command="{Binding SaveCommand}"
+                                Width="180"/>
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   Foreground="#3fb950"
+                                   FontSize="13"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding IsSaveSuccess}"/>
                     </StackPanel>
-                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#8b949e">
-                        Game.OS automatically tracks how long you play each game.
-                        Sessions are recorded when you launch a game from this launcher and
-                        the process exits. Playtime totals appear on game cards and the Home dashboard.
-                    </TextBlock>
-                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#8b949e">
-                        Data is stored locally at %APPDATA%\Game.OS\Playtime\sessions.json.
-                    </TextBlock>
-                </StackPanel>
-            </Border>
 
-        </StackPanel>
-    </ScrollViewer>
+                </StackPanel>
+
+                <!-- ── Emulator Setup ── -->
+                <StackPanel IsVisible="{Binding IsEmulatorSection}" Spacing="0">
+
+                    <TextBlock Text="Emulator Setup" Classes="page-title" Margin="0,0,0,4"/>
+                    <TextBlock Text="Set the emulator executable for each platform."
+                               Classes="page-subtitle" Margin="0,0,0,24"/>
+
+                    <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,24">
+                        <StackPanel Spacing="16">
+
+                            <TextBlock Text="Use {rom} in Arguments as the ROM path placeholder. You can add multiple emulators per platform."
+                                       FontSize="12" Foreground="#8b949e" Margin="0,0,0,8"/>
+
+                            <!-- Platform groups -->
+                            <ItemsControl ItemsSource="{Binding EmulatorGroups}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:EmulatorPlatformGroupVm">
+                                        <Border Background="#1c2128" CornerRadius="8"
+                                                Padding="12,10" Margin="0,0,0,8">
+                                            <StackPanel Spacing="6">
+
+                                                <!-- Platform header row -->
+                                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                                    <Border Grid.Column="0"
+                                                            Background="#1f6feb"
+                                                            CornerRadius="4" Padding="8,4"
+                                                            HorizontalAlignment="Left"
+                                                            VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Platform}"
+                                                                   FontSize="11" FontWeight="Bold"
+                                                                   Foreground="White"/>
+                                                    </Border>
+                                                    <StackPanel Grid.Column="1"
+                                                                Orientation="Horizontal" Spacing="0"
+                                                                Margin="12,0,0,0"/>
+                                                    <Button Grid.Column="2"
+                                                            Classes="btn-secondary"
+                                                            Content="+ Add Emulator"
+                                                            FontSize="11"
+                                                            Padding="8,4"
+                                                            VerticalAlignment="Center"
+                                                            Command="{Binding AddEmulatorCommand}"/>
+                                                </Grid>
+
+                                                <!-- Column headers -->
+                                                <Grid ColumnDefinitions="*,160,80,44,38" Margin="0,4,0,0">
+                                                    <TextBlock Grid.Column="0" Text="Emulator Executable"
+                                                               FontSize="10" Foreground="#484f58"/>
+                                                    <TextBlock Grid.Column="1" Text="Arguments"
+                                                               FontSize="10" Foreground="#484f58" Margin="8,0,0,0"/>
+                                                    <TextBlock Grid.Column="2" Text="Name"
+                                                               FontSize="10" Foreground="#484f58" Margin="4,0,0,0"/>
+                                                    <TextBlock Grid.Column="3" Text="On"
+                                                               FontSize="10" Foreground="#484f58"
+                                                               HorizontalAlignment="Center"/>
+                                                </Grid>
+
+                                                <!-- Emulator rows -->
+                                                <ItemsControl ItemsSource="{Binding Emulators}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:EmulatorRowVm">
+                                                            <Grid ColumnDefinitions="*,160,80,44,38"
+                                                                  Margin="0,2,0,2">
+
+                                                                <Grid Grid.Column="0" ColumnDefinitions="*,Auto">
+                                                                    <TextBox Grid.Column="0"
+                                                                             Classes="form-input"
+                                                                             Text="{Binding EmulatorPath}"
+                                                                             Watermark="Path to emulator .exe…"
+                                                                             FontSize="12"
+                                                                             VerticalAlignment="Center"/>
+                                                                    <Button Grid.Column="1"
+                                                                            Classes="btn-secondary"
+                                                                            Content="Browse…"
+                                                                            FontSize="11"
+                                                                            Padding="8,6"
+                                                                            Margin="4,0,0,0"
+                                                                            Command="{Binding $parent[UserControl].DataContext.BrowseEmulatorCommand}"
+                                                                            CommandParameter="{Binding}"
+                                                                            VerticalAlignment="Center"/>
+                                                                </Grid>
+
+                                                                <TextBox Grid.Column="1"
+                                                                         Classes="form-input"
+                                                                         Text="{Binding Arguments}"
+                                                                         Watermark="{}{rom}"
+                                                                         FontSize="12"
+                                                                         Margin="8,0,4,0"
+                                                                         VerticalAlignment="Center"/>
+
+                                                                <TextBox Grid.Column="2"
+                                                                         Classes="form-input"
+                                                                         Text="{Binding EmulatorName}"
+                                                                         Watermark="e.g. Ryujinx"
+                                                                         FontSize="12"
+                                                                         Margin="0,0,4,0"
+                                                                         VerticalAlignment="Center"/>
+
+                                                                <CheckBox Grid.Column="3"
+                                                                          IsChecked="{Binding Enabled}"
+                                                                          HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center"/>
+
+                                                                <Button Grid.Column="4"
+                                                                        Classes="btn-secondary"
+                                                                        Content="✕"
+                                                                        FontSize="11"
+                                                                        Padding="6,4"
+                                                                        Foreground="#f85149"
+                                                                        HorizontalAlignment="Center"
+                                                                        VerticalAlignment="Center"
+                                                                        Command="{Binding $parent[ItemsControl].DataContext.RemoveEmulatorCommand}"
+                                                                        CommandParameter="{Binding}"/>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Save button -->
+                    <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,24">
+                        <Button Classes="btn-primary"
+                                Content="💾  Save Settings"
+                                Command="{Binding SaveCommand}"
+                                Width="180"/>
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   Foreground="#3fb950"
+                                   FontSize="13"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding IsSaveSuccess}"/>
+                    </StackPanel>
+
+                </StackPanel>
+
+                <!-- ── Playtime Tracking ── -->
+                <StackPanel IsVisible="{Binding IsPlaytimeSection}" Spacing="0">
+
+                    <TextBlock Text="Playtime Tracking" Classes="page-title" Margin="0,0,0,4"/>
+                    <TextBlock Text="View how Game.OS records your play sessions."
+                               Classes="page-subtitle" Margin="0,0,0,24"/>
+
+                    <Border Background="#161b22" CornerRadius="10" Padding="24,20">
+                        <StackPanel Spacing="8">
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#8b949e">
+                                Game.OS automatically tracks how long you play each game.
+                                Sessions are recorded when you launch a game from this launcher and
+                                the process exits. Playtime totals appear on game cards and the Home dashboard.
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#8b949e">
+                                Data is stored locally at %APPDATA%\Game.OS\Playtime\sessions.json.
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+
+    </Grid>
 </UserControl>

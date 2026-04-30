@@ -28,6 +28,20 @@ public partial class SettingsViewModel : ViewModelBase
     /// <summary>Read the Ryujinx log after each Switch game session.</summary>
     [ObservableProperty] private bool _readSwitchLog = false;
 
+    // ── Active settings section (Steam-style left-nav) ────────────────────
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsAppSection))]
+    [NotifyPropertyChangedFor(nameof(IsEmulatorSection))]
+    [NotifyPropertyChangedFor(nameof(IsPlaytimeSection))]
+    private string _selectedSection = "app";
+
+    public bool IsAppSection      => SelectedSection == "app";
+    public bool IsEmulatorSection => SelectedSection == "emulator";
+    public bool IsPlaytimeSection => SelectedSection == "playtime";
+
+    [RelayCommand]
+    private void SelectSection(string section) => SelectedSection = section;
+
     // ── Status message ─────────────────────────────────────────────────────
     [ObservableProperty] private string _statusMessage = "";
     [ObservableProperty] private bool   _isSaveSuccess;

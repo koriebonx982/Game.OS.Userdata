@@ -316,5 +316,30 @@
         <Setter Property="Foreground" Value="White"/>
         <Setter Property="BorderBrush" Value="#388bfd"/>
     </Style>
+    <!-- ─── Settings Navigation Item ─── -->
+    <Style Selector="Button.settings-nav-item">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="#8b949e"/>
+        <Setter Property="Padding" Value="16,12"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Margin" Value="8,2"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
+    <Style Selector="Button.settings-nav-item:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#21262d"/>
+    </Style>
+
+    <Style Selector="Button.settings-nav-item.active /template/ ContentPresenter">
+        <Setter Property="Background" Value="#1f6feb"/>
+    </Style>
+
+    <Style Selector="Button.settings-nav-item.active">
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
 
 </Styles>

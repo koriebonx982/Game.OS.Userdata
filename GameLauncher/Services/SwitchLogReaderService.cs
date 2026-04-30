@@ -89,7 +89,9 @@ public static class SwitchLogReaderService
 
     /// <summary>
     /// Reads <paramref name="logFilePath"/> and returns every line that contains
-    /// the text <c>"Room: "</c> (case-insensitive).
+    /// <c>"Room: "</c> (case-insensitive) together with any immediately following
+    /// property lines that belong to that room block (identified by having deeper
+    /// indentation in the Ryujinx log message field).
     /// Returns an empty list when the file cannot be read.
     /// </summary>
     public static List<string> ReadRoomLines(string logFilePath)
@@ -105,16 +107,79 @@ public static class SwitchLogReaderService
                                           FileAccess.Read, FileShare.ReadWrite);
             using var reader = new StreamReader(fs, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
 
+            // Read all lines first so we can look ahead for property sub-lines
+            var allLines = new List<string>();
             string? line;
             while ((line = reader.ReadLine()) != null)
+                allLines.Add(line);
+
+            for (int i = 0; i < allLines.Count; i++)
             {
-                if (line.Contains("Room: ", StringComparison.OrdinalIgnoreCase))
-                    results.Add(line);
+                if (!allLines[i].Contains("Room: ", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                results.Add(allLines[i]);
+
+                // Determine the indentation depth of the "Room:" message so we
+                // can capture deeper-indented property lines that follow it.
+                string roomMsg   = ExtractLogMessage(allLines[i]);
+                int    roomDepth = CountLeadingWhitespace(roomMsg);
+
+                // Capture subsequent lines that are indented deeper than the
+                // "Room: " line — these are its property fields.
+                for (int j = i + 1; j < allLines.Count; j++)
+                {
+                    string nextLine = allLines[j];
+                    if (string.IsNullOrWhiteSpace(nextLine)) break;
+
+                    string nextMsg = ExtractLogMessage(nextLine);
+                    if (string.IsNullOrWhiteSpace(nextMsg)) break;
+
+                    int nextDepth = CountLeadingWhitespace(nextMsg);
+                    if (nextDepth <= roomDepth) break; // back to same/higher level
+
+                    results.Add(nextLine);
+                    i = j; // advance outer loop so we don't re-process these lines
+                }
             }
         }
         catch { /* best-effort */ }
 
         return results;
+    }
+
+    /// <summary>
+    /// Extracts the message portion from a Ryujinx log line.
+    /// Ryujinx format: <c>|HH:MM:SS.mmm|L|Module|Message</c>.
+    /// Returns the full line if the format is not recognised.
+    /// </summary>
+    private static string ExtractLogMessage(string logLine)
+    {
+        int pipes = 0;
+        for (int k = 0; k < logLine.Length; k++)
+        {
+            if (logLine[k] == '|')
+            {
+                pipes++;
+                if (pipes == 4)
+                    return logLine.Substring(k + 1);
+            }
+        }
+        return logLine;
+    }
+
+    /// <summary>
+    /// Returns the number of leading space or tab characters in <paramref name="s"/>.
+    /// </summary>
+    private static int CountLeadingWhitespace(string s)
+    {
+        int count = 0;
+        foreach (char c in s)
+        {
+            if (c == ' ' || c == '\t') count++;
+            else break;
+        }
+        return count;
     }
 
     // ── Launcher-side log file ─────────────────────────────────────────────────
