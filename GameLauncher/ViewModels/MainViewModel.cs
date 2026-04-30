@@ -301,6 +301,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // Create the per-user data folder hierarchy beneath the executable
         UserDataService.CreateUserFolders(profile.Username);
 
+        // Switch the playtime service to the current user's private data folder
+        // so playtime records are stored per-account, not per-device.
+        PlaytimeService.SetCurrentUser(profile.Username);
+
         // Apply stored playtime data to the library so the dashboard shows accurate totals
         PlaytimeService.ApplyStoredPlaytime(library);
 
@@ -335,6 +339,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Start periodic sync check (every 5 minutes while online): re-fetches remote
             // user data and invalidates stale Games.Database caches.
             StartSyncCheckTimer();
+
+            // Load cloud playtime from the backend and apply it to the library.
+            // Cloud data is the source of truth — it overrides the local cache so
+            // playtime is the same regardless of which device the user logs in from.
+            _ = ApplyCloudPlaytimeAsync(library);
+
+            // Subscribe to session-saved events so completed play sessions are
+            // immediately pushed to the cloud activity log.
+            PlaytimeService.SessionSaved += OnSessionSaved;
         }
         else
         {
@@ -374,6 +387,96 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ShowLogin = false;
         ShowMain  = true;
         ActivePage = "dashboard";
+    }
+
+    /// <summary>
+    /// Called when a game session is saved locally.  Pushes the session to the
+    /// cloud activity log so playtime stays in sync across all devices.
+    /// </summary>
+    private void OnSessionSaved(Models.PlaySession session)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (!DateTime.TryParse(session.StartedAt, null,
+                        System.Globalization.DateTimeStyles.RoundtripKind, out var start))
+                    start = DateTime.UtcNow;
+                if (!DateTime.TryParse(session.EndedAt, null,
+                        System.Globalization.DateTimeStyles.RoundtripKind, out var end))
+                    end = DateTime.UtcNow;
+
+                await _client.LogActivityAsync(
+                    session.Platform, session.Title, null,
+                    start, end, session.Minutes).ConfigureAwait(false);
+
+                System.Diagnostics.Debug.WriteLine(
+                    $"[Playtime] Synced '{session.Title}' ({session.Platform}) " +
+                    $"{session.Minutes} min to cloud.");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[Playtime] Failed to sync session to cloud: {ex.Message}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Fetches the user's full activity log from the cloud, calculates per-game
+    /// playtime totals, and applies them to the in-memory library.  The cloud is
+    /// the source of truth so the same totals appear on any device the user logs
+    /// in from.
+    /// </summary>
+    private async Task ApplyCloudPlaytimeAsync(List<Game> library)
+    {
+        try
+        {
+            var activity = await _client.GetActivityAsync().ConfigureAwait(false);
+            if (activity.Count == 0) return;
+
+            // Aggregate cloud minutes per (platform, title)
+            var totals = activity
+                .GroupBy(a => $"{a.Platform.ToLowerInvariant()}||{a.GameTitle.ToLowerInvariant()}")
+                .ToDictionary(
+                    g => g.Key,
+                    g => (TotalMinutes: g.Sum(a => a.MinutesPlayed),
+                          LastPlayed:   g.Max(a => a.SessionEnd ?? a.LoggedAt)));
+
+            bool anyUpdated = false;
+            foreach (var game in library)
+            {
+                var key = $"{game.Platform.ToLowerInvariant()}||{game.Title.ToLowerInvariant()}";
+                if (totals.TryGetValue(key, out var agg) && agg.TotalMinutes > 0)
+                {
+                    game.PlaytimeMinutes = agg.TotalMinutes;
+                    if (!string.IsNullOrEmpty(agg.LastPlayed))
+                        game.LastPlayedAt = agg.LastPlayed;
+                    anyUpdated = true;
+                }
+            }
+
+            if (anyUpdated)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    "[Playtime] Applied cloud playtime totals to library.");
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    var cards = LibraryVm.GetMyGameSources()
+                        .Select(s => LibraryVm.FindMyGameCard(s.Title, s.Platform))
+                        .Where(c => c != null)
+                        .Cast<LocalGameCardVm>()
+                        .ToList();
+                    DashboardVm.Load(_profile, library, _achievements, cards);
+                    LibraryVm.Load(library);
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"[Playtime] Failed to load cloud activity: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -1012,6 +1115,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         StopOfflineReconnectTimer();
         StopSyncCheckTimer();
 
+        // Unsubscribe from session-saved cloud sync and clear the per-user path
+        PlaytimeService.SessionSaved -= OnSessionSaved;
+        PlaytimeService.ClearCurrentUser();
+
         // Clear the saved token so the next launch shows the login form
         // (equivalent to the web calling localStorage.removeItem('gameOSUser'))
         if (_client.LoggedInUser != null)
@@ -1055,6 +1162,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         StopOfflineReconnectTimer();
         StopSyncCheckTimer();
+
+        // Unsubscribe from session-saved cloud sync and clear the per-user path
+        PlaytimeService.SessionSaved -= OnSessionSaved;
+        PlaytimeService.ClearCurrentUser();
 
         // Keep the session token so the account can be silently restored; only clear
         // in-memory state so the launcher returns to the account selection screen.

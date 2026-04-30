@@ -404,6 +404,33 @@ namespace GameLauncher
         public static IReadOnlyList<string> GamesDbPlatforms
             => Services.GitHubDataService.GamesDbPlatforms;
 
+        // ── Activity / Playtime ───────────────────────────────────────────────────
+
+        /// <summary>
+        /// Pushes a completed play session to the cloud activity log.
+        /// Only available in backend mode; silently no-ops in GitHub-direct mode.
+        /// </summary>
+        public async Task LogActivityAsync(
+            string platform, string gameTitle, string? titleId,
+            DateTime startedAt, DateTime endedAt, int minutesPlayed,
+            CancellationToken ct = default)
+        {
+            if (_backend == null) return; // GitHub-direct mode — not supported
+            await _backend.LogActivityAsync(platform, gameTitle, titleId,
+                startedAt, endedAt, minutesPlayed, ct);
+        }
+
+        /// <summary>
+        /// Fetches the user's full cloud activity log.
+        /// Returns an empty list in GitHub-direct mode or on error.
+        /// </summary>
+        public async Task<List<Models.ActivityEntry>> GetActivityAsync(
+            CancellationToken ct = default)
+        {
+            if (_backend == null) return new();
+            return await _backend.GetActivityAsync(ct);
+        }
+
         // ── Health check ──────────────────────────────────────────────────────
         /// <summary>
         /// Returns true when the data backend is reachable.

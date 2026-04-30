@@ -394,6 +394,57 @@ namespace GameLauncher.Services
             return (profile, _bearerToken);
         }
 
+        // ── Activity / Playtime ───────────────────────────────────────────────────
+
+        /// <summary>
+        /// Logs a completed play session to the user's cloud activity log
+        /// via POST /api/me/activity.  Non-fatal — failures are swallowed.
+        /// </summary>
+        public async Task LogActivityAsync(
+            string platform, string gameTitle, string? titleId,
+            DateTime startedAt, DateTime endedAt, int minutesPlayed,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                EnsureAuthenticated();
+                var body = new
+                {
+                    platform,
+                    gameTitle,
+                    titleId,
+                    sessionStart  = startedAt.ToString("o"),
+                    sessionEnd    = endedAt.ToString("o"),
+                    minutesPlayed,
+                };
+                using var resp = await _http.PostAsJsonAsync("/api/me/activity", body, ct);
+                if (!resp.IsSuccessStatusCode)
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[BackendApiService] LogActivity HTTP {(int)resp.StatusCode}: {gameTitle} ({platform})");
+                // Non-critical — do not throw on failure
+            }
+            catch { /* best-effort */ }
+        }
+
+        /// <summary>
+        /// Fetches the user's full cloud activity log via GET /api/me/activity.
+        /// Returns an empty list when offline or on error.
+        /// </summary>
+        public async Task<List<GameLauncher.Models.ActivityEntry>> GetActivityAsync(
+            CancellationToken ct = default)
+        {
+            try
+            {
+                EnsureAuthenticated();
+                using var resp = await _http.GetAsync("/api/me/activity", ct);
+                if (!resp.IsSuccessStatusCode) return new();
+                var data = await resp.Content
+                    .ReadFromJsonAsync<ActivityResponse>(_jsonOpts, ct);
+                return data?.Activity ?? new();
+            }
+            catch { return new(); }
+        }
+
         // ── Health check ──────────────────────────────────────────────────────
 
         /// <summary>Returns <c>true</c> when the backend server is reachable.</summary>
@@ -480,6 +531,12 @@ namespace GameLauncher.Services
         private sealed class ErrorResponse
         {
             [JsonPropertyName("message")] public string? Message { get; set; }
+        }
+
+        private sealed class ActivityResponse
+        {
+            [JsonPropertyName("success")]  public bool Success { get; set; }
+            [JsonPropertyName("activity")] public List<GameLauncher.Models.ActivityEntry>? Activity { get; set; }
         }
     }
 }

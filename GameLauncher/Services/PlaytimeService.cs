@@ -18,11 +18,58 @@ namespace GameLauncher.Services
     /// </summary>
     public sealed class PlaytimeService : IDisposable
     {
-        private static readonly string DataDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "GameOS", "Playtime");
+        // ── Per-user storage paths ─────────────────────────────────────────────
 
-        private static readonly string SessionsFile = Path.Combine(DataDir, "sessions.json");
+        /// <summary>
+        /// The username of the currently logged-in user.  Must be set via
+        /// <see cref="SetCurrentUser"/> at login and cleared via
+        /// <see cref="ClearCurrentUser"/> at logout so sessions are stored
+        /// under the correct user's folder.
+        /// </summary>
+        private static string? _currentUser;
+        private static readonly object _userLock = new();
+
+        /// <summary>
+        /// Data directory for the currently logged-in user's playtime records.
+        /// Falls back to a shared directory when no user is set (legacy / migration path).
+        /// </summary>
+        private static string DataDir
+        {
+            get
+            {
+                string? user;
+                lock (_userLock) user = _currentUser;
+                return user != null
+                    ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                                   "GameOS", "Users", user, "Playtime")
+                    : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                                   "GameOS", "Playtime");
+            }
+        }
+
+        private static string SessionsFile => Path.Combine(DataDir, "sessions.json");
+
+        // ── User lifecycle ─────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Sets the current user so playtime data is stored and loaded from
+        /// that user's private folder.  Call this at login before
+        /// <see cref="ApplyStoredPlaytime"/>.
+        /// </summary>
+        public static void SetCurrentUser(string username)
+        {
+            lock (_userLock) _currentUser = username;
+        }
+
+        /// <summary>
+        /// Clears the current user (call at logout / account switch).
+        /// Subsequent playtime reads/writes will use the legacy shared path until
+        /// a new user is set.
+        /// </summary>
+        public static void ClearCurrentUser()
+        {
+            lock (_userLock) _currentUser = null;
+        }
 
         private static readonly JsonSerializerOptions _jsonOpts =
             new JsonSerializerOptions { WriteIndented = true };
@@ -49,6 +96,15 @@ namespace GameLauncher.Services
         /// has been saved to disk.  Parameters are (platform, title).
         /// </summary>
         public static event Action<string, string>? SessionCompleted;
+
+        /// <summary>
+        /// Fired on the <b>thread-pool</b> (not the UI thread) after a session is
+        /// finalised and written to disk.
+        /// Passes the complete <see cref="PlaySession"/> record so callers can push
+        /// it to the cloud without needing to re-read the local file.
+        /// Subscribers that update the UI must marshal back to the UI thread.
+        /// </summary>
+        public static event Action<PlaySession>? SessionSaved;
 
         // Active watch record: process + metadata
         private sealed class WatchEntry
@@ -290,6 +346,7 @@ namespace GameLauncher.Services
                 UpdateLibraryEntry(libraryToUpdate, platform, title, minutes);
 
             SessionCompleted?.Invoke(platform, title);
+            SessionSaved?.Invoke(session);
         }
 
         private static void StampLastPlayedAt(List<Game> library, string platform, string title)
