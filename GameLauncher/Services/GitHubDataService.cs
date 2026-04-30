@@ -725,6 +725,10 @@ namespace GameLauncher.Services
         private static readonly Dictionary<string, List<DatabaseGame>> _dbMemoryCache =
             new(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>Switch TitleID pattern: exactly 16 hexadecimal characters.</summary>
+        private static readonly System.Text.RegularExpressions.Regex _switchTitleIdPattern =
+            new(@"^[0-9A-Fa-f]{16}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
         private static List<DatabaseGame>? TryLoadDiskCache(string platform)
         {
             try
@@ -1021,6 +1025,17 @@ namespace GameLauncher.Services
                     item.TryGetProperty("titleid",   out var tid4) && tid4.ValueKind == JsonValueKind.String ? tid4.GetString() :
                     item.TryGetProperty("id",        out var tid5) && tid5.ValueKind == JsonValueKind.String ? tid5.GetString() :
                     appId.HasValue ? appId.Value.ToString() : null;
+
+                // For Switch games, the TitleID must be exactly 16 hexadecimal characters
+                // (e.g. "0100152000022000").  Reject any other value such as a RAWG internal
+                // "id" (e.g. "1222700") to prevent mods.json from being looked up under a
+                // wrong directory name.
+                if (!string.IsNullOrEmpty(titleId) &&
+                    string.Equals(platform, "Switch", StringComparison.OrdinalIgnoreCase) &&
+                    !_switchTitleIdPattern.IsMatch(titleId))
+                {
+                    titleId = null;
+                }
 
                 // Genre — Xbox 360 and some enriched databases include this field
                 string? genre =

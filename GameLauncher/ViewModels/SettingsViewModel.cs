@@ -23,6 +23,10 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private bool _autoUpdate = true;
     /// <summary>Play the Game.OS intro animation when the launcher starts.</summary>
     [ObservableProperty] private bool _showIntroVideo = true;
+    /// <summary>Path to a custom intro video file (empty = use built-in animation).</summary>
+    [ObservableProperty] private string _introVideoPath = "";
+    /// <summary>Read the Ryujinx log after each Switch game session.</summary>
+    [ObservableProperty] private bool _readSwitchLog = false;
 
     // ── Status message ─────────────────────────────────────────────────────
     [ObservableProperty] private string _statusMessage = "";
@@ -48,6 +52,8 @@ public partial class SettingsViewModel : ViewModelBase
         var appSettings = AppSettingsService.Load();
         AutoUpdate     = appSettings.AutoUpdate;
         ShowIntroVideo = appSettings.ShowIntroVideo;
+        IntroVideoPath = appSettings.IntroVideoPath;
+        ReadSwitchLog  = appSettings.ReadSwitchLog;
 
         StatusMessage = "";
     }
@@ -70,8 +76,10 @@ public partial class SettingsViewModel : ViewModelBase
 
         AppSettingsService.Save(new Models.AppSettings
         {
-            AutoUpdate = AutoUpdate,
+            AutoUpdate     = AutoUpdate,
             ShowIntroVideo = ShowIntroVideo,
+            IntroVideoPath = IntroVideoPath,
+            ReadSwitchLog  = ReadSwitchLog,
         });
 
         StatusMessage = "✅ Settings saved!";
@@ -85,8 +93,17 @@ public partial class SettingsViewModel : ViewModelBase
         BrowseRequested?.Invoke(row);
     }
 
+    [RelayCommand]
+    private void BrowseIntroVideo()
+    {
+        BrowseIntroVideoRequested?.Invoke();
+    }
+
     /// <summary>Raised when the user clicks Browse… on an emulator row.</summary>
     public System.Action<EmulatorRowVm>? BrowseRequested { get; set; }
+
+    /// <summary>Raised when the user clicks Browse… next to the intro video path.</summary>
+    public System.Action? BrowseIntroVideoRequested { get; set; }
 }
 
 /// <summary>

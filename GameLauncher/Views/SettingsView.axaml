@@ -56,6 +56,47 @@
                                       Margin="16,0,0,0"/>
                     </Grid>
 
+                    <!-- Intro video path -->
+                    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center"
+                          IsVisible="{Binding ShowIntroVideo}">
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Custom intro video file"
+                                       FontSize="13" Foreground="#e6edf3"/>
+                            <TextBlock Text="Choose a video file to use as the startup intro. Leave blank to use the built-in animation."
+                                       FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                            <TextBox Classes="form-input"
+                                     Text="{Binding IntroVideoPath}"
+                                     Watermark="(built-in animation)"
+                                     FontSize="11"
+                                     Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Classes="btn-secondary"
+                                Content="Browse…"
+                                FontSize="11"
+                                Padding="8,6"
+                                Margin="16,0,0,0"
+                                VerticalAlignment="Center"
+                                Command="{Binding BrowseIntroVideoCommand}"/>
+                    </Grid>
+
+                    <Rectangle Height="1" Fill="#21262d"/>
+
+                    <!-- Switch log reading toggle -->
+                    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                        <StackPanel Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Read Switch game log after session"
+                                       FontSize="13" Foreground="#e6edf3"/>
+                            <TextBlock Text="After a Nintendo Switch (Ryujinx) game exits, Game.OS reads the emulator log and shows relevant output in the launcher."
+                                       FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <ToggleSwitch Grid.Column="1"
+                                      IsChecked="{Binding ReadSwitchLog}"
+                                      OffContent="" OnContent=""
+                                      VerticalAlignment="Center"
+                                      Margin="16,0,0,0"/>
+                    </Grid>
+
                 </StackPanel>
             </Border>
 
