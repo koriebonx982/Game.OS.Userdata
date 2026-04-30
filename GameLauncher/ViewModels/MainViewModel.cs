@@ -1333,6 +1333,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             foreach (var g in games)
                 g.Platform = Models.PlatformHelper.NormalizePlatform(g.Platform);
 
+            // Apply stored local playtime to the fresh games list so that sessions played
+            // on this device before going offline are not lost when the library reloads.
+            PlaytimeService.ApplyStoredPlaytime(games);
+
             // Update in-memory state and save fresh cache on UI thread
             var capturedProfile = profile;
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -1342,7 +1346,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 _achievements = achievements;
                 IsOfflineMode = false;
 
-                DashboardVm.Load(_profile, _library, _achievements);
+                var localCards = LibraryVm.GetMyGameSources()
+                    .Select(s => LibraryVm.FindMyGameCard(s.Title, s.Platform))
+                    .Where(c => c != null)
+                    .Cast<LocalGameCardVm>()
+                    .ToList();
+                DashboardVm.Load(_profile, _library, _achievements, localCards);
                 LibraryVm.Load(_library);
                 StoreVm.Load(GameCatalog.Store, _library, _profile, _client, _client.IsAdmin);
                 ProfileVm.Load(_profile, _library, _achievements, _client.IsAdmin);
@@ -1360,6 +1369,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             StartPresenceHeartbeat();
             StartSyncCheckTimer();
             StartMessagePolling();
+
+            // Apply cloud playtime so any sessions played on other devices while this one
+            // was offline are immediately visible after reconnecting.
+            _ = ApplyCloudPlaytimeAsync(games);
 
             // Enrich library in the background
             _ = EnrichLibraryFromDatabaseAsync(games);
@@ -1437,6 +1450,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 foreach (var g in games)
                     g.Platform = Models.PlatformHelper.NormalizePlatform(g.Platform);
 
+                // Re-apply local playtime to the freshly fetched games (the server only stores
+                // game metadata, not playtime — without this the dashboard shows zero playtime
+                // every time the periodic sync refreshes the library list).
+                PlaytimeService.ApplyStoredPlaytime(games);
+
                 _library      = games;
                 _achievements = achievements;
 
@@ -1444,7 +1462,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    DashboardVm.Load(_profile ?? new Models.UserProfile(), _library, _achievements);
+                    var localCards = LibraryVm.GetMyGameSources()
+                        .Select(s => LibraryVm.FindMyGameCard(s.Title, s.Platform))
+                        .Where(c => c != null)
+                        .Cast<LocalGameCardVm>()
+                        .ToList();
+                    DashboardVm.Load(_profile ?? new Models.UserProfile(), _library, _achievements, localCards);
                     LibraryVm.Load(_library);
                 });
             }
@@ -1453,6 +1476,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 System.Diagnostics.Debug.WriteLine(
                     $"[SyncCheck] Remote userdata unchanged for '{username}' — skipping update.");
             }
+
+            // Always refresh cloud playtime so that sessions played on another device are
+            // reflected on this one without requiring a full sign-out/sign-in cycle.
+            // This runs on every sync-check tick (every 5 minutes) and is lightweight
+            // since it only reads the activity log and updates in-memory game objects.
+            _ = ApplyCloudPlaytimeAsync(_library);
 
             // Also check Games.Database for updated platform JSON files (respects AutoUpdate preference)
             if (Services.AppSettingsService.Load().AutoUpdate)
