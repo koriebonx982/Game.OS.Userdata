@@ -293,6 +293,19 @@ namespace GameLauncher.Models
         /// intro animation on startup.  Set to <see langword="false"/> to skip it.
         /// </summary>
         [JsonPropertyName("showIntroVideo")] public bool ShowIntroVideo { get; set; } = true;
+
+        /// <summary>
+        /// Optional path to a custom intro video file.  When non-empty and
+        /// <see cref="ShowIntroVideo"/> is <see langword="true"/>, this file is used
+        /// instead of the built-in intro animation.
+        /// </summary>
+        [JsonPropertyName("introVideoPath")] public string IntroVideoPath { get; set; } = "";
+
+        /// <summary>
+        /// When <see langword="true"/>, Game.OS reads the Ryujinx log file after each
+        /// Switch game session and displays any relevant output in the launcher.
+        /// </summary>
+        [JsonPropertyName("readSwitchLog")] public bool ReadSwitchLog { get; set; } = false;
     }
 
     // ── Game launch settings (saved locally per game title) ───────────────────

@@ -15,7 +15,10 @@ public partial class SettingsView : UserControl
     private void OnDataContextChanged(object? sender, System.EventArgs e)
     {
         if (DataContext is SettingsViewModel vm)
-            vm.BrowseRequested = OnBrowseRequested;
+        {
+            vm.BrowseRequested           = OnBrowseRequested;
+            vm.BrowseIntroVideoRequested = OnBrowseIntroVideoRequested;
+        }
     }
 
     private async void OnBrowseRequested(EmulatorRowVm row)
@@ -40,5 +43,29 @@ public partial class SettingsView : UserControl
 
         if (files.Count > 0)
             row.EmulatorPath = files[0].Path.LocalPath;
+    }
+
+    private async void OnBrowseIntroVideoRequested()
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null) return;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(
+            new FilePickerOpenOptions
+            {
+                Title = "Select intro video file",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("Video files")
+                    {
+                        Patterns = new[] { "*.mp4", "*.webm", "*.avi", "*.mkv", "*.mov" },
+                    },
+                    FilePickerFileTypes.All,
+                },
+            });
+
+        if (files.Count > 0 && DataContext is SettingsViewModel vm)
+            vm.IntroVideoPath = files[0].Path.LocalPath;
     }
 }

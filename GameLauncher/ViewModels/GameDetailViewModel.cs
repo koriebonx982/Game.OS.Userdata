@@ -2029,6 +2029,12 @@ public partial class GameDetailViewModel : ViewModelBase
 
         if (string.IsNullOrEmpty(titleId)) return;
 
+        // Guard: Switch TitleIDs are always exactly 16 hexadecimal characters.
+        // Any other value (e.g. a RAWG database "id" such as "1222700") must not
+        // be used as a folder name or mods.json path.
+        if (!System.Text.RegularExpressions.Regex.IsMatch(titleId, @"^[0-9A-Fa-f]{16}$"))
+            return;
+
         // Locate the Ryujinx executable from the configured emulator for Switch
         var emuSettings = Services.EmulatorSettingsService.Load("Switch");
         if (string.IsNullOrEmpty(emuSettings.EmulatorPath)) return;
