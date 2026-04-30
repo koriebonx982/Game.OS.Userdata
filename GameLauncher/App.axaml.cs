@@ -105,7 +105,19 @@ public partial class App : Application
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            // Prefer VLC from common install locations
+            // Prefer Windows Media Player — same method used by console OS UIs
+            // (PS4/PS5 system software plays intro videos through the system media player)
+            var wmpPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                @"Windows Media Player\wmplayer.exe");
+            if (!File.Exists(wmpPath))
+                wmpPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
+                    @"Windows Media Player\wmplayer.exe");
+            if (File.Exists(wmpPath))
+                return (wmpPath, new[] { "/fullscreen" });
+
+            // Fall back to VLC from common install locations
             foreach (var vlc in new[]
             {
                 @"C:\Program Files\VideoLAN\VLC\vlc.exe",
