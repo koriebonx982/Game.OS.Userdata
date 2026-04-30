@@ -788,6 +788,19 @@ public partial class GameDetailViewModel : ViewModelBase
                     string safeRomPath = romPath.Replace("\"", "\\\"");
                     string args = emuSettings.Arguments.Replace("{rom}", $"\"{safeRomPath}\"");
                     System.Diagnostics.Process? romProc = null;
+
+                    // ── Switch log reader: clean up stale Ryujinx logs before launch ──
+                    bool readSwitchLog = IsSwitch
+                        && AppSettingsService.Load().ReadSwitchLog
+                        && emuSettings.EmulatorPath.ToLowerInvariant().Contains("ryujinx");
+
+                    if (readSwitchLog)
+                    {
+                        SwitchLogReaderService.DeleteOldLogs(emuSettings.EmulatorPath);
+                        SwitchLogReaderService.AppendToLauncherLog(
+                            $"Launching '{Title}' via Ryujinx — old logs cleared.");
+                    }
+
                     try
                     {
                         var psi = new System.Diagnostics.ProcessStartInfo
@@ -807,6 +820,11 @@ public partial class GameDetailViewModel : ViewModelBase
 
                     if (saved.PostLaunch.Count > 0)
                         _ = WatchAndRunPostLaunchAsync(romProc, saved.PostLaunch);
+
+                    // ── Switch log reader: read Ryujinx log after session ends ──────
+                    if (readSwitchLog)
+                        _ = WatchAndReadSwitchLogAsync(romProc, emuSettings.EmulatorPath, Title);
+
                     return;
                 }
 
@@ -899,6 +917,11 @@ public partial class GameDetailViewModel : ViewModelBase
         catch { /* best-effort */ }
     }
 
+    /// <summary>Maximum time to wait for a game/emulator process to exit.</summary>
+    private const int MaxEmulatorWaitHours = 24;
+    /// <summary>Milliseconds to wait after the emulator exits for its log file to be fully flushed.</summary>
+    private const int LogFlushDelayMs = 500;
+
     private static async System.Threading.Tasks.Task WatchAndRunPostLaunchAsync(
         System.Diagnostics.Process? gameProc, List<LaunchEntry> postEntries)
     {
@@ -906,9 +929,9 @@ public partial class GameDetailViewModel : ViewModelBase
         {
             try
             {
-                // Wait up to 24 hours for the game process to exit
+                // Wait up to MaxEmulatorWaitHours for the game process to exit
                 using var cts = new System.Threading.CancellationTokenSource(
-                    System.TimeSpan.FromHours(24));
+                    System.TimeSpan.FromHours(MaxEmulatorWaitHours));
                 await gameProc.WaitForExitAsync(cts.Token);
             }
             catch { /* process may have already exited or be inaccessible */ }
@@ -921,6 +944,46 @@ public partial class GameDetailViewModel : ViewModelBase
         foreach (var post in postEntries)
             TryStartProcess(post.Path, post.Arguments);
     }
+
+    /// <summary>
+    /// Waits for <paramref name="gameProc"/> to exit then reads the latest Ryujinx
+    /// log file, extracts all "Room: " lines and writes a summary to
+    /// <c>Switch log Reader.log</c> next to the Game.OS launcher executable.
+    /// </summary>
+    private static async System.Threading.Tasks.Task WatchAndReadSwitchLogAsync(
+        System.Diagnostics.Process? gameProc, string ryujinxExePath, string gameTitle)
+    {
+        if (gameProc != null)
+        {
+            try
+            {
+                // Wait up to MaxEmulatorWaitHours for the emulator process to exit
+                using var cts = new System.Threading.CancellationTokenSource(
+                    System.TimeSpan.FromHours(MaxEmulatorWaitHours));
+                await gameProc.WaitForExitAsync(cts.Token);
+            }
+            catch { /* process may have already exited or be inaccessible */ }
+            finally
+            {
+                gameProc.Dispose();
+            }
+        }
+
+        // Give Ryujinx a moment to finish flushing its log to disk
+        await System.Threading.Tasks.Task.Delay(LogFlushDelayMs);
+
+        string? latestLog = SwitchLogReaderService.FindLatestLog(ryujinxExePath);
+        if (string.IsNullOrEmpty(latestLog))
+        {
+            SwitchLogReaderService.AppendToLauncherLog(
+                $"'{gameTitle}' session ended — no Ryujinx log file found.");
+            return;
+        }
+
+        var roomLines = SwitchLogReaderService.ReadRoomLines(latestLog);
+        SwitchLogReaderService.WriteSessionToLauncherLog(gameTitle, latestLog, roomLines);
+    }
+
 
     /// <summary>
     /// Installs the repack.
