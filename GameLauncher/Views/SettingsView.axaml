@@ -106,7 +106,7 @@
                             </Grid>
 
                             <!-- Intro video path (shown when toggle is on) -->
-                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center"
+                            <Grid ColumnDefinitions="*,Auto,Auto" VerticalAlignment="Center"
                                   IsVisible="{Binding ShowIntroVideo}">
                                 <StackPanel Grid.Column="0" Spacing="2">
                                     <TextBlock Text="Custom intro video file"
@@ -127,6 +127,14 @@
                                         Margin="16,0,0,0"
                                         VerticalAlignment="Center"
                                         Command="{Binding BrowseIntroVideoCommand}"/>
+                                <Button Grid.Column="2"
+                                        Classes="btn-secondary"
+                                        Content="🎬  Gallery"
+                                        FontSize="11"
+                                        Padding="8,6"
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding PickIntroVideoFromGalleryCommand}"/>
                             </Grid>
 
                             <Rectangle Height="1" Fill="#21262d"/>

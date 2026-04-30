@@ -1,0 +1,144 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:GameLauncher.Views"
+        x:Class="GameLauncher.Views.IntroVideoPickerWindow"
+        Title="Pick Intro Video — Game.OS Gallery"
+        Width="580" Height="520"
+        MinWidth="420" MinHeight="300"
+        WindowStartupLocation="CenterOwner"
+        Background="#0d1117"
+        CanResize="True">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- ── Header ── -->
+        <Border Grid.Row="0" Background="#161b22" Padding="24,16"
+                BorderBrush="#21262d" BorderThickness="0,0,0,1">
+            <StackPanel>
+                <TextBlock Text="🎬  Game.OS Intro Videos"
+                           FontSize="18" FontWeight="Bold"
+                           Foreground="White"/>
+                <TextBlock Text="Select a video to download and use as your startup intro animation."
+                           FontSize="12" Foreground="#8b949e" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ── Content ── -->
+        <Grid Grid.Row="1">
+
+            <!-- Loading state -->
+            <StackPanel x:Name="LoadingPanel"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="12"
+                        IsVisible="True">
+                <TextBlock Text="⏳  Loading gallery…"
+                           FontSize="14" Foreground="#8b949e"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Error state -->
+            <StackPanel x:Name="ErrorPanel"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="12"
+                        IsVisible="False">
+                <TextBlock x:Name="ErrorLabel"
+                           FontSize="13" Foreground="#f85149"
+                           HorizontalAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxWidth="420"
+                           TextAlignment="Center"/>
+                <Button x:Name="RetryButton"
+                        Content="⟳  Retry"
+                        HorizontalAlignment="Center"
+                        Background="#21262d"
+                        Foreground="White"
+                        Padding="20,8"
+                        CornerRadius="6"/>
+            </StackPanel>
+
+            <!-- Empty state -->
+            <StackPanel x:Name="EmptyPanel"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        IsVisible="False">
+                <TextBlock Text="No videos found in the gallery."
+                           FontSize="14" Foreground="#8b949e"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Video list -->
+            <ScrollViewer x:Name="ListPanel"
+                          IsVisible="False"
+                          Padding="16,12"
+                          VerticalScrollBarVisibility="Auto">
+                <ItemsControl x:Name="VideoList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="local:IntroVideoItemVm">
+                            <Border Background="#161b22" CornerRadius="8"
+                                    Padding="16,12" Margin="0,0,0,8">
+                                <Grid ColumnDefinitions="*,Auto">
+
+                                    <!-- Name + size + progress -->
+                                    <StackPanel Grid.Column="0" Spacing="2"
+                                                VerticalAlignment="Center"
+                                                Margin="0,0,12,0">
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="#e6edf3"
+                                                   TextWrapping="Wrap"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding SizeLabel}"
+                                                       FontSize="11" Foreground="#8b949e"/>
+                                            <TextBlock Text="✓ Already downloaded"
+                                                       FontSize="11" Foreground="#3fb950"
+                                                       IsVisible="{Binding IsAlreadyDownloaded}"/>
+                                        </StackPanel>
+                                        <ProgressBar Value="{Binding DownloadProgress}"
+                                                     Minimum="0" Maximum="1"
+                                                     Height="4" CornerRadius="2"
+                                                     Foreground="#1f6feb"
+                                                     Background="#21262d"
+                                                     IsVisible="{Binding IsDownloading}"
+                                                     Margin="0,6,0,0"/>
+                                        <TextBlock Text="{Binding StatusLabel}"
+                                                   FontSize="10" Foreground="#58a6ff"
+                                                   IsVisible="{Binding HasStatus}"/>
+                                    </StackPanel>
+
+                                    <!-- Action button -->
+                                    <Button Grid.Column="1"
+                                            Content="{Binding ButtonLabel}"
+                                            IsEnabled="{Binding IsButtonEnabled}"
+                                            Tag="{Binding}"
+                                            FontSize="12"
+                                            Padding="14,8"
+                                            CornerRadius="6"
+                                            Background="#1f6feb"
+                                            Foreground="White"
+                                            VerticalAlignment="Center"
+                                            Click="OnItemButtonClicked"/>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+        </Grid>
+
+        <!-- ── Footer ── -->
+        <Border Grid.Row="2" Background="#161b22" Padding="24,12"
+                BorderBrush="#21262d" BorderThickness="0,1,0,0">
+            <Button Content="Cancel"
+                    HorizontalAlignment="Right"
+                    Background="#21262d"
+                    Foreground="White"
+                    Padding="16,8"
+                    CornerRadius="6"
+                    Click="OnCancelClicked"/>
+        </Border>
+
+    </Grid>
+</Window>

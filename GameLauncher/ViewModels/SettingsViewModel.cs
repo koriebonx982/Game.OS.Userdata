@@ -117,11 +117,20 @@ public partial class SettingsViewModel : ViewModelBase
         BrowseIntroVideoRequested?.Invoke();
     }
 
+    [RelayCommand]
+    private void PickIntroVideoFromGallery()
+    {
+        PickIntroVideoFromGalleryRequested?.Invoke();
+    }
+
     /// <summary>Raised when the user clicks Browse… on an emulator row.</summary>
     public System.Action<EmulatorRowVm>? BrowseRequested { get; set; }
 
     /// <summary>Raised when the user clicks Browse… next to the intro video path.</summary>
     public System.Action? BrowseIntroVideoRequested { get; set; }
+
+    /// <summary>Raised when the user clicks the Gallery button to pick an intro video from GitHub.</summary>
+    public System.Action? PickIntroVideoFromGalleryRequested { get; set; }
 }
 
 /// <summary>
