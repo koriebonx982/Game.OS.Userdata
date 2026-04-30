@@ -132,6 +132,10 @@ public partial class GameDetailViewModel : ViewModelBase
     private static readonly Regex _sevenZipProgressRegex =
         new(@"(\d+)%", RegexOptions.Compiled);
 
+    /// <summary>Switch TitleID pattern: exactly 16 hexadecimal characters (e.g. "0100152000022000").</summary>
+    private static readonly Regex _switchTitleIdValidationRegex =
+        new(@"^[0-9A-Fa-f]{16}$", RegexOptions.Compiled);
+
     public ObservableCollection<string> DriveLabels { get; } = new();
 
     private List<LocalGameDriveEntry> _driveInstances = new();
@@ -2032,7 +2036,7 @@ public partial class GameDetailViewModel : ViewModelBase
         // Guard: Switch TitleIDs are always exactly 16 hexadecimal characters.
         // Any other value (e.g. a RAWG database "id" such as "1222700") must not
         // be used as a folder name or mods.json path.
-        if (!System.Text.RegularExpressions.Regex.IsMatch(titleId, @"^[0-9A-Fa-f]{16}$"))
+        if (!_switchTitleIdValidationRegex.IsMatch(titleId))
             return;
 
         // Locate the Ryujinx executable from the configured emulator for Switch

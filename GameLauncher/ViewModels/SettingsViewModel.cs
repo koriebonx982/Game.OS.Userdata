@@ -52,7 +52,7 @@ public partial class SettingsViewModel : ViewModelBase
         var appSettings = AppSettingsService.Load();
         AutoUpdate     = appSettings.AutoUpdate;
         ShowIntroVideo = appSettings.ShowIntroVideo;
-        IntroVideoPath = appSettings.IntroVideoPath ?? "";
+        IntroVideoPath = appSettings.IntroVideoPath;
         ReadSwitchLog  = appSettings.ReadSwitchLog;
 
         StatusMessage = "";

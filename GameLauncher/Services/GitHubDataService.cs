@@ -725,6 +725,10 @@ namespace GameLauncher.Services
         private static readonly Dictionary<string, List<DatabaseGame>> _dbMemoryCache =
             new(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>Switch TitleID pattern: exactly 16 hexadecimal characters.</summary>
+        private static readonly System.Text.RegularExpressions.Regex _switchTitleIdPattern =
+            new(@"^[0-9A-Fa-f]{16}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
         private static List<DatabaseGame>? TryLoadDiskCache(string platform)
         {
             try
@@ -1028,7 +1032,7 @@ namespace GameLauncher.Services
                 // wrong directory name.
                 if (!string.IsNullOrEmpty(titleId) &&
                     string.Equals(platform, "Switch", StringComparison.OrdinalIgnoreCase) &&
-                    !System.Text.RegularExpressions.Regex.IsMatch(titleId, @"^[0-9A-Fa-f]{16}$"))
+                    !_switchTitleIdPattern.IsMatch(titleId))
                 {
                     titleId = null;
                 }
