@@ -69,10 +69,8 @@
                                                 <!-- Avatar -->
                                                 <Border Grid.Column="0"
                                                         Width="40" Height="40"
-                                                        CornerRadius="20">
-                                                    <Border.Background>
-                                                        <SolidColorBrush Color="{Binding AvatarColor}"/>
-                                                    </Border.Background>
+                                                        CornerRadius="20"
+                                                        Background="{Binding AvatarColor}">
                                                     <TextBlock Text="{Binding DisplayName[0]}"
                                                                FontSize="18" FontWeight="Bold"
                                                                Foreground="White"

@@ -17,8 +17,16 @@ internal sealed class Program
         if (settings.DevLogs)
             Services.DevLogService.Enable();
 
+        Services.DevLogService.Log($"[Startup] OS: {RuntimeInformation.OSDescription}");
+        Services.DevLogService.Log($"[Startup] Runtime: {RuntimeInformation.FrameworkDescription}");
+        Services.DevLogService.Log($"[Startup] Demo mode: {DemoMode.IsEnabled}");
+        Services.DevLogService.Log($"[Startup] DevLogs: {settings.DevLogs}");
+        Services.DevLogService.Log($"[Startup] ShowIntroVideo: {settings.ShowIntroVideo}  IntroVideoPath: '{settings.IntroVideoPath}'");
+        Services.DevLogService.Log($"[Startup] AutoUpdate: {settings.AutoUpdate}  ReadSwitchLog: {settings.ReadSwitchLog}");
+
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
 
+        Services.DevLogService.Log("[Startup] Application shutdown — framework lifetime ended.");
         Services.DevLogService.Disable();
     }
 

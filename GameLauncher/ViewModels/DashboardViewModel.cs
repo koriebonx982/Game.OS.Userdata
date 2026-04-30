@@ -60,6 +60,8 @@ public partial class DashboardViewModel : ViewModelBase
         AchievementsCount = achievements.Count;
         PlatformsCount    = library.Select(g => g.Platform).Distinct().Count();
 
+        DevLogService.Log($"[Dashboard] Load: user='{profile.Username}'  games={library.Count}  achievements={achievements.Count}  localCards={localCards?.Count ?? 0}  platforms={PlatformsCount}");
+
         // Total playtime across all games — show days/hours/minutes breakdown.
         // Include cloud library games AND local-only games (not in the cloud library) so that
         // PC games tracked only by the scanner are counted towards the total playtime.
@@ -220,6 +222,7 @@ public partial class DashboardViewModel : ViewModelBase
             FeaturedGradient      = lastLocal.CoverGradient;
             FeaturedBadgeText     = "▶  LAST PLAYED";
             IsFeaturedLastPlayed  = true;
+            DevLogService.Log($"[Dashboard] FeaturedGame = local '{lastLocal.EffectiveTitle}' ({lastLocal.Platform}) — last played {lastLocalTime:yyyy-MM-dd HH:mm:ss}");
         }
         else if (lastCloud != null && lastCloudTime > DateTime.MinValue)
         {
@@ -240,6 +243,7 @@ public partial class DashboardViewModel : ViewModelBase
             FeaturedGradient      = lastCloud.CoverGradient ?? "#1a1a2e,#16213e";
             FeaturedBadgeText     = "▶  LAST PLAYED";
             IsFeaturedLastPlayed  = true;
+            DevLogService.Log($"[Dashboard] FeaturedGame = cloud '{lastCloud.Title}' ({lastCloud.Platform}) — last played {lastCloudTime:yyyy-MM-dd HH:mm:ss}");
         }
         else
         {
@@ -250,6 +254,7 @@ public partial class DashboardViewModel : ViewModelBase
             FeaturedGradient     = FeaturedGame?.CoverGradient ?? "#1a1a2e,#16213e";
             FeaturedBadgeText    = "⭐  FEATURED";
             IsFeaturedLastPlayed = false;
+            DevLogService.Log($"[Dashboard] FeaturedGame = store fallback '{FeaturedGame?.Title ?? "(none)"}' — no games played yet.");
         }
     }
 

@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using GameLauncher.Models;
+using GameLauncher.Services;
 
 namespace GameLauncher;
 
@@ -53,12 +54,18 @@ public sealed class GameScannerService : IDisposable
     /// </summary>
     public async Task StartAsync(CancellationToken ct = default)
     {
+        DevLogService.Log("[Scanner] StartAsync — beginning scan.");
         // Try loading from cache first for faster startup
         if (TryLoadCache())
         {
+            DevLogService.Log($"[Scanner] Cache loaded: {_games.Count} games, {_repacks.Count} repacks, {_roms.Count} ROMs.");
             GamesUpdated?.Invoke(new List<LocalGame>(_games));
             RepacksUpdated?.Invoke(new List<LocalRepack>(_repacks));
             RomsUpdated?.Invoke(new List<LocalRom>(_roms));
+        }
+        else
+        {
+            DevLogService.Log("[Scanner] No cache found — starting fresh scan.");
         }
 
         // Always do a fresh scan to stay current
@@ -119,9 +126,11 @@ public sealed class GameScannerService : IDisposable
         var foundRepacks  = new List<LocalRepack>();
         var foundRomsRaw  = new List<LocalRom>();
 
+        var driveRoots = GetDriveRoots().ToList();
+        DevLogService.Log($"[Scanner] Scanning {driveRoots.Count} drive root(s): {string.Join(", ", driveRoots)}");
         await Task.Run(() =>
         {
-            foreach (var driveRoot in GetDriveRoots())
+            foreach (var driveRoot in driveRoots)
             {
                 ct.ThrowIfCancellationRequested();
                 ScanGamesDir(driveRoot, foundGamesRaw);
@@ -198,6 +207,7 @@ public sealed class GameScannerService : IDisposable
         }
 
         SaveCache();
+        DevLogService.Log($"[Scanner] Scan complete: {_games.Count} games, {_repacks.Count} repacks, {_roms.Count} ROMs.");
         GamesUpdated?.Invoke(new List<LocalGame>(_games));
         RepacksUpdated?.Invoke(new List<LocalRepack>(_repacks));
         RomsUpdated?.Invoke(new List<LocalRom>(_roms));

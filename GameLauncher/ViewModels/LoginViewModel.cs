@@ -80,7 +80,13 @@ public partial class LoginViewModel : ViewModelBase
     public async System.Threading.Tasks.Task TryAutoLoginAsync()
     {
         var saved = _cache.GetRememberedSession();
-        if (saved == null) return;
+        if (saved == null)
+        {
+            DevLogService.Log("[AutoLogin] No remembered session found — showing login form.");
+            return;
+        }
+
+        DevLogService.Log($"[AutoLogin] Remembered session found for '{saved.Username}' — attempting online restore.");
 
         IsLoading    = true;
         ErrorMessage = "";
@@ -91,11 +97,13 @@ public partial class LoginViewModel : ViewModelBase
             var games        = await _client.GetGamesAsync();
             var achievements = await _client.GetAchievementsAsync();
             EnrichGames(games);
+            DevLogService.Log($"[AutoLogin] Online restore succeeded for '{profile.Username}'. Games={games.Count}  Achievements={achievements.Count}");
             OnLoginSuccess?.Invoke(profile, games, achievements, false);
         }
         catch (Exception ex) when (ex is GameOsException or System.Net.Http.HttpRequestException)
         {
             System.Diagnostics.Debug.WriteLine($"[AutoLogin] Online restore failed: {ex.Message}");
+            DevLogService.Log($"[AutoLogin] Online restore failed: {ex.GetType().Name}: {ex.Message}");
 
             // ── Offline fallback ──────────────────────────────────────────
             // If the failure is a definitive auth rejection (401/403) from the
@@ -105,6 +113,7 @@ public partial class LoginViewModel : ViewModelBase
 
             if (isAuthFailure)
             {
+                DevLogService.Log($"[AutoLogin] Auth rejected (401/403) — clearing stale token for '{saved.Username}'.");
                 _cache.ClearToken(saved.Username);
                 _client.Logout();
                 ErrorMessage = "";
@@ -112,17 +121,20 @@ public partial class LoginViewModel : ViewModelBase
             }
 
             // Network/server unavailable — attempt offline login from cache
+            DevLogService.Log($"[AutoLogin] Network/server unavailable — trying offline cache for '{saved.Username}'.");
             var cached = _offlineCache.Load(saved.Username);
             if (cached?.Profile != null && cached.Games != null && cached.Achievements != null)
             {
                 System.Diagnostics.Debug.WriteLine(
                     $"[AutoLogin] Falling back to offline cache for '{saved.Username}'.");
+                DevLogService.Log($"[AutoLogin] Offline cache loaded for '{saved.Username}'. Games={cached.Games.Count}  Achievements={cached.Achievements.Count}");
                 EnrichGames(cached.Games);
                 OnLoginSuccess?.Invoke(
                     cached.Profile, cached.Games, cached.Achievements, true);
             }
             else
             {
+                DevLogService.Log($"[AutoLogin] No offline cache found for '{saved.Username}' — clearing token and showing login form.");
                 // No cache — clear the token and show the login form
                 _cache.ClearToken(saved.Username);
                 _client.Logout();
@@ -146,6 +158,8 @@ public partial class LoginViewModel : ViewModelBase
             return;
         }
 
+        DevLogService.Log($"[SignIn] Attempting login for '{Username}'.");
+
         IsLoading = true;
         ErrorMessage = "";
         try
@@ -154,6 +168,7 @@ public partial class LoginViewModel : ViewModelBase
             var games        = await _client.GetGamesAsync();
             var achievements = await _client.GetAchievementsAsync();
             EnrichGames(games);
+            DevLogService.Log($"[SignIn] Login succeeded for '{profile.Username}'. Games={games.Count}  Achievements={achievements.Count}");
 
             // Persist the session so the user stays logged in across launches
             // (same as the website writing to localStorage when "Remember me" is checked).
@@ -172,16 +187,19 @@ public partial class LoginViewModel : ViewModelBase
         }
         catch (GameOsException ex)
         {
+            DevLogService.Log($"[SignIn] Login rejected: {ex.Message}");
             ErrorMessage = ex.Message;
         }
         catch (System.Net.Http.HttpRequestException)
         {
             // Server unreachable — try offline login if a cache exists
+            DevLogService.Log($"[SignIn] Server unreachable — checking offline cache for '{Username}'.");
             var cached = _offlineCache.Load(Username.Trim());
             if (cached?.Profile != null && cached.Games != null && cached.Achievements != null)
             {
                 System.Diagnostics.Debug.WriteLine(
                     $"[SignIn] Server unreachable — loading offline cache for '{Username}'.");
+                DevLogService.Log($"[SignIn] Offline cache found for '{Username}'. Games={cached.Games.Count}  Achievements={cached.Achievements.Count}");
                 EnrichGames(cached.Games);
                 _cache.SaveSession(new CachedSession
                 {
@@ -197,6 +215,7 @@ public partial class LoginViewModel : ViewModelBase
             }
             else
             {
+                DevLogService.Log($"[SignIn] No offline cache for '{Username}' — showing error.");
                 ErrorMessage =
                     "Cannot reach the Game.OS server and no local cache was found. " +
                     "Please connect to the internet to log in for the first time.";
@@ -204,6 +223,7 @@ public partial class LoginViewModel : ViewModelBase
         }
         catch (System.Exception ex)
         {
+            DevLogService.Log($"[SignIn] Unexpected error: {ex.GetType().Name}: {ex.Message}");
             ErrorMessage = $"Connection error: {ex.Message}";
         }
         finally
@@ -232,11 +252,14 @@ public partial class LoginViewModel : ViewModelBase
             return;
         }
 
+        DevLogService.Log($"[Register] Attempting registration for '{Username}' <{Email}>.");
+
         IsLoading = true;
         ErrorMessage = "";
         try
         {
             var profile = await _client.RegisterAsync(Username, Email, Password);
+            DevLogService.Log($"[Register] Registration succeeded for '{profile.Username}'.");
 
             _cache.SaveSession(new CachedSession
             {
@@ -253,10 +276,12 @@ public partial class LoginViewModel : ViewModelBase
         }
         catch (GameOsException ex)
         {
+            DevLogService.Log($"[Register] Registration rejected: {ex.Message}");
             ErrorMessage = ex.Message;
         }
         catch (System.Exception ex)
         {
+            DevLogService.Log($"[Register] Unexpected error: {ex.GetType().Name}: {ex.Message}");
             ErrorMessage = $"Error: {ex.Message}";
         }
         finally
@@ -283,6 +308,8 @@ public partial class LoginViewModel : ViewModelBase
     {
         if (session == null) return;
 
+        DevLogService.Log($"[QuickLogin] Attempting quick login for '{session.Username}'.");
+
         // Try token-based silent restore first
         var cached = _cache.GetSession(session.Username);
         if (cached != null && !string.IsNullOrEmpty(cached.Token))
@@ -295,6 +322,7 @@ public partial class LoginViewModel : ViewModelBase
                 var games        = await _client.GetGamesAsync();
                 var achievements = await _client.GetAchievementsAsync();
                 EnrichGames(games);
+                DevLogService.Log($"[QuickLogin] Token restore succeeded for '{profile.Username}'. Games={games.Count}");
                 OnLoginSuccess?.Invoke(profile, games, achievements, false);
                 return;
             }
@@ -302,6 +330,7 @@ public partial class LoginViewModel : ViewModelBase
                                         (ge.StatusCode == 401 || ge.StatusCode == 403))
             {
                 // Definitive auth failure — clear token and fall through to password form
+                DevLogService.Log($"[QuickLogin] Token rejected (401/403) for '{session.Username}' — clearing token.");
                 _cache.ClearToken(session.Username);
                 _client.Logout();
                 System.Diagnostics.Debug.WriteLine($"[QuickLogin] Auth rejected: {ex.Message}");
@@ -309,11 +338,13 @@ public partial class LoginViewModel : ViewModelBase
             catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or GameOsException)
             {
                 // Network/server unavailable — try offline cache
+                DevLogService.Log($"[QuickLogin] Network error for '{session.Username}' — trying offline cache: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"[QuickLogin] Offline fallback: {ex.Message}");
                 var offlineData = _offlineCache.Load(session.Username);
                 if (offlineData?.Profile != null && offlineData.Games != null
                     && offlineData.Achievements != null)
                 {
+                    DevLogService.Log($"[QuickLogin] Offline cache loaded for '{session.Username}'. Games={offlineData.Games.Count}");
                     EnrichGames(offlineData.Games);
                     OnLoginSuccess?.Invoke(
                         offlineData.Profile, offlineData.Games, offlineData.Achievements, true);
@@ -321,6 +352,7 @@ public partial class LoginViewModel : ViewModelBase
                 }
                 else
                 {
+                    DevLogService.Log($"[QuickLogin] No offline cache found for '{session.Username}'.");
                     ErrorMessage = "Cannot reach the server. Connect to the internet to sign in.";
                 }
             }
@@ -332,6 +364,7 @@ public partial class LoginViewModel : ViewModelBase
 
         // Token not available or expired — pre-fill username so the user
         // only needs to enter the password (same as web behaviour).
+        DevLogService.Log($"[QuickLogin] No valid token for '{session.Username}' — pre-filling username for manual login.");
         Username     = session.Username;
         Password     = "";
         ErrorMessage = "";
