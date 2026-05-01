@@ -35,10 +35,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private DateTime _lastSyncedAt = DateTime.MinValue;
 
     // ── Sync status (shown in the bottom-right overlay) ────────────────────
-    /// <summary>True while the background metadata cache task is running.</summary>
+    /// <summary>True while any background metadata cache task is running.</summary>
     [ObservableProperty] private bool   _isCachingGames;
     /// <summary>Human-readable description of the game currently being cached, e.g. "Caching The Witcher 3…".</summary>
     [ObservableProperty] private string _cacheSyncLabel = "";
+
+    /// <summary>
+    /// Reference count of concurrent background cache tasks.
+    /// The sync indicator is shown while this is &gt; 0 and hidden when it reaches 0.
+    /// Incremented/decremented via <see cref="System.Threading.Interlocked"/> for thread safety.
+    /// </summary>
+    private int _cacheTaskCount = 0;
 
     // ── Message polling ────────────────────────────────────────────────────
     /// <summary>Fires every 60 seconds after login to check for new direct messages.</summary>
@@ -1650,9 +1657,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private async Task BackgroundCacheLibraryAsync(List<Game> library)
     {
         if (library.Count == 0) return;
+        System.Threading.Interlocked.Increment(ref _cacheTaskCount);
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => IsCachingGames = true);
         try
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => IsCachingGames = true);
             foreach (var game in library)
             {
                 try
@@ -1669,12 +1677,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
         finally
         {
-            // Only clear the indicator if local-game caching isn't also running
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            if (System.Threading.Interlocked.Decrement(ref _cacheTaskCount) == 0)
             {
-                IsCachingGames = false;
-                CacheSyncLabel = "";
-            });
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    IsCachingGames = false;
+                    CacheSyncLabel = "";
+                });
+            }
         }
     }
 
@@ -1688,9 +1698,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            // Snapshot local games from the UI thread to avoid collection-modified exceptions
+            // Snapshot local games on the UI thread to avoid collection-modified exceptions
             List<(string Title, string Platform, string? TitleId)> sources = new();
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
                 foreach (var g in LibraryVm.LocalGames)
                     sources.Add((g.Title, "PC", null));
@@ -1698,13 +1708,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     sources.Add((r.Title, r.Platform, r.TitleId));
             });
 
-            // Give the UI thread a moment to process the Post above
-            await Task.Delay(200).ConfigureAwait(false);
-
             if (sources.Count == 0) return;
 
             DevLogService.Log($"[Cache] BackgroundCacheLocalGamesAsync: {sources.Count} local games to process.");
 
+            System.Threading.Interlocked.Increment(ref _cacheTaskCount);
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
                 IsCachingGames = true;
@@ -1716,56 +1724,61 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 .GroupBy(s => s.Platform, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
-            foreach (var (platform, entries) in byPlatform)
+            try
             {
-                try
+                foreach (var (platform, entries) in byPlatform)
                 {
-                    var dbGames = await GameOsClient.FetchGamesDatabaseAsync(platform).ConfigureAwait(false);
-                    if (dbGames.Count == 0) continue;
-
-                    foreach (var (title, _, titleId) in entries)
+                    try
                     {
-                        try
+                        var dbGames = await GameOsClient.FetchGamesDatabaseAsync(platform).ConfigureAwait(false);
+                        if (dbGames.Count == 0) continue;
+
+                        foreach (var (title, _, titleId) in entries)
                         {
-                            var dbGame = FindDatabaseGame(dbGames, title, titleId);
-                            if (dbGame == null) continue;
+                            try
+                            {
+                                var dbGame = FindDatabaseGame(dbGames, title, titleId);
+                                if (dbGame == null) continue;
 
-                            // Resolve the effective titleId: scanner titleId → database titleId → null
-                            string? effectiveTitleId = titleId ?? dbGame.TitleId;
+                                // Resolve the effective cache key: scanner titleId → database titleId → title
+                                string? cacheKey = titleId ?? dbGame.TitleId;
 
-                            if (string.IsNullOrEmpty(dbGame.CoverUrl) && string.IsNullOrEmpty(dbGame.AchievementsUrl))
-                                continue;
+                                if (string.IsNullOrEmpty(dbGame.CoverUrl) && string.IsNullOrEmpty(dbGame.AchievementsUrl))
+                                    continue;
 
-                            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                                CacheSyncLabel = $"Caching {dbGame.Title ?? title}…");
+                                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                                    CacheSyncLabel = $"Caching {dbGame.Title ?? title}…");
 
-                            await _metadataCache.CacheLocalGameAsync(
-                                platform,
-                                effectiveTitleId,
-                                title,
-                                dbGame.CoverUrl,
-                                dbGame.AchievementsUrl).ConfigureAwait(false);
+                                await _metadataCache.CacheLocalGameAsync(
+                                    platform,
+                                    cacheKey,
+                                    title,
+                                    dbGame.CoverUrl,
+                                    dbGame.AchievementsUrl).ConfigureAwait(false);
+                            }
+                            catch { /* best-effort per game */ }
                         }
-                        catch { /* best-effort per game */ }
                     }
+                    catch { /* best-effort per platform */ }
                 }
-                catch { /* best-effort per platform */ }
+            }
+            finally
+            {
+                if (System.Threading.Interlocked.Decrement(ref _cacheTaskCount) == 0)
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    {
+                        IsCachingGames = false;
+                        CacheSyncLabel = "";
+                    });
+                }
             }
         }
         catch (Exception ex)
         {
             DevLogService.Log($"[Cache] BackgroundCacheLocalGamesAsync failed: {ex.Message}");
         }
-        finally
-        {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                IsCachingGames = false;
-                CacheSyncLabel = "";
-            });
-        }
     }
-
     /// <summary>Formats the last-synced label for the Settings Sync section.</summary>
     private static string FormatLastSyncedLabel(DateTime lastSyncedAt)
     {

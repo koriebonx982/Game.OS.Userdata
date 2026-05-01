@@ -66,11 +66,11 @@ namespace GameLauncher.Services
 
         /// <summary>
         /// Resolves the best cache key for a game: TitleId when available, otherwise
-        /// the sanitised game title.
+        /// the game title (sanitised for use as a folder name).
         /// </summary>
         private static string ResolveKey(string? titleId, string? title) =>
             !string.IsNullOrEmpty(titleId) ? titleId :
-            !string.IsNullOrEmpty(title)   ? title   : "";
+            !string.IsNullOrEmpty(title)   ? UserDataService.SanitiseFolderName(title) : "";
 
         /// <summary>Returns true if a cache folder exists for this game.</summary>
         public bool IsCached(string platform, string titleId) =>
