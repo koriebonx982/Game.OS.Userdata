@@ -2002,41 +2002,77 @@ app.get('/api/me/friends', authenticateToken, async (req, res) => {
 });
 
 // ── POST /api/me/activity ─────────────────────────────────────────────────────
-// Log a game-play session for the authenticated user.
-// Body: { platform, gameTitle, titleId?, sessionStart, sessionEnd, minutesPlayed }
+// Log a game-play session or achievement unlock for the authenticated user.
+// Body: { platform, gameTitle, titleId?, sessionStart, sessionEnd, minutesPlayed,
+//         type?, achievementName?, achievementIcon? }
+// type: "playtime" (default) | "achievement_unlocked"
 app.post('/api/me/activity', authenticateToken, async (req, res) => {
     try {
         const { usernameLower } = req.tokenUser;
-        const { platform, gameTitle, titleId, sessionStart, sessionEnd, minutesPlayed } = req.body;
-        if (!platform || !gameTitle || !sessionStart || minutesPlayed === undefined) {
-            return res.status(400).json({ success: false, message: 'platform, gameTitle, sessionStart, and minutesPlayed are required.' });
+        const { platform, gameTitle, titleId, sessionStart, sessionEnd, minutesPlayed,
+                type, achievementName, achievementIcon } = req.body;
+
+        const entryType = (type === 'achievement_unlocked') ? 'achievement_unlocked' : 'playtime';
+
+        if (entryType === 'playtime') {
+            if (!platform || !gameTitle || !sessionStart || minutesPlayed === undefined) {
+                return res.status(400).json({ success: false, message: 'platform, gameTitle, sessionStart, and minutesPlayed are required.' });
+            }
+            const minutes = parseInt(minutesPlayed, 10);
+            // Max 2880 minutes (48 hours) to support marathon sessions while preventing bad data
+            if (isNaN(minutes) || minutes < 0 || minutes > 2880) {
+                return res.status(400).json({ success: false, message: 'minutesPlayed must be a number between 0 and 2880 (48 hours).' });
+            }
+
+            const path = `accounts/${usernameLower}/activity.json`;
+            const file = await getFile(path);
+            const log  = file ? [...file.content] : [];
+
+            // Keep only the last 500 sessions to prevent unbounded growth
+            const entry = {
+                type:          'playtime',
+                platform,
+                gameTitle,
+                titleId:       titleId || null,
+                sessionStart,
+                sessionEnd:    sessionEnd || null,
+                minutesPlayed: minutes,
+                loggedAt:      new Date().toISOString()
+            };
+            log.push(entry);
+            if (log.length > 500) log.splice(0, log.length - 500);
+
+            await putFile(path, log, `Activity: ${gameTitle} (${platform}) – ${minutes}min`, file ? file.sha : undefined);
+            return res.json({ success: true, message: 'Activity logged.', entry });
         }
 
-        const minutes = parseInt(minutesPlayed, 10);
-        // Max 2880 minutes (48 hours) to support marathon sessions while preventing bad data
-        if (isNaN(minutes) || minutes < 0 || minutes > 2880) {
-            return res.status(400).json({ success: false, message: 'minutesPlayed must be a number between 0 and 2880 (48 hours).' });
+        // ── achievement_unlocked ──────────────────────────────────────────────
+        if (!platform || !gameTitle || !achievementName) {
+            return res.status(400).json({ success: false, message: 'platform, gameTitle, and achievementName are required for achievement_unlocked.' });
         }
+
+        const safeAchievementName = String(achievementName).slice(0, 200);
+        const safeAchievementIcon = achievementIcon && typeof achievementIcon === 'string'
+            ? achievementIcon.slice(0, 500) : null;
 
         const path = `accounts/${usernameLower}/activity.json`;
         const file = await getFile(path);
         const log  = file ? [...file.content] : [];
 
-        // Keep only the last 500 sessions to prevent unbounded growth
         const entry = {
+            type:            'achievement_unlocked',
             platform,
             gameTitle,
-            titleId:      titleId || null,
-            sessionStart,
-            sessionEnd:   sessionEnd || null,
-            minutesPlayed: minutes,
-            loggedAt:     new Date().toISOString()
+            titleId:         titleId || null,
+            achievementName: safeAchievementName,
+            achievementIcon: safeAchievementIcon,
+            loggedAt:        new Date().toISOString()
         };
         log.push(entry);
         if (log.length > 500) log.splice(0, log.length - 500);
 
-        await putFile(path, log, `Activity: ${gameTitle} (${platform}) – ${minutes}min`, file ? file.sha : undefined);
-        res.json({ success: true, message: 'Activity logged.', entry });
+        await putFile(path, log, `Achievement: ${safeAchievementName} in ${gameTitle} (${platform})`, file ? file.sha : undefined);
+        res.json({ success: true, message: 'Achievement unlock logged.', entry });
     } catch (err) {
         console.error('POST /api/me/activity error:', err);
         res.status(500).json({ success: false, message: 'Server error.' });
@@ -2126,6 +2162,28 @@ app.get('/api/users/:username/wishlist', authenticatePublicOrUserToken, async (r
         res.json({ success: true, wishlist: file ? file.content : [] });
     } catch (err) {
         console.error('GET /api/users/:username/wishlist error:', err);
+        res.status(500).json({ success: false, message: 'Server error.' });
+    }
+});
+
+// ── GET /api/users/:username/activity ────────────────────────────────────────
+// Read any user's public activity log using either the public key or a per-user token.
+app.get('/api/users/:username/activity', authenticatePublicOrUserToken, async (req, res) => {
+    try {
+        const targetUser = req.params.username;
+        if (!targetUser || !sanitiseUsername(targetUser)) {
+            return res.status(400).json({ success: false, message: 'Invalid username.' });
+        }
+        const file   = await getFile(`accounts/${targetUser.toLowerCase()}/activity.json`);
+        const log    = file ? file.content : [];
+        const { platform, gameTitle, limit } = req.query;
+        let result = log;
+        if (platform)   result = result.filter(e => e.platform === platform);
+        if (gameTitle)  result = result.filter(e => (e.gameTitle || '').toLowerCase() === gameTitle.toLowerCase());
+        if (limit)      result = result.slice(-Math.max(1, Math.min(500, parseInt(limit, 10))));
+        res.json({ success: true, activity: result });
+    } catch (err) {
+        console.error('GET /api/users/:username/activity error:', err);
         res.status(500).json({ success: false, message: 'Server error.' });
     }
 });
@@ -3019,6 +3077,93 @@ app.post('/api/admin/sync-steam-games', authenticateToken, async (req, res) => {
     }
 });
 
+
+// ── downloadAndStoreImage ─────────────────────────────────────────────────────
+// Downloads an image from a trusted CDN URL and commits it to the Games.Database
+// repository.  Returns the raw GitHub CDN URL of the stored file on success, or
+// the original URL if caching fails (non-fatal).
+//
+// SSRF protection: only HTTPS URLs from a strict allowlist of known image hosts.
+
+const ALLOWED_IMAGE_HOSTS = new Set([
+    'media.rawg.io',
+    'cdn2.steamgriddb.com',
+    'steamcdn-a.akamaihd.net',
+    'cdn.cloudflare.steamstatic.com',
+    'store.akamai.steamstatic.com',
+    'store.steampowered.com',
+    'shared.akamai.steamstatic.com',
+    'cdn.fastly.steamstatic.com',
+    'cdn.theakamaihd.net',
+    'images.igdb.com',
+    'media.exophase.com',
+    'static.exophase.com',
+    'img.exophase.com',
+    'static-cdn.jtvnw.net',
+    'upload.wikimedia.org',
+    'image.api.playstation.com',
+    'store-images.s-microsoft.com',
+    'assets.nintendo.com',
+]);
+
+async function downloadAndStoreImage(imageUrl, gamesDbPath) {
+    if (!octokitGamesDb || !imageUrl || typeof imageUrl !== 'string') return imageUrl;
+
+    let parsedUrl;
+    try { parsedUrl = new URL(imageUrl); } catch { return imageUrl; }
+
+    if (parsedUrl.protocol !== 'https:') return imageUrl;
+    if (!ALLOWED_IMAGE_HOSTS.has(parsedUrl.hostname) &&
+        !Array.from(ALLOWED_IMAGE_HOSTS).some(h => parsedUrl.hostname.endsWith('.' + h))) {
+        return imageUrl;
+    }
+
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        let imageData;
+        try {
+            const resp = await fetch(imageUrl, {
+                signal:  controller.signal,
+                headers: { 'User-Agent': 'GameOS-Bot/1.0' }
+            });
+            if (!resp.ok) return imageUrl;
+            const buf = await resp.arrayBuffer();
+            imageData = Buffer.from(buf);
+        } finally {
+            clearTimeout(timeout);
+        }
+
+        let existingSha;
+        try {
+            const { data } = await octokitGamesDb.repos.getContent({
+                owner: GAMES_DB_REPO_OWNER,
+                repo:  GAMES_DB_REPO_NAME,
+                path:  gamesDbPath
+            });
+            existingSha = data.sha;
+        } catch (err) {
+            if (err.status !== 404) throw err;
+        }
+
+        const params = {
+            owner:   GAMES_DB_REPO_OWNER,
+            repo:    GAMES_DB_REPO_NAME,
+            path:    gamesDbPath,
+            message: `Cache image: ${gamesDbPath}`,
+            content: imageData.toString('base64'),
+            committer: { name: 'Game OS Bot', email: 'bot@gameos.com' }
+        };
+        if (existingSha) params.sha = existingSha;
+
+        await octokitGamesDb.repos.createOrUpdateFileContents(params);
+        return `https://raw.githubusercontent.com/${GAMES_DB_REPO_OWNER}/${GAMES_DB_REPO_NAME}/main/${gamesDbPath}`;
+    } catch (err) {
+        console.warn(`downloadAndStoreImage: failed to cache ${imageUrl}: ${err.message}`);
+        return imageUrl; // non-fatal — return original URL
+    }
+}
+
 // ── POST /api/admin/add-game ──────────────────────────────────────────────────
 // Admin-only endpoint: add a new game entry to a Games.Database platform JSON.
 // Authentication: the caller must be the Admin.GameOS account (checked via token).
@@ -3120,6 +3265,41 @@ app.post('/api/admin/add-game', authenticateToken, async (req, res) => {
                 } catch (infoErr) {
                     // Non-fatal: log but don't fail the main add
                     console.error('add-game: failed to write info.json:', infoErr.message);
+                }
+
+                // Cache cover/background/screenshots in Games.Database so the app
+                // is no longer dependent on external CDNs (see §3 of the feature roadmap).
+                try {
+                    const imgDir = `Data/${platformFolder}/Games/${titleIdForPath}/images`;
+                    if (game.CoverUrl || game.cover_url || game.coverUrl) {
+                        const rawUrl = game.CoverUrl || game.cover_url || game.coverUrl;
+                        const ext = (rawUrl.split('?')[0].split('.').pop() || 'jpg').replace(/[^a-z]/gi, '').toLowerCase() || 'jpg';
+                        const cached = await downloadAndStoreImage(rawUrl, `${imgDir}/cover.${ext}`);
+                        if (cached !== rawUrl) { game.CoverUrl = cached; }
+                    }
+                    if (game.BackgroundUrl || game.background_url || game.backgroundUrl) {
+                        const rawUrl = game.BackgroundUrl || game.background_url || game.backgroundUrl;
+                        const ext = (rawUrl.split('?')[0].split('.').pop() || 'jpg').replace(/[^a-z]/gi, '').toLowerCase() || 'jpg';
+                        const cached = await downloadAndStoreImage(rawUrl, `${imgDir}/background.${ext}`);
+                        if (cached !== rawUrl) { game.BackgroundUrl = cached; }
+                    }
+                    const screenshots = game.Screenshots || game.screenshots || game.screenshotUrls || game.screenshot_urls;
+                    if (Array.isArray(screenshots) && screenshots.length) {
+                        const cachedScreenshots = [];
+                        for (let i = 0; i < screenshots.length; i++) {
+                            const rawUrl = screenshots[i];
+                            if (!rawUrl || typeof rawUrl !== 'string') { cachedScreenshots.push(rawUrl); continue; }
+                            const ext = (rawUrl.split('?')[0].split('.').pop() || 'jpg').replace(/[^a-z]/gi, '').toLowerCase() || 'jpg';
+                            cachedScreenshots.push(await downloadAndStoreImage(rawUrl, `${imgDir}/screenshot_${i + 1}.${ext}`));
+                        }
+                        if (game.Screenshots)     game.Screenshots     = cachedScreenshots;
+                        if (game.screenshots)     game.screenshots     = cachedScreenshots;
+                        if (game.screenshotUrls)  game.screenshotUrls  = cachedScreenshots;
+                        if (game.screenshot_urls) game.screenshot_urls = cachedScreenshots;
+                    }
+                } catch (imgErr) {
+                    // Non-fatal: images are best-effort
+                    console.warn('add-game: image caching error:', imgErr.message);
                 }
             }
         }
@@ -3248,6 +3428,41 @@ app.post('/api/admin/update-game', authenticateToken, async (req, res) => {
                 } catch (infoErr) {
                     // Non-fatal: log but don't fail the main update
                     console.error('update-game: failed to write info.json:', infoErr.message);
+                }
+
+                // Cache cover/background/screenshots in Games.Database (§3 of feature roadmap)
+                try {
+                    const imgDir = `Data/${platformFolder}/Games/${titleIdForPath}/images`;
+                    const merged = gamesArr[idx];
+                    if (merged.CoverUrl || merged.cover_url || merged.coverUrl) {
+                        const rawUrl = merged.CoverUrl || merged.cover_url || merged.coverUrl;
+                        const ext = (rawUrl.split('?')[0].split('.').pop() || 'jpg').replace(/[^a-z]/gi, '').toLowerCase() || 'jpg';
+                        const cached = await downloadAndStoreImage(rawUrl, `${imgDir}/cover.${ext}`);
+                        if (cached !== rawUrl) { merged.CoverUrl = cached; gamesArr[idx].CoverUrl = cached; }
+                    }
+                    if (merged.BackgroundUrl || merged.background_url || merged.backgroundUrl) {
+                        const rawUrl = merged.BackgroundUrl || merged.background_url || merged.backgroundUrl;
+                        const ext = (rawUrl.split('?')[0].split('.').pop() || 'jpg').replace(/[^a-z]/gi, '').toLowerCase() || 'jpg';
+                        const cached = await downloadAndStoreImage(rawUrl, `${imgDir}/background.${ext}`);
+                        if (cached !== rawUrl) { merged.BackgroundUrl = cached; gamesArr[idx].BackgroundUrl = cached; }
+                    }
+                    const screenshots = merged.Screenshots || merged.screenshots || merged.screenshotUrls || merged.screenshot_urls;
+                    if (Array.isArray(screenshots) && screenshots.length) {
+                        const cachedScreenshots = [];
+                        for (let i = 0; i < screenshots.length; i++) {
+                            const rawUrl = screenshots[i];
+                            if (!rawUrl || typeof rawUrl !== 'string') { cachedScreenshots.push(rawUrl); continue; }
+                            const ext = (rawUrl.split('?')[0].split('.').pop() || 'jpg').replace(/[^a-z]/gi, '').toLowerCase() || 'jpg';
+                            cachedScreenshots.push(await downloadAndStoreImage(rawUrl, `${imgDir}/screenshot_${i + 1}.${ext}`));
+                        }
+                        if (merged.Screenshots)     { merged.Screenshots     = cachedScreenshots; gamesArr[idx].Screenshots     = cachedScreenshots; }
+                        if (merged.screenshots)     { merged.screenshots     = cachedScreenshots; gamesArr[idx].screenshots     = cachedScreenshots; }
+                        if (merged.screenshotUrls)  { merged.screenshotUrls  = cachedScreenshots; gamesArr[idx].screenshotUrls  = cachedScreenshots; }
+                        if (merged.screenshot_urls) { merged.screenshot_urls = cachedScreenshots; gamesArr[idx].screenshot_urls = cachedScreenshots; }
+                    }
+                } catch (imgErr) {
+                    // Non-fatal: images are best-effort
+                    console.warn('update-game: image caching error:', imgErr.message);
                 }
             }
         }

@@ -159,6 +159,73 @@ if (!scraped.length) {
 
 console.log(`✅ Scraped ${scraped.length} achievements`);
 
+// ── Cache achievement icons in Games.Database ─────────────────────────────────
+// Download each icon from Exophase and commit it to
+//   Data/{platformFolder}/Games/{TITLE_ID}/ach-icons/{achievementId}.{ext}
+// Then replace iconUrl in the scraped entry with the raw GitHub CDN URL so
+// the app can load achievement icons without depending on Exophase CDN.
+
+const achIconDir = `Data/${platformFolder}/Games/${TITLE_ID}/ach-icons`;
+let iconsDownloaded = 0;
+
+for (const entry of scraped) {
+    if (!entry.iconUrl) continue;
+    try {
+        // Only accept icons served from exophase.com (already validated above)
+        const rawExt = (entry.iconUrl.split('?')[0].split('.').pop() || 'png').replace(/[^a-z]/gi, '').toLowerCase() || 'png';
+        const iconPath = `${achIconDir}/${entry.achievementId}.${rawExt}`;
+
+        const iconCtrl = new AbortController();
+        const iconTimeout = setTimeout(() => iconCtrl.abort(), 12000);
+        let iconData;
+        try {
+            const iconResp = await fetch(entry.iconUrl, {
+                signal:  iconCtrl.signal,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                    'Referer': 'https://www.exophase.com/'
+                }
+            });
+            if (!iconResp.ok) continue;
+            iconData = Buffer.from(await iconResp.arrayBuffer());
+        } finally {
+            clearTimeout(iconTimeout);
+        }
+
+        let existingIconSha;
+        try {
+            const { data } = await octokit.repos.getContent({
+                owner: GAMES_DB_REPO_OWNER,
+                repo:  GAMES_DB_REPO_NAME,
+                path:  iconPath
+            });
+            existingIconSha = data.sha;
+        } catch (err) {
+            if (err.status !== 404) continue;
+        }
+
+        const iconParams = {
+            owner:     GAMES_DB_REPO_OWNER,
+            repo:      GAMES_DB_REPO_NAME,
+            path:      iconPath,
+            message:   `Cache ach-icon: ${entry.name} (${GAME_TITLE})`,
+            content:   iconData.toString('base64'),
+            committer: { name: 'Game OS Bot', email: 'bot@gameos.com' }
+        };
+        if (existingIconSha) iconParams.sha = existingIconSha;
+
+        await octokit.repos.createOrUpdateFileContents(iconParams);
+        entry.iconUrl = `https://raw.githubusercontent.com/${GAMES_DB_REPO_OWNER}/${GAMES_DB_REPO_NAME}/main/${iconPath}`;
+        iconsDownloaded++;
+    } catch (iconErr) {
+        console.warn(`  ⚠️  Failed to cache icon for "${entry.name}": ${iconErr.message}`);
+    }
+}
+
+if (iconsDownloaded > 0) {
+    console.log(`✅ Cached ${iconsDownloaded} achievement icons`);
+}
+
 // ── Write achievements.json to Games.Database ─────────────────────────────────
 
 const octokit = new Octokit({ auth: GAMES_DB_TOKEN });

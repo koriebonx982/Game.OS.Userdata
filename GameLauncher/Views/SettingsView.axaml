@@ -54,6 +54,17 @@
                     </StackPanel>
                 </Button>
 
+                <Button Classes="settings-nav-item"
+                        Classes.active="{Binding IsSyncSection}"
+                        HorizontalAlignment="Stretch"
+                        Command="{Binding SelectSectionCommand}"
+                        CommandParameter="sync">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="🔄" FontSize="16" VerticalAlignment="Center"/>
+                        <TextBlock Text="Sync &amp; Data" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
             </StackPanel>
         </Border>
 
@@ -348,6 +359,41 @@
                             <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#8b949e">
                                 Data is stored locally at %APPDATA%\Game.OS\Playtime\sessions.json.
                             </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+
+                <!-- ── Sync &amp; Data ── -->
+                <StackPanel IsVisible="{Binding IsSyncSection}" Spacing="0">
+
+                    <TextBlock Text="Sync &amp; Data" Classes="page-title" Margin="0,0,0,4"/>
+                    <TextBlock Text="Manually synchronise your library and achievements with the server."
+                               Classes="page-subtitle" Margin="0,0,0,24"/>
+
+                    <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,16">
+                        <StackPanel Spacing="16">
+
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#8b949e">
+                                Game.OS automatically checks for remote changes every 5 minutes while you're
+                                online. Use the button below to trigger an immediate sync at any time.
+                            </TextBlock>
+
+                            <TextBlock Text="{Binding LastSyncedLabel}"
+                                       FontSize="12" Foreground="#8b949e"/>
+
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Button Classes="btn-primary"
+                                        Content="🔄  Resync data"
+                                        Command="{Binding SyncNowCommand}"
+                                        IsEnabled="{Binding !IsSyncing}"
+                                        Width="160"/>
+                                <TextBlock Text="Syncing…"
+                                           FontSize="12" Foreground="#3fb950"
+                                           VerticalAlignment="Center"
+                                           IsVisible="{Binding IsSyncing}"/>
+                            </StackPanel>
+
                         </StackPanel>
                     </Border>
 

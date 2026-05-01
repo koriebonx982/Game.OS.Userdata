@@ -49,6 +49,56 @@ public partial class GameDetailViewModel : ViewModelBase
     [ObservableProperty] private bool    _hasTrailer;
     [ObservableProperty] private string  _trailerLabel = "▶  Watch Trailer";
 
+    /// <summary>
+    /// True when the in-app trailer player overlay is visible.
+    /// Bound to the VideoView overlay in GameDetailView.axaml.
+    /// </summary>
+    [ObservableProperty] private bool    _isTrailerPlayerOpen;
+
+    /// <summary>
+    /// The extracted YouTube video ID (e.g. "dQw4w9WgXcQ").
+    /// Empty string when <see cref="TrailerUrl"/> is not a recognised YouTube URL.
+    /// </summary>
+    public string YoutubeVideoId => ExtractYoutubeVideoId(TrailerUrl);
+
+    partial void OnTrailerUrlChanged(string? value) => OnPropertyChanged(nameof(YoutubeVideoId));
+
+    /// <summary>
+    /// Extracts the YouTube video ID from <c>youtube.com/watch?v=</c>, <c>youtu.be/</c>,
+    /// or <c>youtube.com/shorts/</c> URLs.  Returns an empty string for other URLs.
+    /// </summary>
+    private static string ExtractYoutubeVideoId(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return "";
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return "";
+        var host = uri.Host.ToLowerInvariant();
+
+        if (host == "youtu.be" || host == "www.youtu.be")
+            return uri.AbsolutePath.TrimStart('/').Split('?')[0];
+
+        if (host == "youtube.com" || host == "www.youtube.com")
+        {
+            // /watch?v=ID — parse query string manually (avoids System.Web dependency)
+            var query = uri.Query.TrimStart('?');
+            foreach (var part in query.Split('&'))
+            {
+                var eq = part.IndexOf('=');
+                if (eq < 0) continue;
+                var paramName  = Uri.UnescapeDataString(part[..eq]);
+                var paramValue = Uri.UnescapeDataString(part[(eq + 1)..]);
+                if (paramName == "v" && !string.IsNullOrEmpty(paramValue))
+                    return paramValue;
+            }
+
+            // /shorts/ID  or  /embed/ID
+            var segs = uri.AbsolutePath.TrimStart('/').Split('/');
+            if (segs.Length >= 2 && (segs[0] == "shorts" || segs[0] == "embed"))
+                return segs[1].Split('?')[0];
+        }
+
+        return "";
+    }
+
     // ── Screenshots ───────────────────────────────────────────────────────────
     public ObservableCollection<string> Screenshots { get; } = new();
     [ObservableProperty] private bool _hasScreenshots;
@@ -715,11 +765,23 @@ public partial class GameDetailViewModel : ViewModelBase
         catch { }
     }
 
-    /// <summary>Opens the trailer URL in the system's default browser.</summary>
+    /// <summary>
+    /// Opens the trailer in-app (via the LibVLC VideoView overlay) for recognised
+    /// YouTube URLs.  Falls back to the system browser for unrecognised URLs.
+    /// </summary>
     [RelayCommand]
     private void OpenTrailer()
     {
         if (string.IsNullOrEmpty(TrailerUrl)) return;
+
+        // If we can extract a YouTube video ID, open the in-app player
+        if (!string.IsNullOrEmpty(YoutubeVideoId))
+        {
+            IsTrailerPlayerOpen = true;
+            return;
+        }
+
+        // Fallback: unrecognised URL → open in system browser
         try
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
@@ -730,6 +792,10 @@ public partial class GameDetailViewModel : ViewModelBase
         }
         catch { /* best-effort */ }
     }
+
+    /// <summary>Dismisses the in-app trailer player overlay.</summary>
+    [RelayCommand]
+    private void CloseTrailerPlayer() => IsTrailerPlayerOpen = false;
 
     /// <summary>Opens the game's store page URL in the system's default browser.</summary>
     [RelayCommand]

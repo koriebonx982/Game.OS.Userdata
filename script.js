@@ -3280,6 +3280,28 @@ async function getWishlistGitHub(username) {
     return file ? file.content : [];
 }
 
+async function getActivityLogGitHub(username) {
+    const backendBase = getBackendBase();
+    if (backendBase) {
+        try {
+            const user        = getCurrentUser();
+            const storedToken = user
+                ? (localStorage.getItem(`gameOS_apiToken_${user.username.toLowerCase()}`) ||
+                   localStorage.getItem('gameOS_apiToken_pending') || '')
+                : '';
+            const resp = await fetch(`${backendBase}/api/users/${encodeURIComponent(username)}/activity`, {
+                headers: storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {}
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                return data.activity || [];
+            }
+        } catch (_) { /* fall through to GitHub direct read */ }
+    }
+    const file = await githubRead(`accounts/${username.toLowerCase()}/activity.json`);
+    return file ? file.content : [];
+}
+
 async function addToWishlistGitHub(username, game, platform) {
     const path = `accounts/${username.toLowerCase()}/wishlist.json`;
     const file = await githubRead(path);

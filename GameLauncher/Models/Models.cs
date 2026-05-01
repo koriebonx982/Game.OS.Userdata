@@ -112,13 +112,19 @@ namespace GameLauncher.Models
 
     public class ActivityEntry
     {
-        [JsonPropertyName("platform")]      public string  Platform      { get; set; } = "";
-        [JsonPropertyName("gameTitle")]     public string  GameTitle     { get; set; } = "";
-        [JsonPropertyName("titleId")]       public string? TitleId       { get; set; }
-        [JsonPropertyName("sessionStart")]  public string  SessionStart  { get; set; } = "";
-        [JsonPropertyName("sessionEnd")]    public string? SessionEnd    { get; set; }
-        [JsonPropertyName("minutesPlayed")] public int     MinutesPlayed { get; set; }
-        [JsonPropertyName("loggedAt")]      public string  LoggedAt      { get; set; } = "";
+        /// <summary>Event type: "playtime" (default) or "achievement_unlocked".</summary>
+        [JsonPropertyName("type")]            public string? Type            { get; set; }
+        [JsonPropertyName("platform")]        public string  Platform        { get; set; } = "";
+        [JsonPropertyName("gameTitle")]       public string  GameTitle       { get; set; } = "";
+        [JsonPropertyName("titleId")]         public string? TitleId         { get; set; }
+        [JsonPropertyName("sessionStart")]    public string  SessionStart    { get; set; } = "";
+        [JsonPropertyName("sessionEnd")]      public string? SessionEnd      { get; set; }
+        [JsonPropertyName("minutesPlayed")]   public int     MinutesPlayed   { get; set; }
+        [JsonPropertyName("loggedAt")]        public string  LoggedAt        { get; set; } = "";
+        /// <summary>For achievement_unlocked events: the achievement name.</summary>
+        [JsonPropertyName("achievementName")] public string? AchievementName { get; set; }
+        /// <summary>For achievement_unlocked events: optional icon URL or local path.</summary>
+        [JsonPropertyName("achievementIcon")] public string? AchievementIcon { get; set; }
     }
 
     public class PresenceData

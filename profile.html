@@ -228,10 +228,11 @@
         content.innerHTML = '<p style="color:#666;">Loading profile…</p>';
 
         try {
-            // Load library, wishlist, and presence in parallel
-            const [library, wishlist, presence] = await Promise.all([
+            // Load library, wishlist, activity and presence in parallel
+            const [library, wishlist, activityLog, presence] = await Promise.all([
                 MODE === 'demo' ? Promise.resolve(getDemoGameLibrary(username)) : getGameLibraryGitHub(username),
                 MODE === 'demo' ? Promise.resolve(getDemoWishlist(username))     : getWishlistGitHub(username),
+                MODE === 'demo' ? Promise.resolve([])                            : getActivityLogGitHub(username),
                 getFriendPresence(username)
             ]);
 
@@ -242,11 +243,67 @@
             const platforms     = [...new Set(library.map(g => g.platform).filter(Boolean))];
             const totalWishlist = wishlist.length;
 
-            // Recent activity: last 10 games added, sorted newest first
-            const recentActivity = [...library]
-                .filter(g => g.addedAt)
-                .sort((a, b) => new Date(b.addedAt) - new Date(a.addedAt))
-                .slice(0, 10);
+            // ── Build unified activity timeline ───────────────────────────────
+            // Merge playtime events, library additions, wishlist additions, and
+            // achievement unlocks into one list sorted newest-first (20 max).
+            const allEvents = [];
+
+            // From activity log: playtime + achievement_unlocked events
+            for (const e of activityLog) {
+                const type = e.type || 'playtime';
+                if (type === 'playtime') {
+                    allEvents.push({
+                        date:     e.sessionEnd || e.loggedAt,
+                        icon:     '🎮',
+                        text:     `Played <strong>${escapeHtml(e.gameTitle || '')}</strong> for ${e.minutesPlayed || 0} minutes`,
+                        platform: e.platform,
+                        title:    e.gameTitle,
+                        titleId:  e.titleId
+                    });
+                } else if (type === 'achievement_unlocked') {
+                    allEvents.push({
+                        date:     e.loggedAt,
+                        icon:     '🏆',
+                        text:     `Unlocked achievement <strong>${escapeHtml(e.achievementName || '')}</strong> in <strong>${escapeHtml(e.gameTitle || '')}</strong>`,
+                        iconUrl:  e.achievementIcon,
+                        platform: e.platform,
+                        title:    e.gameTitle,
+                        titleId:  e.titleId
+                    });
+                }
+            }
+
+            // From library: "Added to library" events
+            for (const g of library) {
+                if (g.addedAt) {
+                    allEvents.push({
+                        date:     g.addedAt,
+                        icon:     '📚',
+                        text:     `Added <strong>${escapeHtml(g.title || '')}</strong> to their library <span style="color:#64748b;">(${escapeHtml(g.platform || '')})</span>`,
+                        platform: g.platform,
+                        title:    g.title,
+                        titleId:  g.titleId
+                    });
+                }
+            }
+
+            // From wishlist: "Added to wishlist" events
+            for (const g of wishlist) {
+                if (g.addedAt) {
+                    allEvents.push({
+                        date:     g.addedAt,
+                        icon:     '⭐',
+                        text:     `Added <strong>${escapeHtml(g.title || '')}</strong> to their wishlist`,
+                        platform: g.platform,
+                        title:    g.title,
+                        titleId:  g.titleId
+                    });
+                }
+            }
+
+            // Sort newest first, take 20
+            allEvents.sort((a, b) => new Date(b.date) - new Date(a.date));
+            const recentActivity = allEvents.slice(0, 20);
 
             // Group library by platform
             const byPlatform = {};
@@ -259,7 +316,7 @@
             const safeUser = escapeHtml(username);
             const lastActiveText = presence
                 ? formatRelativeTime(presence)
-                : (recentActivity.length > 0 ? formatRelativeTime(recentActivity[0].addedAt) : '–');
+                : (recentActivity.length > 0 ? formatRelativeTime(recentActivity[0].date) : '–');
 
             content.innerHTML = `
                 <!-- Profile Header -->
@@ -333,11 +390,13 @@
                 <div class="profile-tab-panel" id="profileTab_activity">
                     ${recentActivity.length === 0
                         ? '<p class="profile-empty">No recent activity.</p>'
-                        : recentActivity.map(g => `
-                        <div class="activity-item" style="cursor:pointer;" onclick="openGameModalFromLibrary('${escapeHtml(g.title || '')}', '${escapeHtml(g.platform || '')}', '${escapeHtml(String(g.titleId || ''))}')">
-                            <div class="activity-icon" style="background:${getPlatformColor(g.platform)};">${getPlatformIcon(g.platform)}</div>
-                            <div class="activity-text">Added <strong>${escapeHtml(g.title || '')}</strong> to their library <span style="color:#64748b;">(${escapeHtml(g.platform || '')})</span></div>
-                            <div class="activity-time">${formatRelativeTime(g.addedAt)}</div>
+                        : recentActivity.map(ev => `
+                        <div class="activity-item" ${ev.title ? `style="cursor:pointer;" onclick="openGameModalFromLibrary('${escapeHtml(ev.title || '')}', '${escapeHtml(ev.platform || '')}', '${escapeHtml(String(ev.titleId || ''))}')"` : ''}>
+                            ${ev.iconUrl
+                                ? `<img src="${escapeHtml(ev.iconUrl)}" alt="" class="activity-icon" style="width:32px;height:32px;border-radius:6px;object-fit:cover;">`
+                                : `<div class="activity-icon" style="background:${getPlatformColor(ev.platform)};font-size:1.1em;">${ev.icon}</div>`}
+                            <div class="activity-text">${ev.text}</div>
+                            <div class="activity-time">${formatRelativeTime(ev.date)}</div>
                         </div>`).join('')
                     }
                 </div>

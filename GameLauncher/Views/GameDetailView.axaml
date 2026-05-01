@@ -3,9 +3,13 @@
              xmlns:vm="using:GameLauncher.ViewModels"
              xmlns:views="using:GameLauncher.Views"
              xmlns:models="using:GameLauncher.Models"
+             xmlns:vlc="clr-namespace:LibVLCSharp.Avalonia;assembly=LibVLCSharp.Avalonia"
              x:Class="GameLauncher.Views.GameDetailView"
              x:DataType="vm:GameDetailViewModel"
              Background="#0d1117">
+
+    <!-- Root panel: the normal content + the trailer overlay stacked on top -->
+    <Panel>
 
     <Grid RowDefinitions="Auto,*">
 
@@ -1059,4 +1063,48 @@
         </ScrollViewer>
 
     </Grid>
+
+    <!-- ── In-app trailer player overlay ──────────────────────────────────── -->
+    <!-- Shown when IsTrailerPlayerOpen = true; covers the entire detail view  -->
+    <Grid IsVisible="{Binding IsTrailerPlayerOpen}"
+          Background="#000000e8"
+          ZIndex="100"
+          x:Name="TrailerOverlay">
+
+        <Grid RowDefinitions="Auto,*,Auto">
+
+            <!-- Title bar -->
+            <Border Grid.Row="0" Background="#161b22" Padding="20,12">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding Title, StringFormat='▶  {0}'}"
+                               FontSize="15" FontWeight="SemiBold"
+                               Foreground="White" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Classes="btn-secondary"
+                            Content="✕  Close"
+                            Command="{Binding CloseTrailerPlayerCommand}"
+                            Padding="14,8"/>
+                </Grid>
+            </Border>
+
+            <!-- VideoView fills the remaining area -->
+            <vlc:VideoView Grid.Row="1"
+                           x:Name="TrailerVideoView"
+                           HorizontalAlignment="Stretch"
+                           VerticalAlignment="Stretch"
+                           Background="Black"/>
+
+            <!-- Status bar -->
+            <Border Grid.Row="2" Background="#0d1117" Padding="16,8">
+                <TextBlock Text="{Binding TrailerUrl}"
+                           FontSize="11" Foreground="#8b949e"
+                           TextTrimming="CharacterEllipsis"/>
+            </Border>
+
+        </Grid>
+
+    </Grid>
+
+    </Panel>
 </UserControl>

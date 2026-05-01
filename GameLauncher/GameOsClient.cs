@@ -444,6 +444,21 @@ namespace GameLauncher
             return new();
         }
 
+        /// <summary>
+        /// Logs an achievement-unlock event to the user's cloud activity log.
+        /// Only supported in backend mode; no-op in GitHub-direct mode.
+        /// </summary>
+        public async Task LogAchievementUnlockAsync(
+            string platform, string gameTitle, string? titleId,
+            string achievementName, string? achievementIcon = null,
+            CancellationToken ct = default)
+        {
+            if (_backend != null)
+                await _backend.LogAchievementUnlockAsync(
+                    platform, gameTitle, titleId, achievementName, achievementIcon, ct);
+            // GitHub-direct mode: not implemented (achievement logging requires backend)
+        }
+
         // ── Health check ──────────────────────────────────────────────────────
         /// <summary>
         /// Returns true when the data backend is reachable.

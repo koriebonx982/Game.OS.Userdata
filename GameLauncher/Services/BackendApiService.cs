@@ -445,6 +445,37 @@ namespace GameLauncher.Services
             catch { return new(); }
         }
 
+        /// <summary>
+        /// Logs an achievement-unlock event to the user's cloud activity log
+        /// via POST /api/me/activity with type "achievement_unlocked".  Non-fatal — failures are swallowed.
+        /// </summary>
+        public async Task LogAchievementUnlockAsync(
+            string platform, string gameTitle, string? titleId,
+            string achievementName, string? achievementIcon = null,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                EnsureAuthenticated();
+                var body = new
+                {
+                    type            = "achievement_unlocked",
+                    platform,
+                    gameTitle,
+                    titleId,
+                    achievementName,
+                    achievementIcon,
+                    sessionStart    = DateTime.UtcNow.ToString("o"),
+                    minutesPlayed   = 0,
+                };
+                using var resp = await _http.PostAsJsonAsync("/api/me/activity", body, ct);
+                if (!resp.IsSuccessStatusCode)
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[BackendApiService] LogAchievementUnlock HTTP {(int)resp.StatusCode}: {achievementName} in {gameTitle}");
+            }
+            catch { /* best-effort */ }
+        }
+
         // ── Health check ──────────────────────────────────────────────────────
 
         /// <summary>Returns <c>true</c> when the backend server is reachable.</summary>

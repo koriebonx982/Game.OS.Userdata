@@ -24,6 +24,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly PendingChangesService   _pendingChanges = new();
     private readonly PlaytimeService         _playtimeSvc    = new();
 
+    /// <summary>Per-game image and metadata cache; created after login when the username is known.</summary>
+    private GameMetadataCacheService? _metadataCache;
+
+    /// <summary>Timestamp of the last successful periodic sync (used by the Settings label).</summary>
+    private DateTime _lastSyncedAt = DateTime.MinValue;
+
     // ── Message polling ────────────────────────────────────────────────────
     /// <summary>Fires every 60 seconds after login to check for new direct messages.</summary>
     private Timer? _messagePoller;
@@ -121,6 +127,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         DetailVm       = new GameDetailViewModel();
 
         DetailVm.OnClose = () => ShowDetail = false;
+
+        // Wire Settings → SyncNow so the Resync button triggers TryRefreshUserDataAsync
+        SettingsVm.SyncNowAction = async () =>
+        {
+            await TryRefreshUserDataAsync().ConfigureAwait(false);
+            _lastSyncedAt = DateTime.UtcNow;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                SettingsVm.LastSyncedLabel = FormatLastSyncedLabel(_lastSyncedAt));
+        };
 
         // Wire playtime tracking: when a game is launched from the detail view,
         // pass the process to the PlaytimeService to record the session, then
@@ -352,6 +367,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Subscribe to session-saved events so completed play sessions are
             // immediately pushed to the cloud activity log.
             PlaytimeService.SessionSaved += OnSessionSaved;
+
+            // Initialise per-user metadata cache and start background caching for owned games
+            _metadataCache = new GameMetadataCacheService(profile.Username);
+            _ = BackgroundCacheLibraryAsync(library);
         }
         else
         {
@@ -1440,6 +1459,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             bool gamesChanged = !GamesListEqual(_library, games);
             bool achvChanged  = achievements.Count != _achievements.Count;
 
+            // Detect newly-unlocked achievements and log them to the activity feed
+            if (achvChanged && achievements.Count > _achievements.Count)
+                _ = DetectAndLogNewAchievementsAsync(_achievements, achievements);
+
             if (gamesChanged || achvChanged)
             {
                 System.Diagnostics.Debug.WriteLine(
@@ -1483,6 +1506,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // since it only reads the activity log and updates in-memory game objects.
             _ = ApplyCloudPlaytimeAsync(_library);
 
+            // Track last sync time for the Settings label
+            _lastSyncedAt = DateTime.UtcNow;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                SettingsVm.LastSyncedLabel = FormatLastSyncedLabel(_lastSyncedAt));
+
             // Also check Games.Database for updated platform JSON files (respects AutoUpdate preference)
             if (Services.AppSettingsService.Load().AutoUpdate)
                 _ = Services.GitHubDataService.CheckForUpdatesAsync();
@@ -1522,6 +1550,93 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             StringComparer.Ordinal);
         return b.All(g => aSet.Contains(
             $"{g.Platform?.ToLowerInvariant()}|{g.Title?.ToLowerInvariant()}"));
+    }
+
+    /// <summary>
+    /// Compares the previous achievements list against the newly fetched one,
+    /// logs any newly-unlocked entries to the cloud activity feed via
+    /// <see cref="BackendApiService.LogAchievementUnlockAsync"/>, and caches
+    /// achievement icons for new unlocks.
+    /// </summary>
+    private async Task DetectAndLogNewAchievementsAsync(
+        List<Achievement> previous, List<Achievement> current)
+    {
+        try
+        {
+            // Build a set of already-known unlocked achievements
+            var known = new HashSet<string>(
+                previous.Where(a => !string.IsNullOrEmpty(a.UnlockedAt))
+                         .Select(a => $"{a.Platform?.ToLower()}|{a.GameTitle?.ToLower()}|{a.Name?.ToLower()}"),
+                StringComparer.Ordinal);
+
+            // Build a lookup from (platform, gameTitle) → titleId using the current library
+            var titleIdLookup = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var g in _library)
+            {
+                var lk = $"{g.Platform?.ToLower()}|{g.Title?.ToLower()}";
+                if (!titleIdLookup.ContainsKey(lk))
+                    titleIdLookup[lk] = g.TitleId;
+            }
+
+            foreach (var ach in current)
+            {
+                if (string.IsNullOrEmpty(ach.UnlockedAt)) continue;
+
+                var key = $"{ach.Platform?.ToLower()}|{ach.GameTitle?.ToLower()}|{ach.Name?.ToLower()}";
+                if (known.Contains(key)) continue;
+
+                System.Diagnostics.Debug.WriteLine(
+                    $"[AchievementSync] New unlock: {ach.Name} in {ach.GameTitle} ({ach.Platform})");
+
+                titleIdLookup.TryGetValue(
+                    $"{ach.Platform?.ToLower()}|{ach.GameTitle?.ToLower()}", out var titleId);
+
+                await _client.LogAchievementUnlockAsync(
+                    ach.Platform, ach.GameTitle, titleId,
+                    ach.Name, ach.IconUrl).ConfigureAwait(false);
+
+                // Cache the achievement icon locally
+                if (_metadataCache != null && !string.IsNullOrEmpty(titleId) && !string.IsNullOrEmpty(ach.IconUrl))
+                {
+                    _ = _metadataCache.CacheAchievementIconAsync(
+                        ach.Platform, titleId, ach.AchievementId, ach.IconUrl);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"[AchievementSync] DetectAndLogNewAchievementsAsync failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Background task: iterates all library games and caches metadata + images
+    /// for any game not yet cached.
+    /// </summary>
+    private async Task BackgroundCacheLibraryAsync(List<Game> library)
+    {
+        if (_metadataCache == null) return;
+        foreach (var game in library)
+        {
+            try { await _metadataCache.CacheGameAsync(game).ConfigureAwait(false); }
+            catch { /* best-effort */ }
+        }
+        // Prune games that are no longer in the library
+        try { _metadataCache.PruneMissingGames(library); }
+        catch { /* best-effort */ }
+    }
+
+    /// <summary>Formats the last-synced label for the Settings Sync section.</summary>
+    private static string FormatLastSyncedLabel(DateTime lastSyncedAt)
+    {
+        if (lastSyncedAt == DateTime.MinValue) return "Last synced: never";
+        var elapsed = DateTime.UtcNow - lastSyncedAt;
+        if (elapsed.TotalSeconds < 60)  return "Last synced: just now";
+        if (elapsed.TotalMinutes < 2)   return "Last synced: 1 minute ago";
+        if (elapsed.TotalMinutes < 60)  return $"Last synced: {(int)elapsed.TotalMinutes} minutes ago";
+        if (elapsed.TotalHours < 2)     return "Last synced: 1 hour ago";
+        return $"Last synced: {(int)elapsed.TotalHours} hours ago";
     }
 
     // ── Message polling & OS notifications ────────────────────────────────────

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GameLauncher.Models;
@@ -35,14 +36,44 @@ public partial class SettingsViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(IsAppSection))]
     [NotifyPropertyChangedFor(nameof(IsEmulatorSection))]
     [NotifyPropertyChangedFor(nameof(IsPlaytimeSection))]
+    [NotifyPropertyChangedFor(nameof(IsSyncSection))]
     private string _selectedSection = "app";
 
     public bool IsAppSection      => SelectedSection == "app";
     public bool IsEmulatorSection => SelectedSection == "emulator";
     public bool IsPlaytimeSection => SelectedSection == "playtime";
+    public bool IsSyncSection     => SelectedSection == "sync";
 
     [RelayCommand]
     private void SelectSection(string section) => SelectedSection = section;
+
+    // ── Sync section ───────────────────────────────────────────────────────
+    /// <summary>True while a manual sync is in progress.</summary>
+    [ObservableProperty] private bool   _isSyncing;
+    /// <summary>Human-readable label for the last successful sync time, e.g. "Last synced: 3 minutes ago".</summary>
+    [ObservableProperty] private string _lastSyncedLabel = "Last synced: never";
+
+    /// <summary>
+    /// Wired by MainViewModel.  Executes an immediate full sync and updates
+    /// <see cref="IsSyncing"/> / <see cref="LastSyncedLabel"/>.
+    /// </summary>
+    public System.Func<System.Threading.Tasks.Task>? SyncNowAction { get; set; }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task SyncNow()
+    {
+        if (IsSyncing) return;
+        IsSyncing = true;
+        try
+        {
+            if (SyncNowAction != null)
+                await SyncNowAction();
+        }
+        finally
+        {
+            IsSyncing = false;
+        }
+    }
 
     // ── Status message ─────────────────────────────────────────────────────
     [ObservableProperty] private string _statusMessage = "";
