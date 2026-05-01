@@ -408,27 +408,40 @@ namespace GameLauncher
 
         /// <summary>
         /// Pushes a completed play session to the cloud activity log.
-        /// Only available in backend mode; silently no-ops in GitHub-direct mode.
+        /// Supported in both backend mode and GitHub-direct mode.
         /// </summary>
         public async Task LogActivityAsync(
             string platform, string gameTitle, string? titleId,
             DateTime startedAt, DateTime endedAt, int minutesPlayed,
             CancellationToken ct = default)
         {
-            if (_backend == null) return; // GitHub-direct mode — not supported
-            await _backend.LogActivityAsync(platform, gameTitle, titleId,
-                startedAt, endedAt, minutesPlayed, ct);
+            if (_backend != null)
+            {
+                await _backend.LogActivityAsync(platform, gameTitle, titleId,
+                    startedAt, endedAt, minutesPlayed, ct);
+                return;
+            }
+
+            if (_github != null && _username != null)
+                await _github.LogActivityAsync(_username, platform, gameTitle, titleId,
+                    startedAt, endedAt, minutesPlayed, ct);
         }
 
         /// <summary>
         /// Fetches the user's full cloud activity log.
-        /// Returns an empty list in GitHub-direct mode or on error.
+        /// Supported in both backend mode and GitHub-direct mode.
+        /// Returns an empty list when not authenticated or on error.
         /// </summary>
         public async Task<List<Models.ActivityEntry>> GetActivityAsync(
             CancellationToken ct = default)
         {
-            if (_backend == null) return new();
-            return await _backend.GetActivityAsync(ct);
+            if (_backend != null)
+                return await _backend.GetActivityAsync(ct);
+
+            if (_github != null && _username != null)
+                return await _github.GetActivityAsync(_username, ct);
+
+            return new();
         }
 
         // ── Health check ──────────────────────────────────────────────────────

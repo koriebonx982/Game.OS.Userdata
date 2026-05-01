@@ -470,6 +470,81 @@ namespace GameLauncher.Services
             await WriteFileAsync(key, games, $"Remove game '{title}' for {username}", sha, ct);
         }
 
+        // ── Activity / Playtime ───────────────────────────────────────────────
+        /// <summary>
+        /// Appends a completed play session to the user's cloud activity log
+        /// at <c>accounts/{username}/activity.json</c>.  Trims the log to the
+        /// last 500 entries (same cap as the Node.js backend).
+        /// Retries up to 3 times on a GitHub SHA-conflict (409) to handle
+        /// concurrent writes from multiple devices.
+        /// Non-fatal — failures are swallowed.
+        /// </summary>
+        public async Task LogActivityAsync(
+            string username, string platform, string gameTitle, string? titleId,
+            DateTime startedAt, DateTime endedAt, int minutesPlayed,
+            CancellationToken ct = default)
+        {
+            const int maxEntries = 500;
+            var key = $"accounts/{username.ToLowerInvariant()}/activity.json";
+
+            var entry = new Models.ActivityEntry
+            {
+                Platform      = platform,
+                GameTitle     = gameTitle,
+                TitleId       = titleId,
+                SessionStart  = startedAt.ToString("o"),
+                SessionEnd    = endedAt.ToString("o"),
+                MinutesPlayed = minutesPlayed,
+                LoggedAt      = DateTimeOffset.UtcNow.ToString("o"),
+            };
+
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                try
+                {
+                    var (existing, sha) = await ReadFileAsync<List<Models.ActivityEntry>>(key, ct);
+                    var log = existing ?? new List<Models.ActivityEntry>();
+                    log.Add(entry);
+                    if (log.Count > maxEntries)
+                        log.RemoveRange(0, log.Count - maxEntries);
+
+                    await WriteFileAsync(key, log,
+                        $"Activity: {gameTitle} ({platform}) – {minutesPlayed}min",
+                        sha, ct);
+                    return;
+                }
+                catch (GameOsException ex) when (ex.StatusCode == 409 && attempt < 2)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[GitHubDataService] LogActivity SHA conflict (attempt {attempt + 1}): {ex.Message}");
+                    await Task.Delay(200 * (attempt + 1), ct);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[GitHubDataService] LogActivity failed: {ex.Message}");
+                    return;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Reads the user's full cloud activity log from
+        /// <c>accounts/{username}/activity.json</c>.
+        /// Returns an empty list when the file does not exist or on error.
+        /// </summary>
+        public async Task<List<Models.ActivityEntry>> GetActivityAsync(
+            string username, CancellationToken ct = default)
+        {
+            try
+            {
+                var (entries, _) = await ReadFileAsync<List<Models.ActivityEntry>>(
+                    $"accounts/{username.ToLowerInvariant()}/activity.json", ct);
+                return entries ?? new List<Models.ActivityEntry>();
+            }
+            catch { return new List<Models.ActivityEntry>(); }
+        }
+
         public async Task UpdatePresenceAsync(
             string username, CancellationToken ct = default)
         {
