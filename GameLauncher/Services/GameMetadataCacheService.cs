@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -11,18 +12,20 @@ using GameLauncher.Models;
 namespace GameLauncher.Services
 {
     /// <summary>
-    /// Per-game metadata cache stored in <c>%APPDATA%\GameOS\{username}\GameCache\{platform}\{titleId}\</c>.
+    /// Per-system, per-game metadata cache stored in <c>Data\GameCache\{platform}\{titleId}\</c>
+    /// next to the Game.OS executable.  The cache is shared across all user accounts on the
+    /// same machine so covers and achievement definitions are only downloaded once regardless
+    /// of which user is logged in.
     ///
-    /// For each game the user owns or has played, this service caches:
+    /// For each game the service caches:
     /// <list type="bullet">
     ///   <item>cover.jpg / cover.png</item>
     ///   <item>background.jpg / background.png</item>
-    ///   <item>info.json</item>
     ///   <item>achievements.json</item>
     ///   <item>ach-icons\{achievementId}.png</item>
     /// </list>
     ///
-    /// Store images are <b>never</b> cached — only games in the user's library.
+    /// Store games are <b>never</b> cached — only games present in the local library.
     /// </summary>
     public class GameMetadataCacheService
     {
@@ -40,27 +43,34 @@ namespace GameLauncher.Services
         private readonly string _cacheRoot;
 
         /// <summary>
-        /// Creates a cache service scoped to the given username.
-        /// Cache root: <c>%APPDATA%\GameOS\{username}\GameCache\</c>
+        /// Creates the per-system cache service.
+        /// Cache root: <c>{exe_dir}\Data\GameCache\</c>
         /// </summary>
-        public GameMetadataCacheService(string username)
+        public GameMetadataCacheService()
         {
-            if (string.IsNullOrWhiteSpace(username))
-                throw new ArgumentException("Username must be non-empty.", nameof(username));
-
-            _cacheRoot = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "GameOS",
-                UserDataService.SanitiseFolderName(username),
-                "GameCache");
+            _cacheRoot = Path.Combine(UserDataService.DataRoot, "GameCache");
         }
 
         // ── Path helpers ─────────────────────────────────────────────────────
 
-        private string GameFolder(string platform, string titleId) =>
+        /// <summary>
+        /// Returns the cache folder path for a game.
+        /// <paramref name="key"/> is the TitleId when available; otherwise a sanitised
+        /// version of the game title is used so PC games (which have no TitleId) can
+        /// still be cached.
+        /// </summary>
+        private string GameFolder(string platform, string key) =>
             Path.Combine(_cacheRoot,
                 UserDataService.SanitiseFolderName(platform),
-                UserDataService.SanitiseFolderName(titleId));
+                UserDataService.SanitiseFolderName(key));
+
+        /// <summary>
+        /// Resolves the best cache key for a game: TitleId when available, otherwise
+        /// the game title (sanitised for use as a folder name).
+        /// </summary>
+        private static string ResolveKey(string? titleId, string? title) =>
+            !string.IsNullOrEmpty(titleId) ? titleId :
+            !string.IsNullOrEmpty(title)   ? UserDataService.SanitiseFolderName(title) : "";
 
         /// <summary>Returns true if a cache folder exists for this game.</summary>
         public bool IsCached(string platform, string titleId) =>
@@ -70,9 +80,11 @@ namespace GameLauncher.Services
         /// <summary>
         /// Returns the local path to the cached cover image, or null when not cached.
         /// </summary>
-        public string? GetCachedCoverPath(string platform, string titleId)
+        public string? GetCachedCoverPath(string platform, string? titleId, string? title = null)
         {
-            var folder = GameFolder(platform, titleId);
+            var key = ResolveKey(titleId, title);
+            if (string.IsNullOrEmpty(key)) return null;
+            var folder = GameFolder(platform, key);
             foreach (var ext in new[] { "jpg", "png", "webp" })
             {
                 var path = Path.Combine(folder, $"cover.{ext}");
@@ -84,9 +96,11 @@ namespace GameLauncher.Services
         /// <summary>
         /// Returns the local path to the cached background image, or null when not cached.
         /// </summary>
-        public string? GetCachedBackgroundPath(string platform, string titleId)
+        public string? GetCachedBackgroundPath(string platform, string? titleId, string? title = null)
         {
-            var folder = GameFolder(platform, titleId);
+            var key = ResolveKey(titleId, title);
+            if (string.IsNullOrEmpty(key)) return null;
+            var folder = GameFolder(platform, key);
             foreach (var ext in new[] { "jpg", "png", "webp" })
             {
                 var path = Path.Combine(folder, $"background.{ext}");
@@ -98,9 +112,11 @@ namespace GameLauncher.Services
         /// <summary>
         /// Returns the local path to the cached achievements.json, or null when not cached.
         /// </summary>
-        public string? GetCachedAchievementsPath(string platform, string titleId)
+        public string? GetCachedAchievementsPath(string platform, string? titleId, string? title = null)
         {
-            var path = Path.Combine(GameFolder(platform, titleId), "achievements.json");
+            var key = ResolveKey(titleId, title);
+            if (string.IsNullOrEmpty(key)) return null;
+            var path = Path.Combine(GameFolder(platform, key), "achievements.json");
             return File.Exists(path) ? path : null;
         }
 
@@ -121,35 +137,61 @@ namespace GameLauncher.Services
         // ── Cache operations ─────────────────────────────────────────────────
 
         /// <summary>
-        /// Downloads and stores all cacheable assets for one game.
+        /// Downloads and stores all cacheable assets for one cloud-library game.
+        /// Uses TitleId as the cache key when available; otherwise falls back to the
+        /// game title so PC games without a TitleId are also cached.
         /// Skips assets that are already cached.
         /// </summary>
         public async Task CacheGameAsync(Game game, CancellationToken ct = default)
         {
-            if (string.IsNullOrEmpty(game.TitleId)) return;
+            var key = ResolveKey(game.TitleId, game.Title);
+            if (string.IsNullOrEmpty(key)) return;
 
-            var folder = GameFolder(game.Platform, game.TitleId);
+            var folder = GameFolder(game.Platform, key);
             Directory.CreateDirectory(folder);
 
             // Cover image
-            if (!string.IsNullOrEmpty(game.CoverUrl) && GetCachedCoverPath(game.Platform, game.TitleId) == null)
+            if (!string.IsNullOrEmpty(game.CoverUrl) && GetCachedCoverPath(game.Platform, game.TitleId, game.Title) == null)
                 await TryCacheImageAsync(game.CoverUrl, folder, "cover", ct);
 
             // Cache achievements.json if we have an AchievementsUrl
-            if (!string.IsNullOrEmpty(game.AchievementsUrl) && GetCachedAchievementsPath(game.Platform, game.TitleId) == null)
+            if (!string.IsNullOrEmpty(game.AchievementsUrl) && GetCachedAchievementsPath(game.Platform, game.TitleId, game.Title) == null)
                 await TryCacheJsonAsync(game.AchievementsUrl, Path.Combine(folder, "achievements.json"), ct);
         }
 
         /// <summary>
-        /// Re-fetches info.json and achievements.json for the given game from the server.
+        /// Caches cover art and achievements.json for a locally detected game (ROM or PC game)
+        /// using explicit metadata fetched from the Games.Database.
+        /// Skips assets that are already cached.
+        /// </summary>
+        public async Task CacheLocalGameAsync(string platform, string? titleId, string title,
+                                              string? coverUrl, string? achievementsUrl,
+                                              CancellationToken ct = default)
+        {
+            var key = ResolveKey(titleId, title);
+            if (string.IsNullOrEmpty(key)) return;
+
+            var folder = GameFolder(platform, key);
+            Directory.CreateDirectory(folder);
+
+            if (!string.IsNullOrEmpty(coverUrl) && GetCachedCoverPath(platform, titleId, title) == null)
+                await TryCacheImageAsync(coverUrl, folder, "cover", ct);
+
+            if (!string.IsNullOrEmpty(achievementsUrl) && GetCachedAchievementsPath(platform, titleId, title) == null)
+                await TryCacheJsonAsync(achievementsUrl, Path.Combine(folder, "achievements.json"), ct);
+        }
+
+        /// <summary>
+        /// Re-fetches achievements.json for the given game from the server.
         /// Does not re-download images unless <paramref name="forceImages"/> is true.
         /// Updates local files when the server version is newer.
         /// </summary>
         public async Task SyncMetadataAsync(Game game, bool forceImages = false, CancellationToken ct = default)
         {
-            if (string.IsNullOrEmpty(game.TitleId)) return;
+            var key = ResolveKey(game.TitleId, game.Title);
+            if (string.IsNullOrEmpty(key)) return;
 
-            var folder = GameFolder(game.Platform, game.TitleId);
+            var folder = GameFolder(game.Platform, key);
             Directory.CreateDirectory(folder);
 
             if (!string.IsNullOrEmpty(game.AchievementsUrl))
@@ -170,28 +212,25 @@ namespace GameLauncher.Services
             var dir = Path.Combine(GameFolder(platform, titleId), "ach-icons");
             Directory.CreateDirectory(dir);
 
-            var ext  = GuessExtension(iconUrl);
-            var path = Path.Combine(dir, $"{UserDataService.SanitiseFolderName(achievementId)}.{ext}");
             await TryCacheImageAsync(iconUrl, dir, UserDataService.SanitiseFolderName(achievementId), ct);
         }
 
         /// <summary>
-        /// Removes cached folders for games no longer in the user's library.
+        /// Removes cached folders for games no longer in the user's library or local game list.
         /// </summary>
-        public void PruneMissingGames(List<Game> currentLibrary)
+        public void PruneMissingGames(IEnumerable<(string Platform, string Key)> currentEntries)
         {
             try
             {
                 if (!Directory.Exists(_cacheRoot)) return;
 
-                // Build a set of valid (platform, titleId) pairs
                 var valid = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var game in currentLibrary)
+                foreach (var (platform, key) in currentEntries)
                 {
-                    if (!string.IsNullOrEmpty(game.TitleId))
+                    if (!string.IsNullOrEmpty(key))
                         valid.Add(Path.Combine(
-                            UserDataService.SanitiseFolderName(game.Platform),
-                            UserDataService.SanitiseFolderName(game.TitleId)));
+                            UserDataService.SanitiseFolderName(platform),
+                            UserDataService.SanitiseFolderName(key)));
                 }
 
                 foreach (var platformDir in Directory.GetDirectories(_cacheRoot))
@@ -211,6 +250,16 @@ namespace GameLauncher.Services
                 }
             }
             catch { /* best-effort — cache is not critical */ }
+        }
+
+        /// <summary>
+        /// Overload that accepts a cloud library game list for pruning.
+        /// </summary>
+        public void PruneMissingGames(List<Game> currentLibrary)
+        {
+            var entries = currentLibrary
+                .Select(g => (g.Platform, Key: ResolveKey(g.TitleId, g.Title)));
+            PruneMissingGames(entries);
         }
 
         // ── Private helpers ──────────────────────────────────────────────────

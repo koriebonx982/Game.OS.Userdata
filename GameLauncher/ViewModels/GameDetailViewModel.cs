@@ -979,6 +979,13 @@ public partial class GameDetailViewModel : ViewModelBase
     /// </summary>
     public Action<System.Diagnostics.Process, string, string>? OnRequestPlaytimeTracking { get; set; }
 
+    /// <summary>
+    /// The per-system metadata cache, wired by MainViewModel at startup.
+    /// Used by <see cref="FetchAndDisplayAchievementsAsync"/> to load achievements.json
+    /// from disk instead of re-downloading from GitHub every time a game detail is opened.
+    /// </summary>
+    public Services.GameMetadataCacheService? CacheService { get; set; }
+
     private static void TryStartProcess(string path, string? args)
     {
         if (string.IsNullOrEmpty(path)) return;
@@ -1841,8 +1848,9 @@ public partial class GameDetailViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Fetches the achievements JSON from the given URL and populates the
-    /// Achievements collection.  Mirrors <c>_loadAchievementsInModal</c> in script.js.
+    /// Fetches the achievements JSON from the given URL (or local disk cache if
+    /// available) and populates the Achievements collection.
+    /// Mirrors <c>_loadAchievementsInModal</c> in script.js.
     /// </summary>
     /// <remarks>
     /// Marked <c>internal</c> so <see cref="MainViewModel.EnrichGameAchievementsAsync"/>
@@ -1853,9 +1861,26 @@ public partial class GameDetailViewModel : ViewModelBase
     {
         try
         {
-            using var http = new System.Net.Http.HttpClient();
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("GameOS-Launcher/2.0");
-            var json = await http.GetStringAsync(url);
+            string json;
+
+            // Prefer the locally-cached achievements.json so the detail view works
+            // offline and loads instantly without a network round-trip.
+            // Resolve the best cache key: ROM titleId → database titleId → title
+            string? titleId = _currentLocalRom?.TitleId ?? _databaseTitleId;
+            string? cachedPath = CacheService?.GetCachedAchievementsPath(Platform, titleId, Title);
+
+            if (!string.IsNullOrEmpty(cachedPath) && System.IO.File.Exists(cachedPath))
+            {
+                DevLogService.Log($"[AchievementsCache] Loading from disk: {cachedPath}");
+                json = await System.IO.File.ReadAllTextAsync(cachedPath).ConfigureAwait(false);
+            }
+            else
+            {
+                using var http = new System.Net.Http.HttpClient();
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("GameOS-Launcher/2.0");
+                json = await http.GetStringAsync(url);
+            }
+
             if (string.IsNullOrWhiteSpace(json)) return;
 
             var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
