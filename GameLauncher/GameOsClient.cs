@@ -445,6 +445,26 @@ namespace GameLauncher
         }
 
         /// <summary>
+        /// Persists a game's accumulated playtime and lastPlayedAt back to games.json
+        /// so other devices see the new total on their next periodic sync tick without
+        /// needing to re-aggregate the full activity log.
+        /// Supported in both backend mode and GitHub-direct mode.  Non-fatal.
+        /// </summary>
+        public async Task UpdateGamePlaytimeAsync(
+            string platform, string title, int totalMinutes, string lastPlayedAt,
+            CancellationToken ct = default)
+        {
+            if (_backend != null)
+            {
+                await _backend.UpdateGamePlaytimeAsync(platform, title, totalMinutes, lastPlayedAt, ct);
+                return;
+            }
+
+            if (_github != null && _username != null)
+                await _github.UpdateGamePlaytimeAsync(_username, platform, title, totalMinutes, lastPlayedAt, ct);
+        }
+
+        /// <summary>
         /// Logs an achievement-unlock event to the user's cloud activity log.
         /// Only supported in backend mode; no-op in GitHub-direct mode.
         /// </summary>

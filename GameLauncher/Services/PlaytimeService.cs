@@ -91,6 +91,67 @@ namespace GameLauncher.Services
 
         private static readonly object _activeSessionsLock = new();
 
+        // ── Cloud playtime cache ───────────────────────────────────────────────
+        // Populated by ApplyCloudPlaytimeAsync after each activity-log fetch so
+        // the dashboard can show cross-device playtime for local ROM cards that
+        // are not (yet) reflected in the local sessions.json.
+
+        private static readonly Dictionary<string, (int Minutes, string LastPlayed)> _cloudTotals =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly object _cloudTotalsLock = new();
+
+        /// <summary>
+        /// Replaces the in-memory cloud playtime cache with totals derived from
+        /// <paramref name="activity"/>.  Called after every cloud activity-log fetch
+        /// so the dashboard always reflects the most recent cross-device sessions.
+        /// </summary>
+        public static void SetCloudTotals(IEnumerable<ActivityEntry> activity)
+        {
+            var totals = activity
+                .Where(a => a.MinutesPlayed > 0)
+                .GroupBy(a => $"{a.Platform.ToLowerInvariant()}||{a.GameTitle.ToLowerInvariant()}")
+                .ToDictionary(
+                    g => g.Key,
+                    g => (Minutes:    g.Sum(a => a.MinutesPlayed),
+                          LastPlayed: g.Max(a => a.SessionEnd ?? a.LoggedAt) ?? ""));
+
+            lock (_cloudTotalsLock)
+            {
+                _cloudTotals.Clear();
+                foreach (var kvp in totals)
+                    _cloudTotals[kvp.Key] = kvp.Value;
+            }
+        }
+
+        /// <summary>
+        /// Returns the total cloud-sourced minutes played for the given game
+        /// (aggregated from all devices via the activity log).
+        /// Returns 0 when no cloud data is available.
+        /// </summary>
+        public static int GetCloudMinutes(string platform, string title)
+        {
+            lock (_cloudTotalsLock)
+                return _cloudTotals.TryGetValue(MakeKey(platform, title), out var v) ? v.Minutes : 0;
+        }
+
+        /// <summary>
+        /// Returns the UTC <see cref="DateTime"/> of the most recent cloud session
+        /// for the given game, or <see cref="DateTime.MinValue"/> if none exists.
+        /// </summary>
+        public static DateTime GetCloudLastPlayedAt(string platform, string title)
+        {
+            string raw;
+            lock (_cloudTotalsLock)
+            {
+                if (!_cloudTotals.TryGetValue(MakeKey(platform, title), out var v)) return DateTime.MinValue;
+                raw = v.LastPlayed;
+            }
+            return DateTime.TryParse(raw, null,
+                System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
+                ? dt : DateTime.MinValue;
+        }
+
         /// <summary>
         /// Fired on the thread-pool when a tracked game process exits and the session
         /// has been saved to disk.  Parameters are (platform, title).

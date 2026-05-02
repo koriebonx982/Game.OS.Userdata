@@ -207,7 +207,8 @@ namespace GameLauncher.Services
             }
         }
 
-        /// <summary>Remove a game from the authenticated user's library via DELETE /api/me/games.</summary>
+        /// <summary>
+        /// Removes a game from the authenticated user's library via DELETE /api/me/games.</summary>
         public async Task RemoveGameAsync(string platform, string title, CancellationToken ct = default)
         {
             EnsureAuthenticated();
@@ -222,6 +223,33 @@ namespace GameLauncher.Services
                 var err = await resp.Content.ReadFromJsonAsync<ErrorResponse>(_jsonOpts, ct);
                 throw new GameOsException((int)resp.StatusCode, err?.Message ?? "Failed to remove game.");
             }
+        }
+
+        /// <summary>
+        /// Updates a game's accumulated playtime and lastPlayedAt in games.json via
+        /// PATCH /api/me/games/playtime.  Non-fatal — failures are swallowed.
+        /// Called immediately when a session ends so other devices see the new total
+        /// on their next sync tick.
+        /// </summary>
+        public async Task UpdateGamePlaytimeAsync(
+            string platform, string title, int totalMinutes, string lastPlayedAt,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                EnsureAuthenticated();
+                var body = new { platform, title, playtimeMinutes = totalMinutes, lastPlayedAt };
+                using var req = new HttpRequestMessage(
+                    new HttpMethod("PATCH"), "/api/me/games/playtime")
+                {
+                    Content = JsonContent.Create(body),
+                };
+                using var resp = await _http.SendAsync(req, ct);
+                if (!resp.IsSuccessStatusCode)
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[BackendApiService] UpdateGamePlaytime HTTP {(int)resp.StatusCode}: {title} ({platform})");
+            }
+            catch { /* best-effort */ }
         }
 
         // ── Achievements ──────────────────────────────────────────────────────

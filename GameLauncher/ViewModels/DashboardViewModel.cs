@@ -80,7 +80,10 @@ public partial class DashboardViewModel : ViewModelBase
                 // (e.g. "CUSA00572" → "God of War") are correctly matched against cloud titles.
                 string key = $"{c.Platform.ToLowerInvariant()}||{c.EffectiveTitle.ToLowerInvariant()}";
                 if (cloudKeys.Contains(key)) continue; // already counted via the library entry
-                totalMinutes += PlaytimeService.GetTotalMinutes(c.Platform, c.EffectiveTitle);
+                // Use the larger of local and cloud playtime so cross-device sessions are counted.
+                int localMins = PlaytimeService.GetTotalMinutes(c.Platform, c.EffectiveTitle);
+                int cloudMins = PlaytimeService.GetCloudMinutes(c.Platform, c.EffectiveTitle);
+                totalMinutes += Math.Max(localMins, cloudMins);
             }
         }
 
@@ -139,18 +142,25 @@ public partial class DashboardViewModel : ViewModelBase
         {
             foreach (var c in localCards
                 .Where(c => PlaytimeService.GetTotalMinutes(c.Platform, c.EffectiveTitle) > 0
-                         || PlaytimeService.IsBeingTracked(c.Platform, c.EffectiveTitle))
-                .OrderByDescending(c => PlaytimeService.IsBeingTracked(c.Platform, c.EffectiveTitle)
-                                        ? DateTime.MaxValue
-                                        : PlaytimeService.GetLastPlayedAt(c.Platform, c.EffectiveTitle))
+                         || PlaytimeService.IsBeingTracked(c.Platform, c.EffectiveTitle)
+                         || PlaytimeService.GetCloudMinutes(c.Platform, c.EffectiveTitle) > 0)
+                .OrderByDescending(c =>
+                {
+                    if (PlaytimeService.IsBeingTracked(c.Platform, c.EffectiveTitle))
+                        return DateTime.MaxValue;
+                    var localAt = PlaytimeService.GetLastPlayedAt(c.Platform, c.EffectiveTitle);
+                    var cloudAt = PlaytimeService.GetCloudLastPlayedAt(c.Platform, c.EffectiveTitle);
+                    return localAt >= cloudAt ? localAt : cloudAt;
+                })
                 .Take(MaxRecentGames))
             {
                 if (PlaytimeService.IsBeingTracked(c.Platform, c.EffectiveTitle))
                     c.PlaytimeLabel = "▶ Playing now";
                 else
                 {
-                    int mins = PlaytimeService.GetTotalMinutes(c.Platform, c.EffectiveTitle);
-                    c.PlaytimeLabel = FormatMinutes(mins);
+                    int localMins = PlaytimeService.GetTotalMinutes(c.Platform, c.EffectiveTitle);
+                    int cloudMins = PlaytimeService.GetCloudMinutes(c.Platform, c.EffectiveTitle);
+                    c.PlaytimeLabel = FormatMinutes(Math.Max(localMins, cloudMins));
                 }
                 RecentLocalGames.Add(c);
                 addedKeys.Add($"{c.Platform}||{c.EffectiveTitle}");
@@ -198,9 +208,12 @@ public partial class DashboardViewModel : ViewModelBase
         if (localCards != null)
         {
             foreach (var c in localCards.Where(c =>
-                PlaytimeService.GetTotalMinutes(c.Platform, c.EffectiveTitle) > 0))
+                PlaytimeService.GetTotalMinutes(c.Platform, c.EffectiveTitle) > 0
+                || PlaytimeService.GetCloudMinutes(c.Platform, c.EffectiveTitle) > 0))
             {
-                var t = PlaytimeService.GetLastPlayedAt(c.Platform, c.EffectiveTitle);
+                var localAt = PlaytimeService.GetLastPlayedAt(c.Platform, c.EffectiveTitle);
+                var cloudAt = PlaytimeService.GetCloudLastPlayedAt(c.Platform, c.EffectiveTitle);
+                var t = localAt >= cloudAt ? localAt : cloudAt;
                 if (t > lastLocalTime) { lastLocalTime = t; lastLocal = c; }
             }
         }

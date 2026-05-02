@@ -470,6 +470,56 @@ namespace GameLauncher.Services
             await WriteFileAsync(key, games, $"Remove game '{title}' for {username}", sha, ct);
         }
 
+        /// <summary>
+        /// Updates a game's accumulated playtime and lastPlayedAt in games.json so other
+        /// devices see the new total on their next sync tick.  Retries up to 3 times on
+        /// SHA-conflict.  Non-fatal — failures are swallowed.
+        /// </summary>
+        public async Task UpdateGamePlaytimeAsync(
+            string username, string platform, string title,
+            int totalMinutes, string lastPlayedAt,
+            CancellationToken ct = default)
+        {
+            var key = $"accounts/{username.ToLowerInvariant()}/games.json";
+
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                try
+                {
+                    var (games, sha) = await ReadFileAsync<List<Game>>(key, ct);
+                    if (games == null) return;
+
+                    var game = games.FirstOrDefault(g =>
+                        string.Equals(g.Platform, platform, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(g.Title,    title,    StringComparison.OrdinalIgnoreCase));
+
+                    if (game == null) return; // local-only ROM not in cloud library — skip
+
+                    // Only advance playtime forward to avoid stale writes overwriting newer data
+                    if (totalMinutes > game.PlaytimeMinutes)
+                        game.PlaytimeMinutes = totalMinutes;
+                    game.LastPlayedAt = lastPlayedAt;
+
+                    await WriteFileAsync(key, games,
+                        $"Playtime: {title} ({platform}) – {game.PlaytimeMinutes}min",
+                        sha, ct);
+                    return;
+                }
+                catch (GameOsException ex) when (ex.StatusCode == 409 && attempt < 2)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[GitHubDataService] UpdateGamePlaytime SHA conflict (attempt {attempt + 1}): {ex.Message}");
+                    await Task.Delay(200 * (attempt + 1), ct);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[GitHubDataService] UpdateGamePlaytime failed: {ex.Message}");
+                    return;
+                }
+            }
+        }
+
         // ── Activity / Playtime ───────────────────────────────────────────────
         /// <summary>
         /// Appends a completed play session to the user's cloud activity log

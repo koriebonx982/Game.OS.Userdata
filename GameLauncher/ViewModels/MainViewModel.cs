@@ -461,7 +461,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     /// Called when a game session is saved locally.  Pushes the session to the
-    /// cloud activity log so playtime stays in sync across all devices.
+    /// cloud activity log and immediately updates the game's playtime in games.json
+    /// so other devices see the new data on their next sync tick without waiting for
+    /// activity-log aggregation.
     /// </summary>
     private void OnSessionSaved(Models.PlaySession session)
     {
@@ -476,21 +478,33 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                         System.Globalization.DateTimeStyles.RoundtripKind, out var end))
                     end = DateTime.UtcNow;
 
-                // Look up the TitleId from the cloud library so the activity entry
-                // is correctly associated with Switch / PS3 / Xbox 360 games.
-                string? titleId = _library
-                    .FirstOrDefault(g =>
-                        string.Equals(g.Platform, session.Platform, StringComparison.OrdinalIgnoreCase) &&
-                        string.Equals(g.Title,    session.Title,    StringComparison.OrdinalIgnoreCase))
-                    ?.TitleId;
+                // Look up the TitleId and current accumulated playtime from the cloud library
+                // so the activity entry is correctly associated with Switch / PS3 / Xbox 360 games.
+                var libraryGame = _library.FirstOrDefault(g =>
+                    string.Equals(g.Platform, session.Platform, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(g.Title,    session.Title,    StringComparison.OrdinalIgnoreCase));
 
+                string? titleId = libraryGame?.TitleId;
+
+                // 1. Log to activity.json — the authoritative session history.
                 await _client.LogActivityAsync(
                     session.Platform, session.Title, titleId,
                     start, end, session.Minutes).ConfigureAwait(false);
 
+                // 2. Update games.json with the new accumulated playtime so other devices
+                //    see the change on their next periodic sync without needing to aggregate
+                //    the full activity log first.
+                int newTotal = libraryGame != null
+                    ? libraryGame.PlaytimeMinutes   // already updated by FinaliseSession
+                    : session.Minutes;
+
+                await _client.UpdateGamePlaytimeAsync(
+                    session.Platform, session.Title,
+                    newTotal, end.ToString("o")).ConfigureAwait(false);
+
                 System.Diagnostics.Debug.WriteLine(
                     $"[Playtime] Synced '{session.Title}' ({session.Platform}) " +
-                    $"{session.Minutes} min to cloud.");
+                    $"{session.Minutes} min to cloud (total {newTotal} min).");
             }
             catch (Exception ex)
             {
@@ -519,6 +533,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
             DevLogService.Log($"[Playtime] Cloud activity log has {activity.Count} entries.");
 
+            // Populate the cloud playtime cache in PlaytimeService so that local ROM cards
+            // (which may not be in the cloud library) also reflect cross-device sessions.
+            PlaytimeService.SetCloudTotals(activity);
+
             // Aggregate cloud minutes per (platform, title)
             var totals = activity
                 .GroupBy(a => $"{a.Platform.ToLowerInvariant()}||{a.GameTitle.ToLowerInvariant()}")
@@ -527,7 +545,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     g => (TotalMinutes: g.Sum(a => a.MinutesPlayed),
                           LastPlayed:   g.Max(a => a.SessionEnd ?? a.LoggedAt)));
 
-            bool anyUpdated = false;
             foreach (var game in library)
             {
                 var key = $"{game.Platform.ToLowerInvariant()}||{game.Title.ToLowerInvariant()}";
@@ -536,26 +553,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     game.PlaytimeMinutes = agg.TotalMinutes;
                     if (!string.IsNullOrEmpty(agg.LastPlayed))
                         game.LastPlayedAt = agg.LastPlayed;
-                    anyUpdated = true;
                 }
             }
 
-            if (anyUpdated)
+            // Always refresh the dashboard so cross-device playtime is shown immediately,
+            // including local ROM cards that now have cloud playtime via the cache above.
+            System.Diagnostics.Debug.WriteLine(
+                "[Playtime] Applied cloud playtime totals to library and cache.");
+            DevLogService.Log("[Playtime] Applied cloud playtime totals to library and cache.");
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                System.Diagnostics.Debug.WriteLine(
-                    "[Playtime] Applied cloud playtime totals to library.");
-                DevLogService.Log("[Playtime] Applied cloud playtime totals to library.");
-                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                {
-                    var cards = LibraryVm.GetMyGameSources()
-                        .Select(s => LibraryVm.FindMyGameCard(s.Title, s.Platform))
-                        .Where(c => c != null)
-                        .Cast<LocalGameCardVm>()
-                        .ToList();
-                    DashboardVm.Load(_profile, library, _achievements, cards);
-                    LibraryVm.Load(library);
-                });
-            }
+                var cards = LibraryVm.GetMyGameSources()
+                    .Select(s => LibraryVm.FindMyGameCard(s.Title, s.Platform))
+                    .Where(c => c != null)
+                    .Cast<LocalGameCardVm>()
+                    .ToList();
+                DashboardVm.Load(_profile, library, _achievements, cards);
+                LibraryVm.Load(library);
+            });
         }
         catch (Exception ex)
         {
@@ -1511,16 +1526,21 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             bool gamesChanged = !GamesListEqual(_library, games);
             bool achvChanged  = achievements.Count != _achievements.Count;
 
+            // Also detect when another device has updated a game's playtime/lastPlayedAt
+            // in games.json (written by UpdateGamePlaytimeAsync on session end).
+            bool playtimeChanged = !gamesChanged && GamesPlaytimeChanged(_library, games);
+
             // Detect newly-unlocked achievements and log them to the activity feed
             if (achvChanged && achievements.Count > _achievements.Count)
                 _ = DetectAndLogNewAchievementsAsync(_achievements, achievements);
 
-            if (gamesChanged || achvChanged)
+            if (gamesChanged || achvChanged || playtimeChanged)
             {
                 System.Diagnostics.Debug.WriteLine(
                     $"[SyncCheck] Remote userdata changed for '{username}' " +
                     $"(games: {(gamesChanged ? "changed" : "same")}, " +
-                    $"achievements: {(achvChanged ? "changed" : "same")}). Updating local cache.");
+                    $"achievements: {(achvChanged ? "changed" : "same")}, " +
+                    $"playtime: {(playtimeChanged ? "changed" : "same")}). Updating local cache.");
 
                 foreach (var g in games)
                     g.Platform = Models.PlatformHelper.NormalizePlatform(g.Platform);
@@ -1602,6 +1622,30 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             StringComparer.Ordinal);
         return b.All(g => aSet.Contains(
             $"{g.Platform?.ToLowerInvariant()}|{g.Title?.ToLowerInvariant()}"));
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when any game in <paramref name="remote"/> has a newer
+    /// <see cref="Game.LastPlayedAt"/> than the corresponding entry in
+    /// <paramref name="current"/>.  Used to detect playtime updates written to
+    /// games.json by another device so the dashboard refreshes without waiting for
+    /// the full activity-log aggregation.
+    /// </summary>
+    private static bool GamesPlaytimeChanged(List<Game> current, List<Game> remote)
+    {
+        var lookup = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var g in current)
+            lookup[$"{g.Platform?.ToLowerInvariant()}|{g.Title?.ToLowerInvariant()}"] = g.LastPlayedAt;
+
+        foreach (var g in remote)
+        {
+            if (string.IsNullOrEmpty(g.LastPlayedAt)) continue;
+            var key = $"{g.Platform?.ToLowerInvariant()}|{g.Title?.ToLowerInvariant()}";
+            if (!lookup.TryGetValue(key, out var existing) ||
+                string.Compare(g.LastPlayedAt, existing, StringComparison.Ordinal) > 0)
+                return true;
+        }
+        return false;
     }
 
     /// <summary>
