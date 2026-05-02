@@ -92,14 +92,7 @@ public partial class DashboardViewModel : ViewModelBase
         // Also count activity-only games (played on another device, not in the library or local cards)
         // so the total playtime stat includes cross-device sessions for all tracked games.
         {
-            var countedKeys = new HashSet<string>(
-                library.Select(g => $"{g.Platform.ToLowerInvariant()}||{g.Title.ToLowerInvariant()}"),
-                StringComparer.OrdinalIgnoreCase);
-            if (localCards != null)
-            {
-                foreach (var c in localCards)
-                    countedKeys.Add($"{c.Platform.ToLowerInvariant()}||{c.EffectiveTitle.ToLowerInvariant()}");
-            }
+            var countedKeys = BuildGameKeySet(library, localCards);
             foreach (var (platform, title, minutes, _) in PlaytimeService.GetAllCloudTotals()
                 .Where(t => t.Minutes > 0))
             {
@@ -215,10 +208,7 @@ public partial class DashboardViewModel : ViewModelBase
         //    so we can show them here so "Continue Playing" matches the website timeline.
         if (RecentLocalGames.Count < MaxRecentGames)
         {
-            var libraryKeys = new HashSet<string>(
-                library.Select(g => $"{g.Platform.ToLowerInvariant()}||{g.Title.ToLowerInvariant()}"),
-                StringComparer.OrdinalIgnoreCase);
-
+            var libraryKeys = BuildGameKeySet(library, null);
             foreach (var (platform, title, minutes, lastPlayed) in PlaytimeService.GetAllCloudTotals()
                 .Where(t => t.Minutes > 0 && !string.IsNullOrEmpty(t.LastPlayed))
                 .Where(t => !libraryKeys.Contains(
@@ -250,8 +240,9 @@ public partial class DashboardViewModel : ViewModelBase
         HasRecentLocalGames = RecentLocalGames.Count > 0;
 
         // ── Hero / Featured ───────────────────────────────────────────────────
-        // Show the most recently played game (local or cloud) as the hero.
-        // Fall back to the highest-rated store game when nothing has been played yet.
+        // Show the most recently played game (local, cloud library, or activity-only)
+        // as the hero.  Fall back to the highest-rated store game when nothing has
+        // been played yet.
 
         _heroCloudGame  = null;
         _heroLocalCard  = null;
@@ -262,7 +253,7 @@ public partial class DashboardViewModel : ViewModelBase
             .OrderByDescending(g => ParseDate(g.LastPlayedAt))
             .FirstOrDefault();
 
-        // Most recently played local card
+        // Most recently played local card (locally installed ROMs / PC games)
         LocalGameCardVm? lastLocal = null;
         DateTime         lastLocalTime = DateTime.MinValue;
         if (localCards != null)
@@ -278,11 +269,40 @@ public partial class DashboardViewModel : ViewModelBase
             }
         }
 
+        // Most recently played activity-only game — played on another device, not present
+        // in this device's cloud library (games.json) or local scan results.
+        // These are always in _cloudTotals after ApplyCloudPlaytimeAsync runs.
+        Game?    lastActivityGame = null;
+        DateTime lastActivityTime = DateTime.MinValue;
+        {
+            var libAndLocalKeys = BuildGameKeySet(library, localCards);
+            foreach (var (platform, title, minutes, lastPlayed) in PlaytimeService.GetAllCloudTotals()
+                .Where(t => t.Minutes > 0 && !string.IsNullOrEmpty(t.LastPlayed)))
+            {
+                if (libAndLocalKeys.Contains(
+                        $"{platform.ToLowerInvariant()}||{title.ToLowerInvariant()}")) continue;
+                var t = ParseDate(lastPlayed);
+                if (t > lastActivityTime)
+                {
+                    lastActivityTime = t;
+                    lastActivityGame = new Game
+                    {
+                        Title           = title,
+                        Platform        = platform,
+                        PlaytimeMinutes = minutes,
+                        LastPlayedAt    = lastPlayed,
+                    };
+                }
+            }
+        }
+
         DateTime lastCloudTime = lastCloud != null ? ParseDate(lastCloud.LastPlayedAt) : DateTime.MinValue;
 
-        if (lastLocal != null && lastLocalTime >= lastCloudTime && lastLocalTime > DateTime.MinValue)
+        if (lastLocal != null && lastLocalTime >= lastCloudTime
+                              && lastLocalTime >= lastActivityTime
+                              && lastLocalTime > DateTime.MinValue)
         {
-            // A local game was played more recently
+            // A local game was played more recently than any cloud or activity-only game
             _heroLocalCard = lastLocal;
             FeaturedGame = new StoreGame
             {
@@ -296,6 +316,27 @@ public partial class DashboardViewModel : ViewModelBase
             FeaturedBadgeText     = "▶  LAST PLAYED";
             IsFeaturedLastPlayed  = true;
             DevLogService.Log($"[Dashboard] FeaturedGame = local '{lastLocal.EffectiveTitle}' ({lastLocal.Platform}) — last played {lastLocalTime:yyyy-MM-dd HH:mm:ss}");
+        }
+        else if (lastActivityGame != null && lastActivityTime > lastCloudTime
+                                          && lastActivityTime > DateTime.MinValue)
+        {
+            // An activity-only game (played on another device, not in this device's library
+            // or local scan) is the most recently played game.
+            // Route through _heroCloudGame so clicking "Continue Playing" opens the detail
+            // overlay (via OpenDetailFromGame) with proper enrichment — the same path used
+            // for cloud library games that are not locally installed.
+            _heroCloudGame = lastActivityGame;
+            FeaturedGame = new StoreGame
+            {
+                Title         = lastActivityGame.Title,
+                Platform      = lastActivityGame.Platform,
+                Description   = "",
+                CoverGradient = DefaultCloudCardGradient,
+            };
+            FeaturedGradient      = DefaultCloudCardGradient;
+            FeaturedBadgeText     = "▶  LAST PLAYED";
+            IsFeaturedLastPlayed  = true;
+            DevLogService.Log($"[Dashboard] FeaturedGame = activity-only '{lastActivityGame.Title}' ({lastActivityGame.Platform}) — last played {lastActivityTime:yyyy-MM-dd HH:mm:ss}");
         }
         else if (lastCloud != null && lastCloudTime > DateTime.MinValue)
         {
@@ -334,6 +375,23 @@ public partial class DashboardViewModel : ViewModelBase
     // Keep the original 3-arg overload for backwards compatibility with existing callers.
     public void Load(UserProfile profile, List<Game> library, List<Achievement> achievements)
         => Load(profile, library, achievements, null);
+
+    /// <summary>
+    /// Builds a case-insensitive set of "platform||title" keys for all games in
+    /// <paramref name="library"/> and all local card titles in <paramref name="localCards"/>.
+    /// Used in multiple places to avoid counting or showing the same game twice.
+    /// </summary>
+    private static HashSet<string> BuildGameKeySet(
+        List<Game> library, IReadOnlyList<LocalGameCardVm>? localCards)
+    {
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var g in library)
+            keys.Add($"{g.Platform.ToLowerInvariant()}||{g.Title.ToLowerInvariant()}");
+        if (localCards != null)
+            foreach (var c in localCards)
+                keys.Add($"{c.Platform.ToLowerInvariant()}||{c.EffectiveTitle.ToLowerInvariant()}");
+        return keys;
+    }
 
     [RelayCommand]
     private void OpenGameDetail(Game? game)
