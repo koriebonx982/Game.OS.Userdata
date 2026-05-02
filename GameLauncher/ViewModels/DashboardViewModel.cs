@@ -146,94 +146,131 @@ public partial class DashboardViewModel : ViewModelBase
             RecentAchievements.Add(a);
 
         // ── Continue Playing ──────────────────────────────────────────────────
-        // Shows locally detected games/ROMs with tracked playtime AND cloud library
-        // games with recorded playtime (e.g. PC games not detected by the scanner).
+        // Built from the cloud activity log as the single source of truth so that
+        // the list matches the website's recently-played order on every device.
+        // Device A and Device B see the same game order regardless of which games
+        // are locally installed on each machine — just like Xbox / PlayStation.
         RecentLocalGames.Clear();
         var addedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // 1. Local cards (ROMs, installed games, repacks) with playtime
+        // Build quick-lookup maps so we can resolve each activity entry to a
+        // locally-installed card or a cloud-library game without an O(n²) scan.
+        var localCardMap = new Dictionary<string, LocalGameCardVm>(StringComparer.OrdinalIgnoreCase);
+        if (localCards != null)
+            foreach (var c in localCards)
+                localCardMap[$"{c.Platform.ToLowerInvariant()}||{c.EffectiveTitle.ToLowerInvariant()}"] = c;
+
+        var cloudGameMap = new Dictionary<string, Game>(StringComparer.OrdinalIgnoreCase);
+        foreach (var g in library)
+            cloudGameMap[$"{g.Platform.ToLowerInvariant()}||{g.Title.ToLowerInvariant()}"] = g;
+
+        // Step 1 — currently-running games are always pinned at the top regardless of
+        // their position in the activity log.
         if (localCards != null)
         {
-            foreach (var c in localCards
-                .Where(c => PlaytimeService.GetTotalMinutes(c.Platform, c.EffectiveTitle) > 0
-                         || PlaytimeService.IsBeingTracked(c.Platform, c.EffectiveTitle)
-                         || PlaytimeService.GetCloudMinutes(c.Platform, c.EffectiveTitle) > 0)
-                .OrderByDescending(c =>
-                {
-                    if (PlaytimeService.IsBeingTracked(c.Platform, c.EffectiveTitle))
-                        return DateTime.MaxValue;
-                    var localAt = PlaytimeService.GetLastPlayedAt(c.Platform, c.EffectiveTitle);
-                    var cloudAt = PlaytimeService.GetCloudLastPlayedAt(c.Platform, c.EffectiveTitle);
-                    return localAt >= cloudAt ? localAt : cloudAt;
-                })
-                .Take(MaxRecentGames))
+            foreach (var c in localCards.Where(
+                c => PlaytimeService.IsBeingTracked(c.Platform, c.EffectiveTitle)))
             {
-                if (PlaytimeService.IsBeingTracked(c.Platform, c.EffectiveTitle))
-                    c.PlaytimeLabel = "▶ Playing now";
-                else
-                {
-                    int localMins = PlaytimeService.GetTotalMinutes(c.Platform, c.EffectiveTitle);
-                    int cloudMins = PlaytimeService.GetCloudMinutes(c.Platform, c.EffectiveTitle);
-                    c.PlaytimeLabel = FormatMinutes(Math.Max(localMins, cloudMins));
-                }
+                c.PlaytimeLabel = "▶ Playing now";
                 RecentLocalGames.Add(c);
-                addedKeys.Add($"{c.Platform}||{c.EffectiveTitle}");
+                addedKeys.Add($"{c.Platform.ToLowerInvariant()}||{c.EffectiveTitle.ToLowerInvariant()}");
             }
         }
 
-        // 2. Cloud library games with playtime that aren't already shown as local cards
-        //    This ensures PC cloud-library games (not detected by the scanner) appear here too.
-        foreach (var g in library
-            .Where(g => g.PlaytimeMinutes > 0 && !string.IsNullOrEmpty(g.LastPlayedAt))
-            .Where(g => !addedKeys.Contains($"{g.Platform}||{g.Title}"))
-            .OrderByDescending(g => ParseDate(g.LastPlayedAt))
-            .Take(Math.Max(0, MaxRecentGames - RecentLocalGames.Count)))
-        {
-            var card = new LocalGameCardVm
-            {
-                Title           = g.Title,
-                Platform        = g.Platform,
-                CoverUrl        = g.CoverUrl,
-                CoverGradient   = g.CoverGradient ?? DefaultCloudCardGradient,
-                SourceCloudGame = g,
-            };
-            card.PlaytimeLabel = FormatMinutes(g.PlaytimeMinutes);
-            RecentLocalGames.Add(card);
-            addedKeys.Add($"{g.Platform}||{g.Title}");
-        }
+        // Step 2 — merge activity-log entries (all devices) with any cloud-library games
+        // that have playtime but pre-date the activity log, then sort globally by the
+        // cloud last-played timestamp so the order is identical to the website.
+        var cloudEntries = PlaytimeService.GetAllCloudTotals()
+            .Where(t => t.Minutes > 0 && !string.IsNullOrEmpty(t.LastPlayed))
+            .ToList();
 
-        // 3. Activity-log games that are NOT in the cloud library at all.
-        //    These are games played on another device that were only scanned locally there
-        //    (never added to games.json). The cloud activity log still recorded the sessions,
-        //    so we can show them here so "Continue Playing" matches the website timeline.
-        if (RecentLocalGames.Count < MaxRecentGames)
+        // Build an O(1) lookup set so the legacy-entry filter below is O(n) not O(n²).
+        var cloudEntryKeys = new HashSet<string>(
+            cloudEntries.Select(c => $"{c.Platform.ToLowerInvariant()}||{c.Title.ToLowerInvariant()}"),
+            StringComparer.OrdinalIgnoreCase);
+
+        // Include cloud-library games whose playtime was recorded before the activity log
+        // existed (legacy data). They use LastPlayedAt from games.json as their timestamp.
+        var legacyLibraryEntries = library
+            .Where(g => g.PlaytimeMinutes > 0 && !string.IsNullOrEmpty(g.LastPlayedAt))
+            .Where(g => !cloudEntryKeys.Contains(
+                $"{g.Platform.ToLowerInvariant()}||{g.Title.ToLowerInvariant()}"))
+            .Select(g => (Platform: g.Platform, Title: g.Title,
+                          Minutes: g.PlaytimeMinutes, LastPlayed: g.LastPlayedAt!));
+
+        // Single globally-sorted stream: activity log + legacy library entries
+        var allEntries = cloudEntries
+            .Concat(legacyLibraryEntries)
+            .OrderByDescending(t => ParseDate(t.LastPlayed));
+
+        foreach (var (platform, title, minutes, lastPlayed) in allEntries)
         {
-            var libraryKeys = BuildGameKeySet(library, null);
-            foreach (var (platform, title, minutes, lastPlayed) in PlaytimeService.GetAllCloudTotals()
-                .Where(t => t.Minutes > 0 && !string.IsNullOrEmpty(t.LastPlayed))
-                .Where(t => !libraryKeys.Contains(
-                    $"{t.Platform.ToLowerInvariant()}||{t.Title.ToLowerInvariant()}"))
-                .Where(t => !addedKeys.Contains($"{t.Platform}||{t.Title}"))
-                .OrderByDescending(t => ParseDate(t.LastPlayed))
-                .Take(MaxRecentGames - RecentLocalGames.Count))
+            if (RecentLocalGames.Count >= MaxRecentGames) break;
+
+            var key = $"{platform.ToLowerInvariant()}||{title.ToLowerInvariant()}";
+            if (addedKeys.Contains(key)) continue;
+            addedKeys.Add(key);
+
+            // Prefer a locally-installed card (can be launched directly).
+            if (localCardMap.TryGetValue(key, out var localCard))
             {
-                var syntheticGame = new Game
-                {
-                    Title           = title,
-                    Platform        = platform,
-                    PlaytimeMinutes = minutes,
-                    LastPlayedAt    = lastPlayed,
-                };
+                int localMins = PlaytimeService.GetTotalMinutes(platform, title);
+                localCard.PlaytimeLabel = FormatMinutes(Math.Max(localMins, minutes));
+                RecentLocalGames.Add(localCard);
+                continue;
+            }
+
+            // Fall back to a cloud-library entry (has cover art and metadata).
+            if (cloudGameMap.TryGetValue(key, out var cloudGame))
+            {
                 var card = new LocalGameCardVm
                 {
-                    Title         = title,
-                    Platform      = platform,
-                    CoverGradient = DefaultCloudCardGradient,
-                    SourceCloudGame = syntheticGame,
+                    Title           = cloudGame.Title,
+                    Platform        = cloudGame.Platform,
+                    CoverUrl        = cloudGame.CoverUrl,
+                    CoverGradient   = cloudGame.CoverGradient ?? DefaultCloudCardGradient,
+                    SourceCloudGame = cloudGame,
                 };
-                card.PlaytimeLabel = FormatMinutes(minutes);
+                card.PlaytimeLabel = FormatMinutes(Math.Max(cloudGame.PlaytimeMinutes, minutes));
                 RecentLocalGames.Add(card);
-                addedKeys.Add($"{platform}||{title}");
+                continue;
+            }
+
+            // Activity-only game: played on another device, not installed here.
+            // Show a placeholder card so the list mirrors the website timeline.
+            var syntheticGame = new Game
+            {
+                Title           = title,
+                Platform        = platform,
+                PlaytimeMinutes = minutes,
+                LastPlayedAt    = lastPlayed,
+            };
+            var activityCard = new LocalGameCardVm
+            {
+                Title           = title,
+                Platform        = platform,
+                CoverGradient   = DefaultCloudCardGradient,
+                SourceCloudGame = syntheticGame,
+            };
+            activityCard.PlaytimeLabel = FormatMinutes(minutes);
+            RecentLocalGames.Add(activityCard);
+        }
+
+        // Step 3 — local-only games with playtime that have not yet been synced to the
+        // cloud (e.g. offline sessions). Append them after the cloud-sorted entries.
+        if (localCards != null && RecentLocalGames.Count < MaxRecentGames)
+        {
+            foreach (var c in localCards
+                .Where(c => PlaytimeService.GetTotalMinutes(c.Platform, c.EffectiveTitle) > 0
+                         && !addedKeys.Contains(
+                             $"{c.Platform.ToLowerInvariant()}||{c.EffectiveTitle.ToLowerInvariant()}"))
+                .OrderByDescending(c => PlaytimeService.GetLastPlayedAt(c.Platform, c.EffectiveTitle))
+                .Take(MaxRecentGames - RecentLocalGames.Count))
+            {
+                c.PlaytimeLabel = FormatMinutes(
+                    PlaytimeService.GetTotalMinutes(c.Platform, c.EffectiveTitle));
+                RecentLocalGames.Add(c);
+                addedKeys.Add($"{c.Platform.ToLowerInvariant()}||{c.EffectiveTitle.ToLowerInvariant()}");
             }
         }
 

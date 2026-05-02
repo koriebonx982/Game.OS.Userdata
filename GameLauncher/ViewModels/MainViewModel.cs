@@ -1036,7 +1036,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             var cached = _metadataCache.LoadCachedGameInfo(platform, titleId, localTitle);
             if (cached != null)
+            {
+                DevLogService.Log($"[Detail] Using cached game.json for '{localTitle}' ({platform}) — network unavailable.");
                 Avalonia.Threading.Dispatcher.UIThread.Post(() => DetailVm.EnrichFromDatabaseGame(cached));
+            }
         }
     }
 
