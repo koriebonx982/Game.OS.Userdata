@@ -479,6 +479,42 @@ namespace GameLauncher
             // GitHub-direct mode: not implemented (achievement logging requires backend)
         }
 
+        // ── Sync signal (cross-device heartbeat) ──────────────────────────────
+
+        /// <summary>
+        /// Writes a sync signal to the cloud after a play session ends.
+        /// Other open instances poll this tiny file every 30 seconds; when the
+        /// timestamp advances they immediately re-fetch playtime and recently-played.
+        /// Supported in both backend mode and GitHub-direct mode.  Non-fatal.
+        /// </summary>
+        public async Task WriteSyncSignalAsync(CancellationToken ct = default)
+        {
+            if (_backend != null)
+            {
+                await _backend.WriteSyncSignalAsync(ct);
+                return;
+            }
+
+            if (_github != null && _username != null)
+                await _github.WriteSyncSignalAsync(_username, ct);
+        }
+
+        /// <summary>
+        /// Reads the last sync signal from the cloud.
+        /// Returns the <c>lastActivityAt</c> ISO timestamp, or <c>null</c> when not set or on error.
+        /// Supported in both backend mode and GitHub-direct mode.
+        /// </summary>
+        public async Task<string?> ReadSyncSignalAsync(CancellationToken ct = default)
+        {
+            if (_backend != null)
+                return await _backend.ReadSyncSignalAsync(ct);
+
+            if (_github != null && _username != null)
+                return await _github.ReadSyncSignalAsync(_username, ct);
+
+            return null;
+        }
+
         // ── Health check ──────────────────────────────────────────────────────
         /// <summary>
         /// Returns true when the data backend is reachable.

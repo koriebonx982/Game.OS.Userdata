@@ -618,6 +618,45 @@ namespace GameLauncher.Services
             }
         }
 
+        /// <summary>
+        /// Writes a sync signal to <c>accounts/{username}/sync-signal.json</c> so other
+        /// open instances detect the change within their 30-second heartbeat poll.
+        /// Non-fatal — failures are swallowed.
+        /// </summary>
+        public async Task WriteSyncSignalAsync(string username, CancellationToken ct = default)
+        {
+            try
+            {
+                var key = $"accounts/{username.ToLowerInvariant()}/sync-signal.json";
+                var (_, sha) = await ReadFileAsync<Models.SyncSignal>(key, ct);
+                var signal = new Models.SyncSignal
+                {
+                    LastActivityAt = DateTimeOffset.UtcNow.ToString("o"),
+                };
+                await WriteFileAsync(key, signal, $"Sync signal: {username}", sha, ct);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"[GitHubDataService] WriteSyncSignal failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Reads the sync signal from <c>accounts/{username}/sync-signal.json</c>.
+        /// Returns the <c>lastActivityAt</c> ISO timestamp, or <c>null</c> when not set or on error.
+        /// </summary>
+        public async Task<string?> ReadSyncSignalAsync(string username, CancellationToken ct = default)
+        {
+            try
+            {
+                var (signal, _) = await ReadFileAsync<Models.SyncSignal>(
+                    $"accounts/{username.ToLowerInvariant()}/sync-signal.json", ct);
+                return signal?.LastActivityAt;
+            }
+            catch { return null; }
+        }
+
         public async Task SendMessageAsync(
             string from, string to, string text, CancellationToken ct = default)
         {

@@ -79,6 +79,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     private Timer? _syncCheckTimer;
 
+    // ── Sync-signal heartbeat poller ───────────────────────────────────────
+    /// <summary>
+    /// Fires every 30 seconds while the app is Online.  Reads the tiny
+    /// sync-signal.json file (written by Device A when a play session ends) and,
+    /// if the <c>lastActivityAt</c> timestamp has advanced, immediately calls
+    /// <see cref="TryRefreshUserDataAsync"/> and <see cref="ApplyCloudPlaytimeAsync"/>
+    /// so recently-played / playtime reflect the other device without waiting up
+    /// to 5 minutes for the full sync-check timer to fire.
+    /// </summary>
+    private Timer? _heartbeatPoller;
+    /// <summary>Last <c>lastActivityAt</c> value read from sync-signal.json.</summary>
+    private string? _lastKnownSyncSignal;
+
     // ── Session data ───────────────────────────────────────────────────────
     private UserProfile     _profile      = new();
     private List<Game>      _library      = new();
@@ -403,6 +416,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // user data and invalidates stale Games.Database caches.
             StartSyncCheckTimer();
 
+            // Start the 30-second heartbeat poller that watches sync-signal.json.
+            // When another device finishes a play session it writes a new timestamp;
+            // the poller detects the change and immediately refreshes playtime/recently-played
+            // without waiting for the full 5-minute sync tick.
+            StartHeartbeatPoller();
+
             // Load cloud playtime from the backend and apply it to the library.
             // Cloud data is the source of truth — it overrides the local cache so
             // playtime is the same regardless of which device the user logs in from.
@@ -506,9 +525,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     session.Platform, session.Title,
                     newTotal, end.ToString("o")).ConfigureAwait(false);
 
+                // 3. Write a sync signal so Device B's 30-second heartbeat poller detects
+                //    the new session immediately and refreshes without waiting for the
+                //    5-minute full sync tick.
+                await _client.WriteSyncSignalAsync().ConfigureAwait(false);
+
                 System.Diagnostics.Debug.WriteLine(
                     $"[Playtime] Synced '{session.Title}' ({session.Platform}) " +
-                    $"{session.Minutes} min to cloud (total {newTotal} min).");
+                    $"{session.Minutes} min to cloud (total {newTotal} min) + heartbeat.");
             }
             catch (Exception ex)
             {
@@ -1220,6 +1244,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         StopOfflineReconnectTimer();
         StopSyncCheckTimer();
+        StopHeartbeatPoller();
 
         // Unsubscribe from session-saved cloud sync and clear the per-user path
         PlaytimeService.SessionSaved -= OnSessionSaved;
@@ -1268,6 +1293,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         StopOfflineReconnectTimer();
         StopSyncCheckTimer();
+        StopHeartbeatPoller();
 
         // Unsubscribe from session-saved cloud sync and clear the per-user path
         PlaytimeService.SessionSaved -= OnSessionSaved;
@@ -1302,6 +1328,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _presenceTimer = null;
         StopOfflineReconnectTimer();
         StopSyncCheckTimer();
+        StopHeartbeatPoller();
         _scanner.Dispose();
         (_client as IDisposable)?.Dispose();
         StoreVm.Dispose();
@@ -1458,6 +1485,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _ = _client.UpdatePresenceAsync();
             StartPresenceHeartbeat();
             StartSyncCheckTimer();
+            StartHeartbeatPoller();
             StartMessagePolling();
 
             // Apply cloud playtime so any sessions played on other devices while this one
@@ -1504,6 +1532,78 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         _syncCheckTimer?.Dispose();
         _syncCheckTimer = null;
+    }
+
+    // ── Sync-signal heartbeat poller ──────────────────────────────────────────
+
+    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Starts a 30-second poller that reads the tiny sync-signal.json file.
+    /// When <c>lastActivityAt</c> advances (written by Device A after a session ends)
+    /// this device immediately re-fetches activity, playtime, and recently-played data
+    /// instead of waiting up to 5 minutes for the full sync-check timer.
+    /// </summary>
+    private void StartHeartbeatPoller()
+    {
+        _heartbeatPoller?.Dispose();
+        _heartbeatPoller = new Timer(_ =>
+        {
+            Task.Run(async () =>
+            {
+                try   { await OnHeartbeatTickAsync().ConfigureAwait(false); }
+                catch { /* heartbeat failure is non-fatal */ }
+            });
+        }, null, HeartbeatInterval, HeartbeatInterval);
+
+        System.Diagnostics.Debug.WriteLine(
+            "[Heartbeat] Sync-signal poller started (every 30 seconds).");
+    }
+
+    private void StopHeartbeatPoller()
+    {
+        _heartbeatPoller?.Dispose();
+        _heartbeatPoller = null;
+    }
+
+    /// <summary>
+    /// Called every 30 seconds by the heartbeat poller.  Reads sync-signal.json and,
+    /// when the <c>lastActivityAt</c> timestamp has advanced beyond the last known
+    /// value, immediately triggers a full data refresh (activity log + playtime +
+    /// recently-played) without waiting for the 5-minute sync-check timer.
+    /// </summary>
+    private async Task OnHeartbeatTickAsync()
+    {
+        if (IsOfflineMode) return;
+        if (string.IsNullOrEmpty(_profile?.Username)) return;
+
+        var latest = await _client.ReadSyncSignalAsync().ConfigureAwait(false);
+
+        if (string.IsNullOrEmpty(latest)) return;
+
+        // First tick: seed the known value without triggering a refresh
+        if (_lastKnownSyncSignal == null)
+        {
+            _lastKnownSyncSignal = latest;
+            System.Diagnostics.Debug.WriteLine(
+                $"[Heartbeat] Seeded sync-signal: {latest}");
+            return;
+        }
+
+        // If the timestamp hasn't advanced there is nothing new to fetch
+        if (string.Compare(latest, _lastKnownSyncSignal, StringComparison.Ordinal) <= 0)
+            return;
+
+        System.Diagnostics.Debug.WriteLine(
+            $"[Heartbeat] Sync-signal advanced ({_lastKnownSyncSignal} → {latest}). " +
+            "Triggering immediate refresh.");
+
+        _lastKnownSyncSignal = latest;
+
+        // Perform the same refresh that TryRefreshUserDataAsync does — re-fetch games,
+        // achievements, and apply cloud playtime so the dashboard is up-to-date instantly.
+        await TryRefreshUserDataAsync().ConfigureAwait(false);
+        await ApplyCloudPlaytimeAsync(_library).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1601,6 +1701,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             {
                 IsOfflineMode = true;
                 StopSyncCheckTimer();
+                StopHeartbeatPoller();
                 _messagePoller?.Dispose();
                 _messagePoller = null;
                 _presenceTimer?.Dispose();

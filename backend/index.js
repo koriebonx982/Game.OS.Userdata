@@ -2144,6 +2144,38 @@ app.get('/api/me/activity', authenticateToken, async (req, res) => {
     }
 });
 
+// ── POST /api/me/sync-signal ──────────────────────────────────────────────────
+// Writes a tiny { lastActivityAt } file that other open instances of the launcher
+// poll every 30 seconds.  When the timestamp advances they immediately re-fetch
+// playtime/recently-played data without waiting for the 5-minute full sync tick.
+app.post('/api/me/sync-signal', authenticateToken, async (req, res) => {
+    try {
+        const { usernameLower } = req.tokenUser;
+        const path = `accounts/${usernameLower}/sync-signal.json`;
+        const file = await getFile(path);
+        const signal = { lastActivityAt: new Date().toISOString() };
+        await putFile(path, signal, 'Sync signal', file ? file.sha : undefined);
+        res.json({ success: true, signal });
+    } catch (err) {
+        console.error('POST /api/me/sync-signal error:', err);
+        res.status(500).json({ success: false, message: 'Server error.' });
+    }
+});
+
+// ── GET /api/me/sync-signal ───────────────────────────────────────────────────
+// Returns the current { lastActivityAt } so other devices can detect when a new
+// session has been recorded and trigger an immediate data refresh.
+app.get('/api/me/sync-signal', authenticateToken, async (req, res) => {
+    try {
+        const { usernameLower } = req.tokenUser;
+        const file = await getFile(`accounts/${usernameLower}/sync-signal.json`);
+        res.json({ success: true, signal: file ? file.content : { lastActivityAt: null } });
+    } catch (err) {
+        console.error('GET /api/me/sync-signal error:', err);
+        res.status(500).json({ success: false, message: 'Server error.' });
+    }
+});
+
 // ── GET /api/users/:username ──────────────────────────────────────────────────
 // Read a user's public profile using either the shared PUBLIC_API_KEY or their
 // own per-user token.  Sensitive fields (password hash, token hash) are stripped.
