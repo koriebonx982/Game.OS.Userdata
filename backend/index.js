@@ -1889,7 +1889,9 @@ app.patch('/api/me/games/playtime', authenticateToken, async (req, res) => {
 
         // Only advance the playtime forward (never decrease it from a stale client write)
         if (minutes > (game.playtimeMinutes || 0)) game.playtimeMinutes = minutes;
-        if (lastPlayedAt) game.lastPlayedAt = lastPlayedAt;
+        // Only advance lastPlayedAt forward (ISO 8601 strings sort lexicographically)
+        if (lastPlayedAt && (!game.lastPlayedAt || lastPlayedAt > game.lastPlayedAt))
+            game.lastPlayedAt = lastPlayedAt;
 
         await putFile(path, library,
             `Playtime: ${title} (${platform}) – ${game.playtimeMinutes}min`,

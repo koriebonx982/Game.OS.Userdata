@@ -494,9 +494,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 // 2. Update games.json with the new accumulated playtime so other devices
                 //    see the change on their next periodic sync without needing to aggregate
                 //    the full activity log first.
+                // For cloud library games: use the in-memory total (already incremented by
+                //   FinaliseSession → UpdateLibraryEntry).
+                // For local-only ROMs not yet in the cloud library: read the true accumulated
+                //   total from local sessions so we don't just send this session's duration.
                 int newTotal = libraryGame != null
-                    ? libraryGame.PlaytimeMinutes   // already updated by FinaliseSession
-                    : session.Minutes;
+                    ? libraryGame.PlaytimeMinutes
+                    : PlaytimeService.GetTotalMinutes(session.Platform, session.Title);
 
                 await _client.UpdateGamePlaytimeAsync(
                     session.Platform, session.Title,

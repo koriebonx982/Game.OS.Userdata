@@ -498,7 +498,9 @@ namespace GameLauncher.Services
                     // Only advance playtime forward to avoid stale writes overwriting newer data
                     if (totalMinutes > game.PlaytimeMinutes)
                         game.PlaytimeMinutes = totalMinutes;
-                    game.LastPlayedAt = lastPlayedAt;
+                    // Only advance lastPlayedAt forward (ISO 8601 strings sort lexicographically)
+                    if (string.Compare(lastPlayedAt, game.LastPlayedAt, StringComparison.Ordinal) > 0)
+                        game.LastPlayedAt = lastPlayedAt;
 
                     await WriteFileAsync(key, games,
                         $"Playtime: {title} ({platform}) – {game.PlaytimeMinutes}min",
