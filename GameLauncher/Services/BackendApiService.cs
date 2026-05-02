@@ -207,7 +207,8 @@ namespace GameLauncher.Services
             }
         }
 
-        /// <summary>Remove a game from the authenticated user's library via DELETE /api/me/games.</summary>
+        /// <summary>
+        /// Removes a game from the authenticated user's library via DELETE /api/me/games.</summary>
         public async Task RemoveGameAsync(string platform, string title, CancellationToken ct = default)
         {
             EnsureAuthenticated();
@@ -222,6 +223,33 @@ namespace GameLauncher.Services
                 var err = await resp.Content.ReadFromJsonAsync<ErrorResponse>(_jsonOpts, ct);
                 throw new GameOsException((int)resp.StatusCode, err?.Message ?? "Failed to remove game.");
             }
+        }
+
+        /// <summary>
+        /// Updates a game's accumulated playtime and lastPlayedAt in games.json via
+        /// PATCH /api/me/games/playtime.  Non-fatal — failures are swallowed.
+        /// Called immediately when a session ends so other devices see the new total
+        /// on their next sync tick.
+        /// </summary>
+        public async Task UpdateGamePlaytimeAsync(
+            string platform, string title, int totalMinutes, string lastPlayedAt,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                EnsureAuthenticated();
+                var body = new { platform, title, playtimeMinutes = totalMinutes, lastPlayedAt };
+                using var req = new HttpRequestMessage(
+                    new HttpMethod("PATCH"), "/api/me/games/playtime")
+                {
+                    Content = JsonContent.Create(body),
+                };
+                using var resp = await _http.SendAsync(req, ct);
+                if (!resp.IsSuccessStatusCode)
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[BackendApiService] UpdateGamePlaytime HTTP {(int)resp.StatusCode}: {title} ({platform})");
+            }
+            catch { /* best-effort */ }
         }
 
         // ── Achievements ──────────────────────────────────────────────────────
@@ -476,6 +504,45 @@ namespace GameLauncher.Services
             catch { /* best-effort */ }
         }
 
+        // ── Sync signal (cross-device heartbeat) ──────────────────────────────
+
+        /// <summary>
+        /// Writes a sync signal to the cloud (POST /api/me/sync-signal).
+        /// Called immediately after a play session is pushed so other open instances
+        /// detect the change within their 30-second heartbeat poll and refresh.
+        /// Non-fatal — failures are swallowed.
+        /// </summary>
+        public async Task WriteSyncSignalAsync(CancellationToken ct = default)
+        {
+            try
+            {
+                EnsureAuthenticated();
+                using var resp = await _http.PostAsJsonAsync("/api/me/sync-signal", new { }, ct);
+                if (!resp.IsSuccessStatusCode)
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[BackendApiService] WriteSyncSignal HTTP {(int)resp.StatusCode}");
+            }
+            catch { /* best-effort */ }
+        }
+
+        /// <summary>
+        /// Reads the sync signal from the cloud (GET /api/me/sync-signal).
+        /// Returns the <c>lastActivityAt</c> ISO timestamp, or <c>null</c> when not set or on error.
+        /// </summary>
+        public async Task<string?> ReadSyncSignalAsync(CancellationToken ct = default)
+        {
+            try
+            {
+                EnsureAuthenticated();
+                using var resp = await _http.GetAsync("/api/me/sync-signal", ct);
+                if (!resp.IsSuccessStatusCode) return null;
+                var data = await resp.Content
+                    .ReadFromJsonAsync<SyncSignalResponse>(_jsonOpts, ct);
+                return data?.Signal?.LastActivityAt;
+            }
+            catch { return null; }
+        }
+
         // ── Health check ──────────────────────────────────────────────────────
 
         /// <summary>Returns <c>true</c> when the backend server is reachable.</summary>
@@ -568,6 +635,12 @@ namespace GameLauncher.Services
         {
             [JsonPropertyName("success")]  public bool Success { get; set; }
             [JsonPropertyName("activity")] public List<GameLauncher.Models.ActivityEntry>? Activity { get; set; }
+        }
+
+        private sealed class SyncSignalResponse
+        {
+            [JsonPropertyName("success")] public bool                             Success { get; set; }
+            [JsonPropertyName("signal")]  public GameLauncher.Models.SyncSignal?  Signal  { get; set; }
         }
     }
 }

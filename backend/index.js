@@ -1857,6 +1857,52 @@ app.delete('/api/me/games', authenticateToken, async (req, res) => {
     }
 });
 
+// ── PATCH /api/me/games/playtime ──────────────────────────────────────────────
+// Update a game's accumulated playtime and lastPlayedAt in games.json so other
+// devices see the new data on their next sync tick without needing to aggregate
+// the full activity log.
+// Body: { platform, title, playtimeMinutes, lastPlayedAt }
+app.patch('/api/me/games/playtime', authenticateToken, async (req, res) => {
+    try {
+        const { usernameLower } = req.tokenUser;
+        const { platform, title, playtimeMinutes, lastPlayedAt } = req.body;
+        if (!platform || !title || playtimeMinutes === undefined) {
+            return res.status(400).json({ success: false, message: 'platform, title, and playtimeMinutes are required.' });
+        }
+        const minutes = parseInt(playtimeMinutes, 10);
+        if (isNaN(minutes) || minutes < 0) {
+            return res.status(400).json({ success: false, message: 'playtimeMinutes must be a non-negative number.' });
+        }
+
+        const path = `accounts/${usernameLower}/games.json`;
+        const file = await getFile(path);
+        if (!file) return res.status(404).json({ success: false, message: 'Game library not found.' });
+
+        const library = [...file.content];
+        const game = library.find(
+            g => g.platform === platform && (g.title || '').toLowerCase() === title.toLowerCase()
+        );
+        if (!game) {
+            // Game not in library — silently succeed (local-only ROM not yet added to cloud library)
+            return res.json({ success: true, message: 'Game not in cloud library — playtime not stored.' });
+        }
+
+        // Only advance the playtime forward (never decrease it from a stale client write)
+        if (minutes > (game.playtimeMinutes || 0)) game.playtimeMinutes = minutes;
+        // Only advance lastPlayedAt forward (ISO 8601 strings sort lexicographically)
+        if (lastPlayedAt && (!game.lastPlayedAt || lastPlayedAt > game.lastPlayedAt))
+            game.lastPlayedAt = lastPlayedAt;
+
+        await putFile(path, library,
+            `Playtime: ${title} (${platform}) – ${game.playtimeMinutes}min`,
+            file.sha);
+        res.json({ success: true, message: 'Playtime updated.', game });
+    } catch (err) {
+        console.error('PATCH /api/me/games/playtime error:', err);
+        res.status(500).json({ success: false, message: 'Server error.' });
+    }
+});
+
 // ── GET /api/me/wishlist ──────────────────────────────────────────────────────
 app.get('/api/me/wishlist', authenticateToken, async (req, res) => {
     try {
@@ -2094,6 +2140,38 @@ app.get('/api/me/activity', authenticateToken, async (req, res) => {
         res.json({ success: true, activity: result });
     } catch (err) {
         console.error('GET /api/me/activity error:', err);
+        res.status(500).json({ success: false, message: 'Server error.' });
+    }
+});
+
+// ── POST /api/me/sync-signal ──────────────────────────────────────────────────
+// Writes a tiny { lastActivityAt } file that other open instances of the launcher
+// poll every 30 seconds.  When the timestamp advances they immediately re-fetch
+// playtime/recently-played data without waiting for the 5-minute full sync tick.
+app.post('/api/me/sync-signal', authenticateToken, async (req, res) => {
+    try {
+        const { usernameLower } = req.tokenUser;
+        const path = `accounts/${usernameLower}/sync-signal.json`;
+        const file = await getFile(path);
+        const signal = { lastActivityAt: new Date().toISOString() };
+        await putFile(path, signal, 'Sync signal', file ? file.sha : undefined);
+        res.json({ success: true, signal });
+    } catch (err) {
+        console.error('POST /api/me/sync-signal error:', err);
+        res.status(500).json({ success: false, message: 'Server error.' });
+    }
+});
+
+// ── GET /api/me/sync-signal ───────────────────────────────────────────────────
+// Returns the current { lastActivityAt } so other devices can detect when a new
+// session has been recorded and trigger an immediate data refresh.
+app.get('/api/me/sync-signal', authenticateToken, async (req, res) => {
+    try {
+        const { usernameLower } = req.tokenUser;
+        const file = await getFile(`accounts/${usernameLower}/sync-signal.json`);
+        res.json({ success: true, signal: file ? file.content : { lastActivityAt: null } });
+    } catch (err) {
+        console.error('GET /api/me/sync-signal error:', err);
         res.status(500).json({ success: false, message: 'Server error.' });
     }
 });

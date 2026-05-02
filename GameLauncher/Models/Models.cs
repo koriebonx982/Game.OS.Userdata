@@ -133,6 +133,18 @@ namespace GameLauncher.Models
         [JsonPropertyName("lastSeen")] public string? LastSeen { get; set; }
     }
 
+    /// <summary>
+    /// Lightweight cross-device sync signal written to the cloud whenever a play
+    /// session ends.  Other open instances poll this tiny file every 30 seconds;
+    /// when <see cref="LastActivityAt"/> advances they immediately re-fetch playtime
+    /// and recently-played data without waiting for the 5-minute full sync tick.
+    /// </summary>
+    public class SyncSignal
+    {
+        /// <summary>ISO 8601 UTC timestamp of the most-recently completed play session.</summary>
+        [JsonPropertyName("lastActivityAt")] public string? LastActivityAt { get; set; }
+    }
+
     /// <summary>A friend displayed in the Friends screen, populated from presence API.</summary>
     public class FriendEntry
     {
