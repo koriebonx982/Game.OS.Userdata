@@ -76,6 +76,17 @@
                     </StackPanel>
                 </Button>
 
+                <Button Classes="settings-nav-item"
+                        Classes.active="{Binding IsSystemSection}"
+                        HorizontalAlignment="Stretch"
+                        Command="{Binding SelectSectionCommand}"
+                        CommandParameter="system">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="🖥" FontSize="16" VerticalAlignment="Center"/>
+                        <TextBlock Text="System" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
             </StackPanel>
         </Border>
 
@@ -504,6 +515,174 @@
                             </StackPanel>
                         </StackPanel>
                     </Border>
+
+                </StackPanel>
+
+                <!-- ── System ── -->
+                <StackPanel IsVisible="{Binding IsSystemSection}" Spacing="0">
+
+                    <TextBlock Text="System" Classes="page-title" Margin="0,0,0,4"/>
+                    <TextBlock Text="Configure apps to launch automatically when Game.OS starts and you log in."
+                               Classes="page-subtitle" Margin="0,0,0,24"/>
+
+                    <!-- Startup apps list -->
+                    <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,16">
+                        <StackPanel Spacing="16">
+
+                            <TextBlock Text="🚀  Startup Apps"
+                                       FontSize="14" FontWeight="Bold" Foreground="White"/>
+                            <TextBlock Text="These apps launch automatically after you log in. Enable the ones you want. You can customise the path for each preset or add your own."
+                                       FontSize="12" Foreground="#8b949e" TextWrapping="Wrap"/>
+
+                            <!-- Startup app rows -->
+                            <ItemsControl ItemsSource="{Binding StartupApps}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:StartupAppRowVm">
+                                        <Border Background="#1c2128" CornerRadius="8"
+                                                Padding="14,10" Margin="0,0,0,6">
+                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto">
+
+                                                <!-- Enable toggle -->
+                                                <ToggleSwitch Grid.Column="0"
+                                                              IsChecked="{Binding Enabled}"
+                                                              OffContent="" OnContent=""
+                                                              VerticalAlignment="Center"
+                                                              Margin="0,0,12,0"/>
+
+                                                <!-- Path + label -->
+                                                <StackPanel Grid.Column="1" Spacing="4"
+                                                            VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Label}"
+                                                               FontSize="13" FontWeight="SemiBold"
+                                                               Foreground="White"/>
+                                                    <Grid ColumnDefinitions="*,Auto">
+                                                        <TextBox Grid.Column="0"
+                                                                 Text="{Binding Path}"
+                                                                 Watermark="Path to executable…"
+                                                                 Background="#0d1117" Foreground="White"
+                                                                 BorderBrush="#30363d" CornerRadius="6"
+                                                                 Padding="8,5" FontSize="11"/>
+                                                        <Button Grid.Column="1"
+                                                                Classes="btn-secondary"
+                                                                Content="Browse…"
+                                                                FontSize="11" Padding="8,5"
+                                                                Margin="4,0,0,0"
+                                                                VerticalAlignment="Center"
+                                                                Command="{Binding $parent[UserControl].DataContext.BrowseStartupAppCommand}"
+                                                                CommandParameter="{Binding}"/>
+                                                    </Grid>
+                                                    <TextBox Text="{Binding Arguments}"
+                                                             Watermark="Arguments (optional)"
+                                                             Background="#0d1117" Foreground="White"
+                                                             BorderBrush="#30363d" CornerRadius="6"
+                                                             Padding="8,5" FontSize="11"/>
+                                                </StackPanel>
+
+                                                <!-- Move Up -->
+                                                <Button Grid.Column="2"
+                                                        Classes="btn-secondary"
+                                                        Content="▲" FontSize="11"
+                                                        Padding="7,5" Margin="8,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Command="{Binding $parent[UserControl].DataContext.MoveStartupAppUpCommand}"
+                                                        CommandParameter="{Binding}"/>
+
+                                                <!-- Move Down -->
+                                                <Button Grid.Column="3"
+                                                        Classes="btn-secondary"
+                                                        Content="▼" FontSize="11"
+                                                        Padding="7,5" Margin="4,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Command="{Binding $parent[UserControl].DataContext.MoveStartupAppDownCommand}"
+                                                        CommandParameter="{Binding}"/>
+
+                                                <!-- Preset badge / Remove button -->
+                                                <Border Grid.Column="4"
+                                                        Background="#1f3a6e" CornerRadius="4"
+                                                        Padding="6,3" Margin="8,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        IsVisible="{Binding IsPreset}">
+                                                    <TextBlock Text="preset" FontSize="10"
+                                                               Foreground="#58a6ff" FontWeight="Bold"/>
+                                                </Border>
+                                                <Button Grid.Column="5"
+                                                        Classes="btn-secondary"
+                                                        Content="✕" FontSize="11"
+                                                        Padding="7,5" Margin="4,0,0,0"
+                                                        Foreground="#f85149"
+                                                        VerticalAlignment="Center"
+                                                        IsVisible="{Binding !IsPreset}"
+                                                        Command="{Binding $parent[UserControl].DataContext.RemoveStartupAppCommand}"
+                                                        CommandParameter="{Binding}"/>
+
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Add custom startup app -->
+                    <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,24">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="+ Add Custom App"
+                                       FontSize="14" FontWeight="Bold" Foreground="White"/>
+                            <TextBlock Text="Add any app, script, or tool that should run at startup."
+                                       FontSize="12" Foreground="#8b949e"/>
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding NewStartupAppPath}"
+                                         Watermark="Path to executable or script…"
+                                         Background="#0d1117" Foreground="White"
+                                         BorderBrush="#30363d" CornerRadius="6"
+                                         Padding="10,8" FontSize="12"/>
+                                <Button Grid.Column="1"
+                                        Classes="btn-secondary"
+                                        Content="Browse…"
+                                        FontSize="11" Padding="10,8"
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding BrowseNewStartupAppCommand}"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,*">
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding NewStartupAppArgs}"
+                                         Watermark="Arguments (optional)"
+                                         Background="#0d1117" Foreground="White"
+                                         BorderBrush="#30363d" CornerRadius="6"
+                                         Padding="10,8" FontSize="12"
+                                         Margin="0,0,4,0"/>
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding NewStartupAppLabel}"
+                                         Watermark="Label (e.g. My VPN)"
+                                         Background="#0d1117" Foreground="White"
+                                         BorderBrush="#30363d" CornerRadius="6"
+                                         Padding="10,8" FontSize="12"
+                                         Margin="4,0,0,0"/>
+                            </Grid>
+                            <Button Classes="btn-secondary" Padding="14,8"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding AddStartupAppCommand}">
+                                + Add Startup App
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Save button -->
+                    <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,24">
+                        <Button Classes="btn-primary"
+                                Content="💾  Save Settings"
+                                Command="{Binding SaveCommand}"
+                                Width="180"/>
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   Foreground="#3fb950"
+                                   FontSize="13"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding IsSaveSuccess}"/>
+                    </StackPanel>
 
                 </StackPanel>
 

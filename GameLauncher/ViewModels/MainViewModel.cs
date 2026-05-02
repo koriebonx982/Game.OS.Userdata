@@ -483,6 +483,39 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ShowMain  = true;
         ActivePage = "dashboard";
         DevLogService.Log("[MainViewModel] Login flow complete — showing dashboard.");
+
+        // Launch any enabled startup apps (Settings › System › Startup)
+        RunStartupApps();
+    }
+
+    /// <summary>
+    /// Launches all enabled startup apps configured in Settings › System › Startup.
+    /// Called once after the user successfully logs in.
+    /// </summary>
+    private static void RunStartupApps()
+    {
+        try
+        {
+            var settings = Services.AppSettingsService.Load();
+            foreach (var app in settings.StartupApps)
+            {
+                if (!app.Enabled || string.IsNullOrWhiteSpace(app.Path)) continue;
+                try
+                {
+                    var psi = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName        = app.Path,
+                        UseShellExecute = true,
+                        WorkingDirectory = System.IO.Path.GetDirectoryName(app.Path) ?? "",
+                    };
+                    if (!string.IsNullOrWhiteSpace(app.Arguments))
+                        psi.Arguments = app.Arguments;
+                    System.Diagnostics.Process.Start(psi);
+                }
+                catch { /* best-effort: skip apps that cannot be found or started */ }
+            }
+        }
+        catch { /* best-effort */ }
     }
 
     /// <summary>
@@ -762,6 +795,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         if (string.IsNullOrEmpty(friendUsername)) return;
         ViewingFriendName  = friendUsername;
         ShowFriendProfile  = true;
+        // Mark as friend profile so the email is hidden and activity feed is shown
+        FriendProfileVm.IsFriendProfile = true;
         // Load placeholder data immediately, then enrich asynchronously
         FriendProfileVm.LoadPlaceholder(friendUsername);
         _ = LoadFriendProfileAsync(friendUsername);
@@ -781,7 +816,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             var profile  = await _client.GetFriendProfileAsync(friendUsername) ?? new UserProfile { Username = friendUsername };
             var games    = await _client.GetFriendGamesAsync(friendUsername);
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                FriendProfileVm.Load(profile, games, new List<Achievement>(), false));
+            {
+                FriendProfileVm.Load(profile, games, new List<Achievement>(), false);
+                FriendProfileVm.LoadFriendActivity(games);
+            });
         }
         catch { /* best-effort — placeholder already visible */ }
     }

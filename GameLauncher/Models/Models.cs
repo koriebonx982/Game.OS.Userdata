@@ -362,6 +362,12 @@ namespace GameLauncher.Models
         /// Useful for diagnosing playback, network, and startup issues.
         /// </summary>
         [JsonPropertyName("devLogs")] public bool DevLogs { get; set; } = false;
+
+        /// <summary>
+        /// Apps to launch automatically after the user logs in (Settings › System › Startup).
+        /// Includes built-in presets (Steam, Epic, Radmin VPN) and user-defined entries.
+        /// </summary>
+        [JsonPropertyName("startupApps")] public List<StartupAppEntry> StartupApps { get; set; } = new();
     }
 
     // ── Game launch settings (saved locally per game title) ───────────────────
@@ -398,9 +404,30 @@ namespace GameLauncher.Models
     /// </summary>
     public class LaunchEntry
     {
-        [JsonPropertyName("label")]     public string  Label     { get; set; } = "";
-        [JsonPropertyName("path")]      public string  Path      { get; set; } = "";
-        [JsonPropertyName("arguments")] public string? Arguments { get; set; }
+        [JsonPropertyName("label")]        public string  Label        { get; set; } = "";
+        [JsonPropertyName("path")]         public string  Path         { get; set; } = "";
+        [JsonPropertyName("arguments")]    public string? Arguments    { get; set; }
+        /// <summary>
+        /// When <see langword="true"/>, the launcher waits for this process to finish
+        /// initialising (main window visible / input idle) before launching the game.
+        /// Useful for Steam, Epic Games Launcher, etc. that need to be fully running first.
+        /// </summary>
+        [JsonPropertyName("waitForReady")] public bool    WaitForReady { get; set; } = false;
+    }
+
+    /// <summary>
+    /// One startup-app entry in Settings &gt; System.
+    /// These apps are launched automatically after the user logs in.
+    /// </summary>
+    public class StartupAppEntry
+    {
+        [JsonPropertyName("label")]        public string  Label        { get; set; } = "";
+        [JsonPropertyName("path")]         public string  Path         { get; set; } = "";
+        [JsonPropertyName("arguments")]    public string? Arguments    { get; set; }
+        /// <summary>When true this entry is a built-in preset (Steam, Epic, Radmin).</summary>
+        [JsonPropertyName("isPreset")]     public bool    IsPreset     { get; set; } = false;
+        /// <summary>When true this preset (or custom app) is enabled and will be launched.</summary>
+        [JsonPropertyName("enabled")]      public bool    Enabled      { get; set; } = false;
     }
 
     // ── App Store entry (from Koriebonx98/AppStore- repository) ──────────────

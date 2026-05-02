@@ -19,6 +19,8 @@ public partial class SettingsView : UserControl
             vm.BrowseRequested                    = OnBrowseRequested;
             vm.BrowseIntroVideoRequested          = OnBrowseIntroVideoRequested;
             vm.PickIntroVideoFromGalleryRequested = OnPickIntroVideoFromGalleryRequested;
+            vm.BrowseStartupAppRequested          = OnBrowseStartupAppRequested;
+            vm.BrowseNewStartupAppRequested       = OnBrowseNewStartupAppRequested;
         }
     }
 
@@ -80,5 +82,53 @@ public partial class SettingsView : UserControl
 
         if (!string.IsNullOrEmpty(result) && DataContext is SettingsViewModel vm)
             vm.IntroVideoPath = result;
+    }
+
+    private async void OnBrowseStartupAppRequested(StartupAppRowVm row)
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null) return;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(
+            new FilePickerOpenOptions
+            {
+                Title         = $"Select executable for {row.Label}",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("Executable / Script")
+                    {
+                        Patterns = new[] { "*.exe", "*.bat", "*.cmd", "*.sh", "*.ps1", "*.AppImage" },
+                    },
+                    FilePickerFileTypes.All,
+                },
+            });
+
+        if (files.Count > 0)
+            row.Path = files[0].Path.LocalPath;
+    }
+
+    private async void OnBrowseNewStartupAppRequested()
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null) return;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(
+            new FilePickerOpenOptions
+            {
+                Title         = "Select executable or script",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("Executable / Script")
+                    {
+                        Patterns = new[] { "*.exe", "*.bat", "*.cmd", "*.sh", "*.ps1", "*.AppImage" },
+                    },
+                    FilePickerFileTypes.All,
+                },
+            });
+
+        if (files.Count > 0 && DataContext is SettingsViewModel vm)
+            vm.NewStartupAppPath = files[0].Path.LocalPath;
     }
 }

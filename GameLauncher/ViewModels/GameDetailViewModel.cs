@@ -269,9 +269,10 @@ public partial class GameDetailViewModel : ViewModelBase
     [ObservableProperty] private string _selectedEmulatorName = "";
 
     /// <summary>Path typed by the user when adding a new pre-launch entry.</summary>
-    [ObservableProperty] private string _newPreLaunchPath  = "";
-    [ObservableProperty] private string _newPreLaunchArgs  = "";
-    [ObservableProperty] private string _newPreLaunchLabel = "";
+    [ObservableProperty] private string _newPreLaunchPath        = "";
+    [ObservableProperty] private string _newPreLaunchArgs        = "";
+    [ObservableProperty] private string _newPreLaunchLabel       = "";
+    [ObservableProperty] private bool   _newPreLaunchWaitForReady = false;
 
     /// <summary>Path typed by the user when adding a new during-launch entry.</summary>
     [ObservableProperty] private string _newDuringLaunchPath  = "";
@@ -379,9 +380,10 @@ public partial class GameDetailViewModel : ViewModelBase
         foreach (var e in saved.PostLaunch)
             PostLaunchEntries.Add(e);
 
-        NewPreLaunchPath    = "";
-        NewPreLaunchArgs    = "";
-        NewPreLaunchLabel   = "";
+        NewPreLaunchPath         = "";
+        NewPreLaunchArgs         = "";
+        NewPreLaunchLabel        = "";
+        NewPreLaunchWaitForReady = false;
         NewDuringLaunchPath  = "";
         NewDuringLaunchArgs  = "";
         NewDuringLaunchLabel = "";
@@ -423,15 +425,17 @@ public partial class GameDetailViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(NewPreLaunchPath)) return;
         PreLaunchEntries.Add(new LaunchEntry
         {
-            Label     = string.IsNullOrWhiteSpace(NewPreLaunchLabel)
-                            ? System.IO.Path.GetFileName(NewPreLaunchPath.Trim())
-                            : NewPreLaunchLabel.Trim(),
-            Path      = NewPreLaunchPath.Trim(),
-            Arguments = string.IsNullOrWhiteSpace(NewPreLaunchArgs) ? null : NewPreLaunchArgs.Trim(),
+            Label        = string.IsNullOrWhiteSpace(NewPreLaunchLabel)
+                               ? System.IO.Path.GetFileName(NewPreLaunchPath.Trim())
+                               : NewPreLaunchLabel.Trim(),
+            Path         = NewPreLaunchPath.Trim(),
+            Arguments    = string.IsNullOrWhiteSpace(NewPreLaunchArgs) ? null : NewPreLaunchArgs.Trim(),
+            WaitForReady = NewPreLaunchWaitForReady,
         });
-        NewPreLaunchPath  = "";
-        NewPreLaunchArgs  = "";
-        NewPreLaunchLabel = "";
+        NewPreLaunchPath         = "";
+        NewPreLaunchArgs         = "";
+        NewPreLaunchLabel        = "";
+        NewPreLaunchWaitForReady = false;
     }
 
     [RelayCommand]
@@ -838,7 +842,7 @@ public partial class GameDetailViewModel : ViewModelBase
 
         // Run pre-launch entries first (fire-and-forget, best-effort)
         foreach (var pre in saved.PreLaunch)
-            TryStartProcess(pre.Path, pre.Arguments);
+            TryStartProcess(pre.Path, pre.Arguments, pre.WaitForReady);
 
         // ── ROM launch: use configured emulator if available ──────────────────
         if (IsRom)
@@ -979,6 +983,21 @@ public partial class GameDetailViewModel : ViewModelBase
     /// </summary>
     public Action<System.Diagnostics.Process, string, string>? OnRequestPlaytimeTracking { get; set; }
 
+    /// <summary>Raised when the user clicks Browse… next to the Pre-Launch path input.</summary>
+    public System.Action<System.Action<string>>? BrowseLaunchPathRequested { get; set; }
+
+    [RelayCommand]
+    private void BrowsePreLaunch()
+        => BrowseLaunchPathRequested?.Invoke(path => NewPreLaunchPath = path);
+
+    [RelayCommand]
+    private void BrowseDuringLaunch()
+        => BrowseLaunchPathRequested?.Invoke(path => NewDuringLaunchPath = path);
+
+    [RelayCommand]
+    private void BrowsePostLaunch()
+        => BrowseLaunchPathRequested?.Invoke(path => NewPostLaunchPath = path);
+
     /// <summary>
     /// The per-system metadata cache, wired by MainViewModel at startup.
     /// Used by <see cref="FetchAndDisplayAchievementsAsync"/> to load achievements.json
@@ -986,7 +1005,7 @@ public partial class GameDetailViewModel : ViewModelBase
     /// </summary>
     public Services.GameMetadataCacheService? CacheService { get; set; }
 
-    private static void TryStartProcess(string path, string? args)
+    private static void TryStartProcess(string path, string? args, bool waitForReady = false)
     {
         if (string.IsNullOrEmpty(path)) return;
         try
@@ -999,7 +1018,24 @@ public partial class GameDetailViewModel : ViewModelBase
             };
             if (!string.IsNullOrEmpty(args))
                 psi.Arguments = args;
-            System.Diagnostics.Process.Start(psi);
+
+            if (waitForReady)
+            {
+                // Start the process and wait up to 30 seconds for it to be ready
+                // (main window created and input queue idle)
+                psi.UseShellExecute = false;
+                var proc = System.Diagnostics.Process.Start(psi);
+                if (proc != null)
+                {
+                    // WaitForInputIdle waits for the process to finish starting and become
+                    // ready to receive user input (up to 30 seconds).
+                    try { proc.WaitForInputIdle(30_000); } catch { /* best-effort */ }
+                }
+            }
+            else
+            {
+                System.Diagnostics.Process.Start(psi);
+            }
         }
         catch { /* best-effort */ }
     }
