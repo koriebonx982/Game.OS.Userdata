@@ -993,7 +993,7 @@ public partial class GameDetailViewModel : ViewModelBase
         {
             exePath = saved.ExePath;
         }
-        else if (_steamAppId > 0 && string.IsNullOrEmpty(saved.ExePath))
+        else if (_steamAppId > 0)
         {
             // Launch through the Steam client so overlays and cloud saves work correctly.
             // steam:// is handled by the OS shell; we cannot track the resulting game process,
@@ -1006,7 +1006,10 @@ public partial class GameDetailViewModel : ViewModelBase
                     UseShellExecute = true,
                 });
             }
-            catch { /* best-effort */ }
+            catch (Exception ex)
+            {
+                DevLogService.Log($"[LaunchGame] Steam launch failed for AppId {_steamAppId}: {ex.Message}");
+            }
             return;
         }
         else if (_driveInstances.Count > 0)
