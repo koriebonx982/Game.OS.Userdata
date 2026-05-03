@@ -254,6 +254,9 @@ public partial class GameDetailViewModel : ViewModelBase
 
     private List<LocalGameDriveEntry> _driveInstances = new();
 
+    /// <summary>Steam AppId for locally-installed Steam games (0 for non-Steam games).</summary>
+    private int _steamAppId;
+
     /// <summary>Cached reference to the current LocalRom (if any), used to expose AdditionalPaths in settings.</summary>
     private LocalRom? _currentLocalRom;
 
@@ -982,13 +985,32 @@ public partial class GameDetailViewModel : ViewModelBase
 
         // ── Regular (PC) game launch ──────────────────────────────────────────
         // Determine the executable to launch:
-        // Priority: saved settings ExePath → detected drive entry → open folder
+        // Priority: saved settings ExePath → steam://launch (for Steam games) → detected drive entry → open folder
         string? exePath = null;
         string? exeArgs = string.IsNullOrWhiteSpace(saved.ExeArgs) ? null : saved.ExeArgs;
 
         if (!string.IsNullOrEmpty(saved.ExePath) && System.IO.File.Exists(saved.ExePath))
         {
             exePath = saved.ExePath;
+        }
+        else if (_steamAppId > 0)
+        {
+            // Launch through the Steam client so overlays and cloud saves work correctly.
+            // steam:// is handled by the OS shell; we cannot track the resulting game process,
+            // so process-based playtime tracking and post-launch watchers are not applicable.
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName        = $"steam://launch/{_steamAppId}",
+                    UseShellExecute = true,
+                });
+            }
+            catch (Exception ex)
+            {
+                DevLogService.Log($"[LaunchGame] Steam launch failed for AppId {_steamAppId}: {ex.Message}");
+            }
+            return;
         }
         else if (_driveInstances.Count > 0)
         {
@@ -1641,9 +1663,8 @@ public partial class GameDetailViewModel : ViewModelBase
         // for non-Switch games (clearing stale state from a previously viewed Switch game)
         // and returns immediately without file system operations.
         LoadSwitchMods();
+        _steamAppId = 0;
     }
-    // ─────────────────────────────────────────────────────────────────────────
-    /// <param name="game">The store entry.</param>
     /// <param name="localGame">If not null, the game is installed — shows Play + ··· buttons.</param>
     /// <param name="repack">If not null (and localGame is null), a repack is available — shows Install button.</param>
     public void LoadFromStoreGame(StoreGame game, LocalGame? localGame = null, LocalRepack? repack = null,
@@ -1682,6 +1703,7 @@ public partial class GameDetailViewModel : ViewModelBase
         // Intentionally unconditional — resets IsSwitch=false for non-Switch store games
         // so stale Switch state from a previously viewed game is always cleared.
         LoadSwitchMods();
+        _steamAppId = 0;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1753,6 +1775,11 @@ public partial class GameDetailViewModel : ViewModelBase
         SelectedDriveIndex = 0;
         RefreshActiveDrive();
         PopulatePlaytime("PC", game.Title);
+        _steamAppId = game.SteamAppId;
+
+        // For locally-installed Steam games, show the Steam store page link
+        if (game.SteamAppId > 0)
+            PopulateStoreUrl($"https://store.steampowered.com/app/{game.SteamAppId}", "PC", null);
     }
     // ─────────────────────────────────────────────────────────────────────────
 

@@ -220,6 +220,8 @@ namespace GameLauncher.Models
         public string ExecutableType { get; set; } = ""; // "exe", "app", "elf"
         /// <summary>Which storefront or scanner discovered this game (e.g. "Steam", "Epic", "GOG", "Xbox", "Local").</summary>
         public string Source         { get; set; } = "Local";
+        /// <summary>Steam AppId when Source == "Steam", 0 otherwise.  Used to launch via steam://launch/{AppId}.</summary>
+        public int SteamAppId        { get; set; }
         /// <summary>All drive locations where this game was found (populated when same title exists on multiple drives).</summary>
         public List<LocalGameDriveEntry> DriveInstances { get; set; } = new();
         [JsonIgnore] public bool HasMultipleDrives => DriveInstances.Count > 1;

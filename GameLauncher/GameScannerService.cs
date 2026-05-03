@@ -617,6 +617,7 @@ public sealed class GameScannerService : IDisposable
                         FolderPath     = fullPath,
                         DriveRoot      = driveRoot,
                         Source         = "Steam",
+                        SteamAppId     = int.TryParse(appId, out int parsedId) ? parsedId : 0,
                     });
                 }
                 catch { /* skip malformed ACF */ }
