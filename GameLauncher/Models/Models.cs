@@ -11,6 +11,12 @@ namespace GameLauncher.Models
         [JsonPropertyName("password_hash")]       public string  PasswordHash { get; set; } = "";
         [JsonPropertyName("created_at")]          public string  CreatedAt    { get; set; } = "";
         [JsonPropertyName("api_token_issued_at")] public string? TokenIssuedAt{ get; set; }
+        /// <summary>Cloud-synced GamerScore total, updated after each play session.</summary>
+        [JsonPropertyName("gamerScore")]          public int?    GamerScore   { get; set; }
+        /// <summary>Steam 64-bit User ID, synced to the cloud so Device B can read it.</summary>
+        [JsonPropertyName("steamUserId")]         public string? SteamUserId  { get; set; }
+        /// <summary>Total owned game count (cloud + local + repacks + roms), synced to cloud.</summary>
+        [JsonPropertyName("totalGames")]          public int?    TotalGames   { get; set; }
     }
 
     public class Game
@@ -734,6 +740,9 @@ namespace GameLauncher.Models
                 Total             = pt + ach,
             };
         }
+
+        /// <summary>Formats an integer GamerScore total into a human-readable label, e.g. "1,250 GS".</summary>
+        public static string FormatLabel(int total) => $"{total:N0} GS";
     }
 
     // ── Wallet ────────────────────────────────────────────────────────────────

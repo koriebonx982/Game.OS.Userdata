@@ -382,19 +382,41 @@ namespace GameLauncher.Services
         // ── Presence ──────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Updates the logged-in user's presence timestamp and optionally sets the
-        /// currently playing game.  Non-fatal — failures are swallowed.
+        /// Updates the logged-in user's presence timestamp and the currently playing game.
+        /// Always includes <paramref name="currentGame"/> in the request body — <c>null</c>
+        /// explicitly clears it on the server so friends see "Dashboard" when no game is running.
+        /// Non-fatal — failures are swallowed.
         /// </summary>
         public async Task UpdatePresenceAsync(string username, string? currentGame = null,
                                               CancellationToken ct = default)
         {
             try
             {
-                object body = string.IsNullOrEmpty(currentGame)
-                    ? (object)new { username }
-                    : new { username, currentGame };
+                // Always include currentGame (even when null) so the server clears it correctly
+                // when the user returns to the dashboard.
+                var body = new { username, currentGame };
                 using var resp = await _http.PostAsJsonAsync("/api/update-presence", body, ct);
                 // Presence updates are non-critical — failures should not interrupt user operations
+            }
+            catch { }
+        }
+
+        // ── Profile update ─────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Persists public profile fields (GamerScore, SteamUserId, TotalGames) to the cloud
+        /// via PATCH /api/me/profile.  Only supplied (non-null) fields are updated.
+        /// Non-fatal — failures are swallowed.
+        /// </summary>
+        public async Task UpdateProfileAsync(int? gamerScore = null, string? steamUserId = null,
+                                             int? totalGames = null, CancellationToken ct = default)
+        {
+            try
+            {
+                var body = new { gamerScore, steamUserId, totalGames };
+                using var req = new HttpRequestMessage(new HttpMethod("PATCH"), "/api/me/profile");
+                req.Content = System.Net.Http.Json.JsonContent.Create(body, options: _jsonOpts);
+                using var resp = await _http.SendAsync(req, ct);
             }
             catch { }
         }

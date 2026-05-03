@@ -382,6 +382,19 @@ namespace GameLauncher
             catch { return null; }
         }
 
+        /// <summary>
+        /// Persists public profile fields (GamerScore, SteamUserId, TotalGames) to the cloud.
+        /// Only supplied (non-null) fields are updated.  No-op in GitHub-direct mode.
+        /// Non-fatal — failures are swallowed.
+        /// </summary>
+        public async Task UpdateProfileAsync(int? gamerScore = null, string? steamUserId = null,
+                                             int? totalGames = null, CancellationToken ct = default)
+        {
+            if (_backend != null)
+                await _backend.UpdateProfileAsync(gamerScore, steamUserId, totalGames, ct);
+            // GitHub-direct mode: no /api/me/profile endpoint available
+        }
+
         // ── Messages ──────────────────────────────────────────────────────────
         public async Task SendMessageAsync(
             string toUsername, string text, CancellationToken ct = default)

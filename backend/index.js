@@ -1083,7 +1083,14 @@ app.post('/api/update-presence', async (req, res) => {
         }
         const path = `accounts/${username.toLowerCase()}/presence.json`;
         const existing = await getFile(path);
-        const data = { lastSeen: new Date().toISOString(), username };
+        // If the caller explicitly includes 'currentGame' in the body (even as null/empty),
+        // use that value — null/empty means the user cleared the game (back at Dashboard).
+        // If the caller omits 'currentGame' entirely (old web clients), preserve the stored value.
+        const existingCurrentGame = existing ? (existing.content.currentGame || null) : null;
+        const currentGame = Object.prototype.hasOwnProperty.call(req.body, 'currentGame')
+            ? (req.body.currentGame || null)
+            : existingCurrentGame;
+        const data = { lastSeen: new Date().toISOString(), username, currentGame };
         await putFile(path, data, `Presence: ${username}`, existing ? existing.sha : undefined);
         res.json({ success: true });
     } catch (err) {
@@ -1100,7 +1107,11 @@ app.get('/api/get-presence', async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid username' });
         }
         const file = await getFile(`accounts/${username.toLowerCase()}/presence.json`);
-        res.json({ success: true, lastSeen: file ? file.content.lastSeen : null });
+        res.json({
+            success:     true,
+            lastSeen:    file ? file.content.lastSeen    : null,
+            currentGame: file ? (file.content.currentGame || null) : null,
+        });
     } catch (err) {
         console.error('Error getting presence:', err);
         res.status(500).json({ success: false, message: 'Failed to get presence.' });
@@ -1853,6 +1864,35 @@ app.delete('/api/me/games', authenticateToken, async (req, res) => {
         res.json({ success: true, message: 'Game removed from library.', games: updated });
     } catch (err) {
         console.error('DELETE /api/me/games error:', err);
+        res.status(500).json({ success: false, message: 'Server error.' });
+    }
+});
+
+// ── PATCH /api/me/profile ─────────────────────────────────────────────────────
+// Update editable public profile fields persisted in profile.json.
+// Accepted fields: gamerScore (int), steamUserId (string), totalGames (int).
+// Omitted fields are left unchanged.  Sensitive fields (password_hash, api_token_hash)
+// are never exposed or modified by this endpoint.
+app.patch('/api/me/profile', authenticateToken, async (req, res) => {
+    try {
+        const { usernameLower } = req.tokenUser;
+        const { gamerScore, steamUserId, totalGames } = req.body;
+
+        const accountFile = await getFile(`accounts/${usernameLower}/profile.json`);
+        if (!accountFile) return res.status(404).json({ success: false, message: 'Account not found.' });
+
+        const profile = { ...accountFile.content };
+        if (gamerScore  !== undefined) profile.gamerScore  = Number.isFinite(Number(gamerScore))  ? Math.max(0, Math.trunc(Number(gamerScore)))  : (profile.gamerScore  ?? 0);
+        if (steamUserId !== undefined) profile.steamUserId = steamUserId || '';
+        if (totalGames  !== undefined) profile.totalGames  = Number.isFinite(Number(totalGames))  ? Math.max(0, Math.trunc(Number(totalGames)))  : (profile.totalGames  ?? 0);
+
+        await putFile(`accounts/${usernameLower}/profile.json`, profile,
+            `Profile update: ${usernameLower}`, accountFile.sha);
+
+        const { password_hash, api_token_hash, ...safeProfile } = profile;
+        res.json({ success: true, profile: safeProfile });
+    } catch (err) {
+        console.error('PATCH /api/me/profile error:', err);
         res.status(500).json({ success: false, message: 'Server error.' });
     }
 });

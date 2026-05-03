@@ -283,15 +283,27 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 if (s.MinimizeOnGameLaunch)
                     RestoreWindowRequested?.Invoke();
 
-                // Clear the "now playing" presence broadcast
-                if (s.BroadcastGameStart)
+                // Always clear the "now playing" presence so friends see "Dashboard"
+                // (regardless of BroadcastGameStart — session-end clear is unconditional).
+                _ = Task.Run(async () =>
                 {
-                    _ = Task.Run(async () =>
+                    try { await _client.UpdatePresenceAsync(null).ConfigureAwait(false); }
+                    catch { }
+                });
+
+                // Sync GamerScore + total game count to cloud so friends and Device B see current values
+                _ = Task.Run(async () =>
+                {
+                    try
                     {
-                        try { await _client.UpdatePresenceAsync(null).ConfigureAwait(false); }
-                        catch { }
-                    });
-                }
+                        int totalPlaytime = _library.Sum(g => g.PlaytimeMinutes);
+                        var gs = Models.GamerScore.Compute(totalPlaytime, _achievements.Count);
+                        int totalGames = LibraryVm.TotalGames;
+                        await _client.UpdateProfileAsync(gamerScore: gs.Total, totalGames: totalGames)
+                                     .ConfigureAwait(false);
+                    }
+                    catch { }
+                });
 
                 // Show a session-ended toast notification with the session duration
                 int sessionMinutes = PlaytimeService.GetTotalMinutes(platform, title);
@@ -619,6 +631,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     LibraryVm.Load(_library);
                 });
 
+                // Sync steamUserId + new total game count to the cloud profile so other
+                // devices and friends see the updated values.
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        int totalGames = _library.Count;
+                        await _client.UpdateProfileAsync(steamUserId: steamUserId, totalGames: totalGames)
+                                     .ConfigureAwait(false);
+                        DevLogService.Log($"[Steam Import] Synced steamUserId and totalGames ({totalGames}) to cloud profile.");
+                    }
+                    catch { }
+                });
+
                 return $"✅  Imported {steamGames.Count} Steam games ({added} new added to library).";
             }
             catch (Exception ex)
@@ -721,6 +747,53 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     }
                 }
                 catch { /* best-effort — Steam sync failure must not block login */ }
+            });
+        }
+
+        // ── Cross-device SteamUserId sync ─────────────────────────────────────
+        // If the cloud profile carries a steamUserId and this device's local AppSettings
+        // don't have one yet, populate local settings so Steam import works without
+        // the user having to re-enter their Steam ID on every device.
+        if (!isOffline && !string.IsNullOrWhiteSpace(profile.SteamUserId))
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    var settings = Services.AppSettingsService.Load();
+                    if (string.IsNullOrWhiteSpace(settings.SteamUserId))
+                    {
+                        settings.SteamUserId = profile.SteamUserId!;
+                        Services.AppSettingsService.Save(settings);
+                        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                            SettingsVm.SteamUserId = settings.SteamUserId);
+                        DevLogService.Log($"[Steam Sync] Populated local SteamUserId from cloud profile.");
+                    }
+                }
+                catch { }
+            });
+        }
+
+        // ── Initial cloud profile sync (GamerScore + TotalGames) ─────────────────
+        // Upload the freshly-computed GamerScore and current total game count so that
+        // friends and Device B see up-to-date values immediately after login.
+        if (!isOffline)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    int totalPlaytime = _library.Sum(g => g.PlaytimeMinutes);
+                    var gs = Models.GamerScore.Compute(totalPlaytime, _achievements.Count);
+                    // Use the cloud library count — LibraryVm.TotalGames will be accurate after
+                    // the UI thread loads it, but since we're on the thread pool we use
+                    // _library.Count (cloud games) as the reliable base count.  The full count
+                    // (cloud + local + roms + repacks) is updated again at the next session end.
+                    int totalGames = _library.Count;
+                    await _client.UpdateProfileAsync(gamerScore: gs.Total, totalGames: totalGames)
+                                 .ConfigureAwait(false);
+                }
+                catch { }
             });
         }
 
@@ -1799,9 +1872,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _presenceTimer?.Dispose();
         _presenceTimer = new Timer(_ =>
         {
+            // Include the currently running game so friends always see an accurate status.
+            // DetailVm.IsGameRunning ? DetailVm.Title : null means "In Game" or "Dashboard".
+            string? currentGame = DetailVm.IsGameRunning ? DetailVm.Title : null;
             Task.Run(async () =>
             {
-                try   { await _client.UpdatePresenceAsync().ConfigureAwait(false); }
+                try   { await _client.UpdatePresenceAsync(currentGame).ConfigureAwait(false); }
                 catch { /* presence update failure is non-fatal */ }
             });
         }, null, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(2));

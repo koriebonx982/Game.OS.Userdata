@@ -42,8 +42,10 @@ public partial class ProfileViewModel : ViewModelBase
     {
         Username          = profile.Username;
         Email             = profile.Email;
-        GamesCount        = library.Count;
-        TotalOwned        = library.Count; // owned = cloud library (includes Steam + Epic + manual)
+        // Use cloud-synced total if available (includes local + roms + repacks from other devices);
+        // fall back to the current library count when the cloud field is absent.
+        GamesCount        = profile.TotalGames ?? library.Count;
+        TotalOwned        = profile.TotalGames ?? library.Count;
         AchievementsCount = achievements.Count;
         AvatarInitial     = profile.Username.Length > 0
             ? profile.Username[0].ToString().ToUpper() : "?";
@@ -55,11 +57,20 @@ public partial class ProfileViewModel : ViewModelBase
         else
             MemberSince = profile.CreatedAt;
 
-        // Compute GamerScore from total playtime + achievement count
-        int totalPlaytimeMinutes = library.Sum(g => g.PlaytimeMinutes);
-        var gs = GamerScore.Compute(totalPlaytimeMinutes, achievements.Count);
-        GamerScoreTotal = gs.Total;
-        GamerScoreLabel = gs.Label;
+        // Use the cloud-synced GamerScore when available (most up-to-date, includes all devices).
+        // Fall back to computing it locally if the cloud field is absent.
+        if (profile.GamerScore.HasValue && profile.GamerScore.Value > 0)
+        {
+            GamerScoreTotal = profile.GamerScore.Value;
+            GamerScoreLabel = GamerScore.FormatLabel(profile.GamerScore.Value);
+        }
+        else
+        {
+            int totalPlaytimeMinutes = library.Sum(g => g.PlaytimeMinutes);
+            var gs = GamerScore.Compute(totalPlaytimeMinutes, achievements.Count);
+            GamerScoreTotal = gs.Total;
+            GamerScoreLabel = gs.Label;
+        }
 
         AllAchievements.Clear();
         foreach (var a in achievements.OrderByDescending(a => a.UnlockedAt))

@@ -287,8 +287,12 @@ public partial class FriendsViewModel : ViewModelBase
                 });
             }
 
-            // Fetch presence AND last-played game for each friend in parallel (best-effort)
-            var presenceTasks = new List<Task<(string username, string? lastSeen)>>();
+            // Fetch full presence (lastSeen + currentGame) AND last-played game for each friend
+            // in parallel (best-effort).
+            // currentGame from presence is the authoritative "now playing" signal:
+            //   - non-null → friend is actively in that game
+            //   - null     → friend is at the Dashboard (even if online)
+            var presenceTasks = new List<Task<(string username, Models.PresenceData? presence)>>();
             var gamesTasks    = new List<Task<(string username, string? gameTitle, string? gamePlatform)>>();
 
             foreach (var friendName in friendUsernames)
@@ -296,8 +300,8 @@ public partial class FriendsViewModel : ViewModelBase
                 string name = friendName; // capture
                 presenceTasks.Add(Task.Run(async () =>
                 {
-                    try { return (name, await _client.GetPresenceAsync(name)); }
-                    catch { return (name, (string?)null); }
+                    try { return (name, await _client.GetFriendPresenceAsync(name)); }
+                    catch { return (name, (Models.PresenceData?)null); }
                 }));
 
                 gamesTasks.Add(Task.Run(async () =>
@@ -318,7 +322,7 @@ public partial class FriendsViewModel : ViewModelBase
             var presenceResults = await Task.WhenAll(presenceTasks);
             var gamesResults    = await Task.WhenAll(gamesTasks);
 
-            // Build a games lookup keyed by username
+            // Build a games lookup (last-played) keyed by username — used for offline cards
             var gamesMap = new Dictionary<string, (string? Title, string? Platform)>(
                 StringComparer.OrdinalIgnoreCase);
             foreach (var (name, title, platform) in gamesResults)
@@ -326,30 +330,34 @@ public partial class FriendsViewModel : ViewModelBase
 
             var activityItems = new List<FriendActivityItem>();
 
-            foreach (var (name, lastSeen) in presenceResults)
+            foreach (var (name, presence) in presenceResults)
             {
+                string? lastSeen    = presence?.LastSeen;
+                string? currentGame = presence?.CurrentGame;   // null = at Dashboard
                 gamesMap.TryGetValue(name, out var gameInfo);
-                var entry = BuildFriendEntry(name, lastSeen, gameInfo.Title, gameInfo.Platform);
+                // Use currentGame from presence for "now playing"; use last-played from games.json
+                // only for the offline "recently played" card display.
+                var entry = BuildFriendEntry(name, lastSeen, currentGame, gameInfo.Title, gameInfo.Platform);
                 if (entry.IsOnline || entry.IsAway)
                     OnlineFriends.Add(entry);
                 else
                     OfflineFriends.Add(entry);
 
-                // Add to the recent activity feed if this friend has a recent game
-                if (!string.IsNullOrEmpty(gameInfo.Title))
+                // Recent activity: prefer currentGame (from presence) if active, else last-played
+                bool    isActive         = entry.IsOnline || entry.IsAway;
+                string? activityTitle    = isActive ? currentGame : gameInfo.Title;
+                string? activityPlatform = isActive ? null        : gameInfo.Platform;
+                if (!string.IsNullOrEmpty(activityTitle))
                 {
                     int sortKey = entry.IsOnline ? 0 : (entry.IsAway ? 1 : 2);
                     activityItems.Add(new FriendActivityItem
                     {
                         Username     = name,
-                        GameTitle    = gameInfo.Title!,
-                        Platform     = gameInfo.Platform ?? "",
-                        TimeAgo      = entry.IsOnline || entry.IsAway
-                                           ? (entry.IsOnline ? "Just now" : entry.LastSeen)
-                                           : entry.LastSeen,
-                        ActivityText = entry.IsOnline || entry.IsAway
-                                           ? "is playing"
-                                           : "last played",
+                        GameTitle    = activityTitle,
+                        Platform     = activityPlatform ?? "",
+                        TimeAgo      = isActive ? (entry.IsOnline ? "Just now" : entry.LastSeen)
+                                                : entry.LastSeen,
+                        ActivityText = isActive ? "is playing" : "last played",
                         Icon         = "🎮",
                         SortKey      = sortKey,
                     });
@@ -384,8 +392,14 @@ public partial class FriendsViewModel : ViewModelBase
         }
     }
 
+    /// <param name="currentGame">
+    /// The game the friend is CURRENTLY playing, sourced from their live presence record.
+    /// <c>null</c> means they are at the Dashboard (not in a game), even if online.
+    /// </param>
+    /// <param name="recentGameTitle">Last-played game from their games.json — shown on offline cards.</param>
     private static FriendEntry BuildFriendEntry(string username, string? lastSeenIso,
-                                                 string? recentGameTitle = null,
+                                                 string? currentGame        = null,
+                                                 string? recentGameTitle    = null,
                                                  string? recentGamePlatform = null)
     {
         string status   = "Offline";
@@ -422,7 +436,9 @@ public partial class FriendsViewModel : ViewModelBase
             LastSeen           = lastSeen,
             RecentGameTitle    = recentGameTitle,
             RecentGamePlatform = recentGamePlatform,
-            CurrentGame        = (status == "Online" || status == "Away") ? recentGameTitle : null,
+            // CurrentGame is ONLY set from the live presence record (not from last-played).
+            // null = "Dashboard" (at menu, not in a game).
+            CurrentGame        = (status == "Online" || status == "Away") ? currentGame : null,
         };
     }
 
