@@ -57,7 +57,8 @@
                         </StackPanel>
 
                         <TextBlock Text="{Binding Email}"
-                                   FontSize="13" Foreground="#93c5fd" Opacity="0.9"/>
+                                   FontSize="13" Foreground="#93c5fd" Opacity="0.9"
+                                   IsVisible="{Binding !IsFriendProfile}"/>
 
                         <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,2,0,0">
                             <TextBlock Text="📅" FontSize="12" VerticalAlignment="Center"/>
@@ -91,10 +92,10 @@
                             <StackPanel HorizontalAlignment="Center" Spacing="2">
                                 <TextBlock Text="{Binding AchievementsCount}"
                                            FontSize="28" FontWeight="Black"
-                                           Foreground="#f1c40f"
+                                           Foreground="White"
                                            HorizontalAlignment="Center"/>
                                 <TextBlock Text="Trophies"
-                                           FontSize="11" Foreground="#fcd34d"
+                                           FontSize="11" Foreground="#93c5fd"
                                            HorizontalAlignment="Center"/>
                             </StackPanel>
                         </Border>
@@ -108,6 +109,61 @@
 
             <!-- ── Main content area ── -->
             <StackPanel Margin="32,28,32,28" Spacing="0">
+
+                <!-- ── Friend Activity Feed (shown when viewing a friend's profile) ── -->
+                <StackPanel IsVisible="{Binding IsFriendProfile}" Spacing="0" Margin="0,0,0,24">
+                    <TextBlock Text="🎮  Recent Activity" Classes="section-header" Margin="0,0,0,10"/>
+                    <Border Background="#161b22" CornerRadius="12" Padding="4"
+                            IsVisible="{Binding HasFriendActivity}">
+                        <ItemsControl ItemsSource="{Binding FriendActivity}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:FriendActivityItem">
+                                    <Border Padding="14,12" CornerRadius="8">
+                                        <Grid ColumnDefinitions="44,*,Auto">
+                                            <!-- Game icon placeholder -->
+                                            <Border Grid.Column="0" Width="36" Height="36"
+                                                    CornerRadius="8" Background="#1c2128">
+                                                <TextBlock Text="{Binding Icon}" FontSize="20"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+                                            <!-- Activity info -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center"
+                                                        Margin="12,0,0,0" Spacing="2">
+                                                <TextBlock Text="{Binding GameTitle}"
+                                                           FontSize="14" FontWeight="Bold"
+                                                           Foreground="White"/>
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <TextBlock Text="{Binding ActivityText}"
+                                                               FontSize="12" Foreground="#8b949e"/>
+                                                    <Border Background="#21262d" CornerRadius="4"
+                                                            Padding="5,2"
+                                                            IsVisible="{Binding Platform, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                                        <TextBlock Text="{Binding Platform}"
+                                                                   FontSize="10" FontWeight="Bold"
+                                                                   Foreground="#8b949e"/>
+                                                    </Border>
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <!-- Time ago -->
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding TimeAgo}"
+                                                       FontSize="11" Foreground="#484f58"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                    <!-- Empty activity state -->
+                    <StackPanel HorizontalAlignment="Center" Spacing="8" Margin="0,16,0,0"
+                                IsVisible="{Binding !HasFriendActivity}">
+                        <TextBlock Text="🎮" FontSize="32" HorizontalAlignment="Center"/>
+                        <TextBlock Text="No recent activity"
+                                   FontSize="14" Foreground="#8b949e" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
 
                 <!-- ── Achievements ── -->
                 <TextBlock Text="🏆  All Achievements" Classes="section-header"
@@ -147,7 +203,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
-                <!-- Empty achievements state -->
+                <!-- Empty achievements state (own profile only) -->
                 <StackPanel HorizontalAlignment="Center" Spacing="8" Margin="0,32,0,0"
                             IsVisible="{Binding !AllAchievements.Count}">
                     <TextBlock Text="🏆" FontSize="40" HorizontalAlignment="Center"/>

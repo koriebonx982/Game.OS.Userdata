@@ -39,6 +39,7 @@ public partial class SettingsViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(IsPlaytimeSection))]
     [NotifyPropertyChangedFor(nameof(IsSyncSection))]
     [NotifyPropertyChangedFor(nameof(IsAccountSection))]
+    [NotifyPropertyChangedFor(nameof(IsSystemSection))]
     private string _selectedSection = "app";
 
     public bool IsAppSection      => SelectedSection == "app";
@@ -46,6 +47,7 @@ public partial class SettingsViewModel : ViewModelBase
     public bool IsPlaytimeSection => SelectedSection == "playtime";
     public bool IsSyncSection     => SelectedSection == "sync";
     public bool IsAccountSection  => SelectedSection == "account";
+    public bool IsSystemSection   => SelectedSection == "system";
 
     [RelayCommand]
     private void SelectSection(string section) => SelectedSection = section;
@@ -111,6 +113,15 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private string _statusMessage = "";
     [ObservableProperty] private bool   _isSaveSuccess;
 
+    // ── System section — startup apps ──────────────────────────────────────
+    /// <summary>Startup app entries displayed in the System section.</summary>
+    public ObservableCollection<StartupAppRowVm> StartupApps { get; } = new();
+
+    /// <summary>Path typed by the user when adding a new custom startup app.</summary>
+    [ObservableProperty] private string _newStartupAppPath      = "";
+    [ObservableProperty] private string _newStartupAppArgs      = "";
+    [ObservableProperty] private string _newStartupAppLabel     = "";
+
     public SettingsViewModel()
     {
         Load();
@@ -135,8 +146,142 @@ public partial class SettingsViewModel : ViewModelBase
         ReadSwitchLog  = appSettings.ReadSwitchLog;
         DevLogs        = appSettings.DevLogs;
 
+        // ── Startup apps: merge saved entries with the built-in presets ──
+        LoadStartupApps(appSettings.StartupApps);
+
         StatusMessage = "";
     }
+
+    /// <summary>
+    /// Merges the built-in presets (Steam, Epic, Radmin VPN) with any user-saved entries.
+    /// Built-in presets are always present at the top; user custom entries follow.
+    /// </summary>
+    private void LoadStartupApps(List<Models.StartupAppEntry> saved)
+    {
+        StartupApps.Clear();
+
+        // Built-in presets — default paths on Windows; user can override
+        var presets = new[]
+        {
+            new Models.StartupAppEntry
+            {
+                Label    = "Steam",
+                Path     = @"C:\Program Files (x86)\Steam\steam.exe",
+                IsPreset = true,
+                Enabled  = false,
+            },
+            new Models.StartupAppEntry
+            {
+                Label    = "Epic Games Launcher",
+                Path     = @"C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win32\EpicGamesLauncher.exe",
+                IsPreset = true,
+                Enabled  = false,
+            },
+            new Models.StartupAppEntry
+            {
+                Label     = "Radmin VPN",
+                Path      = @"C:\Program Files (x86)\Radmin VPN\RadminVPN.exe",
+                IsPreset  = true,
+                Enabled   = false,
+            },
+        };
+
+        foreach (var preset in presets)
+        {
+            // Check if the user has a saved version of this preset (matched by Label)
+            var savedPreset = saved.FirstOrDefault(s => s.IsPreset &&
+                string.Equals(s.Label, preset.Label, StringComparison.OrdinalIgnoreCase));
+            if (savedPreset != null)
+            {
+                // Use the saved preset's values (user may have changed path / enabled state)
+                StartupApps.Add(new StartupAppRowVm(savedPreset, this));
+            }
+            else
+            {
+                StartupApps.Add(new StartupAppRowVm(preset, this));
+            }
+        }
+
+        // Custom (non-preset) user entries follow the presets
+        foreach (var entry in saved.Where(s => !s.IsPreset))
+            StartupApps.Add(new StartupAppRowVm(entry, this));
+    }
+
+    [RelayCommand]
+    private void AddStartupApp()
+    {
+        if (string.IsNullOrWhiteSpace(NewStartupAppPath)) return;
+        var entry = new Models.StartupAppEntry
+        {
+            Label     = string.IsNullOrWhiteSpace(NewStartupAppLabel)
+                            ? AppLabelFromPath(NewStartupAppPath.Trim())
+                            : NewStartupAppLabel.Trim(),
+            Path      = NewStartupAppPath.Trim(),
+            Arguments = string.IsNullOrWhiteSpace(NewStartupAppArgs) ? null : NewStartupAppArgs.Trim(),
+            IsPreset  = false,
+            Enabled   = true,
+        };
+        StartupApps.Add(new StartupAppRowVm(entry, this));
+        NewStartupAppPath  = "";
+        NewStartupAppArgs  = "";
+        NewStartupAppLabel = "";
+    }
+
+    // ── safe helper to extract a display name from a file path ───────────────
+    private static string AppLabelFromPath(string path)
+    {
+        try
+        {
+            var name = System.IO.Path.GetFileNameWithoutExtension(path);
+            return string.IsNullOrWhiteSpace(name) ? path : name;
+        }
+        catch
+        {
+            return path;
+        }
+    }
+
+    [RelayCommand]
+    private void RemoveStartupApp(StartupAppRowVm? row)
+    {
+        // Cannot remove built-in presets — only custom entries
+        if (row != null && !row.IsPreset)
+            StartupApps.Remove(row);
+    }
+
+    [RelayCommand]
+    private void MoveStartupAppUp(StartupAppRowVm? row)
+    {
+        if (row == null) return;
+        int idx = StartupApps.IndexOf(row);
+        if (idx > 0) StartupApps.Move(idx, idx - 1);
+    }
+
+    [RelayCommand]
+    private void MoveStartupAppDown(StartupAppRowVm? row)
+    {
+        if (row == null) return;
+        int idx = StartupApps.IndexOf(row);
+        if (idx >= 0 && idx < StartupApps.Count - 1) StartupApps.Move(idx, idx + 1);
+    }
+
+    [RelayCommand]
+    private void BrowseStartupApp(StartupAppRowVm? row)
+    {
+        if (row == null) return;
+        BrowseStartupAppRequested?.Invoke(row);
+    }
+
+    [RelayCommand]
+    private void BrowseNewStartupApp()
+    {
+        BrowseNewStartupAppRequested?.Invoke();
+    }
+
+    /// <summary>Raised when the user clicks Browse… on a startup-app row.</summary>
+    public System.Action<StartupAppRowVm>? BrowseStartupAppRequested     { get; set; }
+    /// <summary>Raised when the user clicks Browse… for the new startup-app path.</summary>
+    public System.Action?                  BrowseNewStartupAppRequested  { get; set; }
 
     [RelayCommand]
     private void Save()
@@ -161,6 +306,14 @@ public partial class SettingsViewModel : ViewModelBase
             IntroVideoPath = IntroVideoPath,
             ReadSwitchLog  = ReadSwitchLog,
             DevLogs        = DevLogs,
+            StartupApps    = StartupApps.Select(r => new Models.StartupAppEntry
+            {
+                Label     = r.Label,
+                Path      = r.Path,
+                Arguments = string.IsNullOrWhiteSpace(r.Arguments) ? null : r.Arguments,
+                IsPreset  = r.IsPreset,
+                Enabled   = r.Enabled,
+            }).ToList(),
         });
 
         StatusMessage = "✅ Settings saved!";
@@ -251,5 +404,29 @@ public partial class EmulatorRowVm : ViewModelBase
         Arguments    = settings.Arguments;
         EmulatorName = settings.EmulatorName;
         Enabled      = settings.Enabled;
+    }
+}
+
+/// <summary>Editable row in the System ▸ Startup Apps list.</summary>
+public partial class StartupAppRowVm : ViewModelBase
+{
+    private readonly SettingsViewModel _parent;
+
+    /// <summary>True for the built-in Steam / Epic / Radmin presets; these cannot be removed.</summary>
+    public bool IsPreset { get; }
+
+    [ObservableProperty] private string  _label     = "";
+    [ObservableProperty] private string  _path      = "";
+    [ObservableProperty] private string  _arguments = "";
+    [ObservableProperty] private bool    _enabled;
+
+    public StartupAppRowVm(Models.StartupAppEntry entry, SettingsViewModel parent)
+    {
+        _parent   = parent;
+        IsPreset  = entry.IsPreset;
+        Label     = entry.Label;
+        Path      = entry.Path;
+        Arguments = entry.Arguments ?? "";
+        Enabled   = entry.Enabled;
     }
 }

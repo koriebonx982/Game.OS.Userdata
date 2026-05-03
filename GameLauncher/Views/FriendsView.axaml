@@ -184,7 +184,7 @@
                                             IsVisible="{Binding IsOnline}"/>
                                     <!-- Away dot -->
                                     <Border Width="14" Height="14" CornerRadius="7"
-                                            Background="#f1c40f"
+                                            Background="#e8960c"
                                             BorderBrush="#161b22" BorderThickness="2"
                                             HorizontalAlignment="Right"
                                             VerticalAlignment="Bottom"
@@ -210,10 +210,10 @@
                                     <StackPanel Orientation="Horizontal" Spacing="5"
                                                 IsVisible="{Binding IsAway}">
                                         <TextBlock Text="●" FontSize="9"
-                                                   Foreground="#f1c40f"
+                                                   Foreground="#e8960c"
                                                    VerticalAlignment="Center"/>
                                         <TextBlock Text="Away" FontSize="12"
-                                                   Foreground="#f1c40f"
+                                                   Foreground="#e8960c"
                                                    VerticalAlignment="Center"/>
                                     </StackPanel>
                                     <!-- Currently playing -->
