@@ -51,10 +51,75 @@ public partial class SettingsViewModel : ViewModelBase
     // ── Third-party integration settings (stored locally, never synced) ────
     /// <summary>Steam Web API key — local only.</summary>
     [ObservableProperty] private string _steamApiKey = "";
+    /// <summary>Steam 64-bit User ID (SteamID64) for fetching the owned games library.</summary>
+    [ObservableProperty] private string _steamUserId = "";
+    /// <summary>True while a Steam library import is in progress.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ImportSteamButtonLabel))]
+    private bool _isSteamImporting;
+    /// <summary>Label for the Import Steam Library button.</summary>
+    public string ImportSteamButtonLabel =>
+        IsSteamImporting ? "⏳  Importing…" : "⬇  Import Steam Library";
+    /// <summary>Status message shown in the Steam Integration card (success / error).</summary>
+    [ObservableProperty] private string _steamImportStatus = "";
     /// <summary>Exophase username for achievement scraping.</summary>
     [ObservableProperty] private string _exophaseUsername = "";
     /// <summary>Exophase password — local only.</summary>
     [ObservableProperty] private string _exophasePassword = "";
+
+    /// <summary>
+    /// Wired by MainViewModel: invoked when "Import Steam Library" is clicked.
+    /// Receives (apiKey, steamUserId) and returns a status string.
+    /// Stored in SettingsViewModel so the button command can trigger it.
+    /// </summary>
+    public Func<string, string, Task<string>>? ImportSteamLibraryAction { get; set; }
+
+    [RelayCommand]
+    private async Task ImportSteamLibrary()
+    {
+        if (IsSteamImporting) return;
+        if (string.IsNullOrWhiteSpace(SteamApiKey) || string.IsNullOrWhiteSpace(SteamUserId))
+        {
+            SteamImportStatus = "⚠  Enter a Steam API Key and Steam User ID before importing.";
+            return;
+        }
+
+        // Save current values before importing so they are persisted
+        Save();
+
+        IsSteamImporting  = true;
+        SteamImportStatus = "Importing Steam library…";
+        try
+        {
+            if (ImportSteamLibraryAction != null)
+                SteamImportStatus = await ImportSteamLibraryAction(SteamApiKey, SteamUserId);
+            else
+                SteamImportStatus = "⚠  Import not available.";
+        }
+        catch (Exception ex)
+        {
+            SteamImportStatus = $"❌  Import failed: {ex.Message}";
+        }
+        finally
+        {
+            IsSteamImporting = false;
+        }
+    }
+
+    /// <summary>Opens the Steam API key page in the system browser.</summary>
+    [RelayCommand]
+    private void OpenSteamApiKeyPage()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName        = "https://steamcommunity.com/dev/apikey",
+                UseShellExecute = true,
+            });
+        }
+        catch { /* best-effort */ }
+    }
 
     // ── Active settings section (Steam-style left-nav) ────────────────────
     [ObservableProperty]
@@ -178,6 +243,7 @@ public partial class SettingsViewModel : ViewModelBase
         BroadcastGameStart     = appSettings.BroadcastGameStart;
         BroadcastUserOnline    = appSettings.BroadcastUserOnline;
         SteamApiKey            = appSettings.SteamApiKey;
+        SteamUserId            = appSettings.SteamUserId;
         ExophaseUsername       = appSettings.ExophaseUsername;
         ExophasePassword       = appSettings.ExophasePassword;
 
@@ -348,6 +414,7 @@ public partial class SettingsViewModel : ViewModelBase
             BroadcastGameStart    = BroadcastGameStart,
             BroadcastUserOnline   = BroadcastUserOnline,
             SteamApiKey           = SteamApiKey,
+            SteamUserId           = SteamUserId,
             ExophaseUsername      = ExophaseUsername,
             ExophasePassword      = ExophasePassword,
             StartupApps           = StartupApps.Select(r => new Models.StartupAppEntry

@@ -21,7 +21,7 @@ public partial class MainWindow : Window
             vm.MinimizeWindowRequested = () => WindowState = WindowState.Minimized;
             vm.RestoreWindowRequested  = () =>
             {
-                WindowState = WindowState.Normal;
+                WindowState = WindowState.FullScreen;
                 Activate();
             };
         }

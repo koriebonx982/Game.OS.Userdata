@@ -149,6 +149,53 @@ public static class SwitchLogReaderService
     }
 
     /// <summary>
+    /// Reads the entire contents of <paramref name="logFilePath"/>, redacts any
+    /// IPv4 and IPv6 addresses (replaced with <c>[IP REDACTED]</c>), and returns
+    /// all lines.  Returns an empty list when the file cannot be read.
+    /// </summary>
+    public static List<string> ReadFullLog(string logFilePath)
+    {
+        var results = new List<string>();
+        if (string.IsNullOrEmpty(logFilePath) || !File.Exists(logFilePath))
+            return results;
+
+        try
+        {
+            using var fs = new FileStream(logFilePath, FileMode.Open,
+                                          FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new StreamReader(fs, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+
+            string? line;
+            while ((line = reader.ReadLine()) != null)
+                results.Add(RedactIpAddresses(line));
+        }
+        catch { /* best-effort */ }
+
+        return results;
+    }
+
+    // Compiled regex patterns for IP redaction
+    private static readonly System.Text.RegularExpressions.Regex _ipv4Regex =
+        new(@"\b(?:\d{1,3}\.){3}\d{1,3}\b",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static readonly System.Text.RegularExpressions.Regex _ipv6Regex =
+        new(@"\b(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{0,4}\b",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
+    /// Replaces IPv4 and IPv6 addresses in <paramref name="line"/> with
+    /// <c>[IP REDACTED]</c>.
+    /// </summary>
+    public static string RedactIpAddresses(string line)
+    {
+        if (string.IsNullOrEmpty(line)) return line;
+        line = _ipv4Regex.Replace(line, "[IP REDACTED]");
+        line = _ipv6Regex.Replace(line, "[IP REDACTED]");
+        return line;
+    }
+
+    /// <summary>
     /// Extracts the message portion from a Ryujinx log line.
     /// Ryujinx format: <c>|HH:MM:SS.mmm|L|Module|Message</c>.
     /// Returns the full line if the format is not recognised.
@@ -230,6 +277,70 @@ public static class SwitchLogReaderService
         {
             foreach (string line in roomLines)
                 AppendToLauncherLog($"  {line.Trim()}");
+        }
+
+        AppendToLauncherLog("--- End of session ---");
+        AppendToLauncherLog(""); // blank separator
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when a log snippet for <paramref name="titleId"/>
+    /// has already been recorded in the local marker directory.
+    /// This prevents uploading duplicate data for the same game across sessions.
+    /// </summary>
+    public static bool HasLogSnippet(string titleId)
+    {
+        if (string.IsNullOrWhiteSpace(titleId)) return false;
+        string markerPath = GetLogSnippetMarkerPath(titleId);
+        return File.Exists(markerPath);
+    }
+
+    /// <summary>
+    /// Marks <paramref name="titleId"/> as "log snippet recorded" by creating a
+    /// small marker file in the local log-snippet directory.
+    /// </summary>
+    public static void MarkLogSnippetRecorded(string titleId)
+    {
+        if (string.IsNullOrWhiteSpace(titleId)) return;
+        try
+        {
+            string markerPath = GetLogSnippetMarkerPath(titleId);
+            Directory.CreateDirectory(Path.GetDirectoryName(markerPath)!);
+            File.WriteAllText(markerPath, DateTime.UtcNow.ToString("O"), Encoding.UTF8);
+        }
+        catch { /* best-effort */ }
+    }
+
+    /// <summary>
+    /// Returns the path of the per-TitleID log-snippet marker file.
+    /// Format: <c>Data/SwitchLogSnippets/{titleId}.marker</c> next to the exe.
+    /// </summary>
+    private static string GetLogSnippetMarkerPath(string titleId)
+    {
+        string? exeDir = AppContext.BaseDirectory;
+        string safeId  = string.Concat(titleId.Split(Path.GetInvalidFileNameChars()));
+        return Path.Combine(string.IsNullOrEmpty(exeDir) ? "." : exeDir,
+                            "Data", "SwitchLogSnippets", $"{safeId}.marker");
+    }
+
+    /// <summary>
+    /// Writes a complete (full-log) session block to the launcher log, with IP addresses
+    /// already redacted.  Writes all <paramref name="fullLines"/> rather than only the
+    /// "Room:" section, preserving all Ryujinx output for diagnostic purposes.
+    /// </summary>
+    public static void WriteSessionToLauncherLogFull(
+        string gameTitle, string ryujinxLogPath, List<string> fullLines)
+    {
+        AppendToLauncherLog($"--- Full log session: {gameTitle} | log: {ryujinxLogPath} ---");
+
+        if (fullLines.Count == 0)
+        {
+            AppendToLauncherLog("  (log file was empty)");
+        }
+        else
+        {
+            foreach (string line in fullLines)
+                AppendToLauncherLog($"  {line}");
         }
 
         AppendToLauncherLog("--- End of session ---");

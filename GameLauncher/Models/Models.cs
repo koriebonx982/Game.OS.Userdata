@@ -410,6 +410,13 @@ namespace GameLauncher.Models
         [JsonPropertyName("steamApiKey")] public string SteamApiKey { get; set; } = "";
 
         /// <summary>
+        /// Steam 64-bit User ID (SteamID64).  Used with the Steam Web API to fetch
+        /// the user's owned games library.  Shown on the user's Steam profile page.
+        /// Stored locally only, never uploaded to the cloud.
+        /// </summary>
+        [JsonPropertyName("steamUserId")] public string SteamUserId { get; set; } = "";
+
+        /// <summary>
         /// Exophase username for achievement scraping.
         /// Stored locally only, never synced.
         /// </summary>

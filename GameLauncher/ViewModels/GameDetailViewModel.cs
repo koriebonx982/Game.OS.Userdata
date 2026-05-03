@@ -172,7 +172,11 @@ public partial class GameDetailViewModel : ViewModelBase
     /// <summary>Extraction progress percentage (0–100) shown in the progress bar during archive extraction.</summary>
     [ObservableProperty] private double _extractionProgress;
     /// <summary>True while an archive is being extracted — drives the progress bar visibility.</summary>
-    [ObservableProperty] private bool _isExtracting;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(InstallButtonLabel))]
+    private bool _isExtracting;
+    /// <summary>Label for the Install button: "Install" normally, "Installing…" during extraction.</summary>
+    public string InstallButtonLabel => IsExtracting ? "Installing…" : "Install";
     /// <summary>Status message shown in the main info panel during/after archive installation (not the settings panel).</summary>
     [ObservableProperty] private string _installStatusMessage = "";
     /// <summary>True when <see cref="InstallStatusMessage"/> represents an error (drives red foreground in the UI).</summary>
@@ -181,6 +185,52 @@ public partial class GameDetailViewModel : ViewModelBase
     public string InstallStatusForeground => InstallStatusIsError ? "#f85149" : "#3fb950";
 
     partial void OnInstallStatusIsErrorChanged(bool value) => OnPropertyChanged(nameof(InstallStatusForeground));
+
+    // ── Running-game state (Play → Playing... → Resume) ───────────────────────
+    /// <summary>True while the launched game process is still running.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlayButtonLabel))]
+    [NotifyPropertyChangedFor(nameof(PlayButtonIsResume))]
+    private bool _isGameRunning;
+
+    /// <summary>
+    /// Label shown on the main play button.
+    /// "▶  Play" normally, "▶  Playing..." while the process is active.
+    /// The "Resume" state is indicated by <see cref="PlayButtonIsResume"/> instead.
+    /// </summary>
+    public string PlayButtonLabel =>
+        IsGameRunning ? "▶  Playing..." : "▶  Play";
+
+    /// <summary>
+    /// True once the game has been launched from this detail view and the process
+    /// has exited — the button switches to a blue "Resume" style so the user can
+    /// bring the game window back to the foreground.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PlayButtonLabel))]
+    private bool _playButtonIsResume;
+
+    /// <summary>
+    /// The running game process stored so we can bring it to the foreground when
+    /// the user clicks the Resume button.  Null when not tracked.
+    /// </summary>
+    private System.Diagnostics.Process? _runningProcess;
+
+    /// <summary>
+    /// Called by MainViewModel after a tracked game session ends so the button
+    /// can switch from "Playing..." to "Resume" (or back to "Play" if the detail
+    /// view was closed and re-opened).
+    /// </summary>
+    public void OnGameSessionEnded(string platform, string title)
+    {
+        if (!string.Equals(platform, Platform, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(title, Title, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        IsGameRunning    = false;
+        PlayButtonIsResume = false; // game exited — no window to resume
+        _runningProcess  = null;
+    }
 
     // ── Repack-available badge (shown alongside an installed game) ────────────
     /// <summary>True when the game is installed AND a matching repack archive is also available.</summary>
@@ -837,6 +887,13 @@ public partial class GameDetailViewModel : ViewModelBase
     {
         if (!IsInstalled) return;
 
+        // If the game is already running (tracked), just bring its window to front
+        if (IsGameRunning)
+        {
+            ResumeGameWindow();
+            return;
+        }
+
         // Load saved settings to get the preferred exe path / arguments
         var saved = GameSettingsService.Load(Title);
 
@@ -896,9 +953,14 @@ public partial class GameDetailViewModel : ViewModelBase
                         };
                         romProc = System.Diagnostics.Process.Start(psi);
 
-                        // Track playtime for ROM games through the emulator process
-                        if (romProc != null && OnRequestPlaytimeTracking != null)
-                            OnRequestPlaytimeTracking(romProc, Title, Platform);
+                        if (romProc != null)
+                        {
+                            _runningProcess    = romProc;
+                            IsGameRunning      = true;
+                            PlayButtonIsResume = false;
+                            // Track playtime for ROM games through the emulator process
+                            OnRequestPlaytimeTracking?.Invoke(romProc, Title, Platform);
+                        }
                     }
                     catch { /* best-effort */ }
 
@@ -959,9 +1021,14 @@ public partial class GameDetailViewModel : ViewModelBase
                     psi.Arguments = exeArgs;
                 gameProc = System.Diagnostics.Process.Start(psi);
 
-                // Track playtime for PC games
-                if (gameProc != null && OnRequestPlaytimeTracking != null)
-                    OnRequestPlaytimeTracking(gameProc, Title, Platform);
+                if (gameProc != null)
+                {
+                    _runningProcess    = gameProc;
+                    IsGameRunning      = true;
+                    PlayButtonIsResume = false;
+                    // Track playtime for PC games
+                    OnRequestPlaytimeTracking?.Invoke(gameProc, Title, Platform);
+                }
             }
             catch { /* best-effort */ }
 
@@ -982,6 +1049,44 @@ public partial class GameDetailViewModel : ViewModelBase
     /// the service (keeps the VM testable).
     /// </summary>
     public Action<System.Diagnostics.Process, string, string>? OnRequestPlaytimeTracking { get; set; }
+
+    /// <summary>
+    /// Brings the currently-running game window to the foreground.
+    /// Tries the main window handle first; falls back to opening the game folder.
+    /// This is a best-effort operation — it may not work on all platforms.
+    /// </summary>
+    private void ResumeGameWindow()
+    {
+        var proc = _runningProcess;
+        if (proc == null) return;
+
+        try
+        {
+            if (proc.HasExited)
+            {
+                IsGameRunning      = false;
+                PlayButtonIsResume = false;
+                _runningProcess    = null;
+                return;
+            }
+
+            if (OperatingSystem.IsWindows())
+            {
+                var hwnd = proc.MainWindowHandle;
+                if (hwnd != nint.Zero)
+                {
+                    Services.NativeMethods.ShowWindow(hwnd, 9 /* SW_RESTORE */);
+                    Services.NativeMethods.SetForegroundWindow(hwnd);
+                    return;
+                }
+            }
+
+            // Non-Windows or no main window handle: open the game folder as fallback
+            if (!string.IsNullOrEmpty(ActiveDrivePath))
+                OpenWithSystem(ActiveDrivePath);
+        }
+        catch { /* best-effort */ }
+    }
 
     /// <summary>Raised when the user clicks Browse… next to the Pre-Launch path input.</summary>
     public System.Action<System.Action<string>>? BrowseLaunchPathRequested { get; set; }
@@ -1078,10 +1183,12 @@ public partial class GameDetailViewModel : ViewModelBase
 
     /// <summary>
     /// Waits for <paramref name="gameProc"/> to exit then reads the latest Ryujinx
-    /// log file, extracts all "Room: " lines and writes a summary to
+    /// log file (all lines, IPs redacted) and writes a summary to
     /// <c>Switch log Reader.log</c> next to the Game.OS launcher executable.
+    /// Before writing, checks whether a log snippet for this TitleID has already
+    /// been recorded; if yes, the session is skipped to avoid duplicates.
     /// </summary>
-    private static async System.Threading.Tasks.Task WatchAndReadSwitchLogAsync(
+    private async System.Threading.Tasks.Task WatchAndReadSwitchLogAsync(
         System.Diagnostics.Process? gameProc, string ryujinxExePath, string gameTitle)
     {
         if (gameProc != null)
@@ -1111,8 +1218,27 @@ public partial class GameDetailViewModel : ViewModelBase
             return;
         }
 
-        var roomLines = SwitchLogReaderService.ReadRoomLines(latestLog);
-        SwitchLogReaderService.WriteSessionToLauncherLog(gameTitle, latestLog, roomLines);
+        // Resolve the best TitleID for deduplication: ROM entry → database match → null
+        string? titleId = _currentLocalRom?.TitleId ?? _databaseTitleId;
+        if (string.IsNullOrEmpty(titleId) && !string.IsNullOrEmpty(gameTitle))
+            titleId = Services.GitHubDataService.TryGetTitleIdFromLocalCache("Switch", gameTitle);
+
+        // Deduplicate: if a log snippet for this TitleID has already been recorded,
+        // skip writing this session to avoid flooding the log with duplicate data.
+        if (!string.IsNullOrEmpty(titleId) && SwitchLogReaderService.HasLogSnippet(titleId))
+        {
+            SwitchLogReaderService.AppendToLauncherLog(
+                $"'{gameTitle}' ({titleId}): log snippet already recorded — skipping.");
+            return;
+        }
+
+        // Read the full log with IP addresses redacted
+        var fullLines = SwitchLogReaderService.ReadFullLog(latestLog);
+        SwitchLogReaderService.WriteSessionToLauncherLogFull(gameTitle, latestLog, fullLines);
+
+        // Mark this TitleID as "snippet recorded" so future sessions are skipped
+        if (!string.IsNullOrEmpty(titleId))
+            SwitchLogReaderService.MarkLogSnippetRecorded(titleId);
     }
 
 

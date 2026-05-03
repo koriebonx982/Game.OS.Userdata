@@ -262,6 +262,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             {
                 RefreshDashboardLocalGames();
 
+                // Notify the detail view-model so the Play button switches back from "Playing..."
+                DetailVm.OnGameSessionEnded(platform, title);
+
                 // Restore the window if it was minimized for the game
                 var s = Services.AppSettingsService.Load();
                 if (s.MinimizeOnGameLaunch)
@@ -553,6 +556,88 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ProfileVm.Load(profile, library, achievements, isAdmin);
         FriendsVm.Load(_client, profile.Username);
         SettingsVm.LoadAccount(profile, library);
+
+        // Wire the Steam library import action so the Settings button calls through
+        // to the Steam Web API and re-populates the library with the results.
+        SettingsVm.ImportSteamLibraryAction = async (apiKey, steamUserId) =>
+        {
+            try
+            {
+                var steamGames = await Services.SteamGameImportService
+                    .FetchAndSaveAsync(apiKey, steamUserId, profile.Username)
+                    .ConfigureAwait(false);
+
+                // Merge Steam games into the cloud library: add any title not already present
+                int added = 0;
+                var existingTitles = new System.Collections.Generic.HashSet<string>(
+                    _library.Select(g => g.Title), StringComparer.OrdinalIgnoreCase);
+
+                foreach (var sg in steamGames)
+                {
+                    if (!existingTitles.Contains(sg.Name))
+                    {
+                        var newGame = new Models.Game
+                        {
+                            Platform        = "PC",
+                            Title           = sg.Name,
+                            CoverUrl        = sg.CoverUrl,
+                            AddedAt         = DateTime.UtcNow.ToString("O"),
+                            PlaytimeMinutes = sg.PlaytimeMinutes,
+                            TitleId         = $"steam:{sg.AppId}",
+                        };
+                        _library.Add(newGame);
+                        existingTitles.Add(sg.Name);
+                        added++;
+                    }
+                }
+
+                // Refresh the library view with the updated data
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    LibraryVm.Load(_library);
+                });
+
+                return $"✅  Imported {steamGames.Count} Steam games ({added} new added to library).";
+            }
+            catch (Exception ex)
+            {
+                return $"❌  Import failed: {ex.Message}";
+            }
+        };
+
+        // Load cached Steam games from the previous session into the library immediately
+        _ = Task.Run(() =>
+        {
+            var cached = Services.SteamGameImportService.LoadCached(profile.Username);
+            if (cached.Count > 0)
+            {
+                var existingTitles = new System.Collections.Generic.HashSet<string>(
+                    _library.Select(g => g.Title), StringComparer.OrdinalIgnoreCase);
+                int added = 0;
+                foreach (var sg in cached)
+                {
+                    if (!existingTitles.Contains(sg.Name))
+                    {
+                        _library.Add(new Models.Game
+                        {
+                            Platform        = "PC",
+                            Title           = sg.Name,
+                            CoverUrl        = sg.CoverUrl,
+                            AddedAt         = DateTime.UtcNow.ToString("O"),
+                            PlaytimeMinutes = sg.PlaytimeMinutes,
+                            TitleId         = $"steam:{sg.AppId}",
+                        });
+                        existingTitles.Add(sg.Name);
+                        added++;
+                    }
+                }
+                if (added > 0)
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        LibraryVm.Load(_library));
+                }
+            }
+        });
 
         if (!isOffline)
         {

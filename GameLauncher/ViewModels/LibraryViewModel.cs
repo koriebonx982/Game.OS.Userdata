@@ -22,6 +22,19 @@ public partial class LibraryViewModel : ViewModelBase
     [ObservableProperty] private string _filterPlatform = "All";
     [ObservableProperty] private string _searchText = "";
     [ObservableProperty] private int    _totalGames;
+    /// <summary>
+    /// Install-status filter: "All" (default), "Installed" (only locally-installed games),
+    /// or "Not Installed" (only cloud/Steam games without a local copy).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsInstallFilterAll))]
+    [NotifyPropertyChangedFor(nameof(IsInstallFilterInstalled))]
+    [NotifyPropertyChangedFor(nameof(IsInstallFilterNotInstalled))]
+    private string _filterInstallStatus = "All";
+
+    public bool IsInstallFilterAll         => FilterInstallStatus == "All";
+    public bool IsInstallFilterInstalled   => FilterInstallStatus == "Installed";
+    public bool IsInstallFilterNotInstalled=> FilterInstallStatus == "Not Installed";
 
     // ── Cloud library ──────────────────────────────────────────────────────
     public ObservableCollection<Game>   FilteredGames { get; } = new();
@@ -122,6 +135,8 @@ public partial class LibraryViewModel : ViewModelBase
     /// Schedules a single deferred rebuild (RebuildMyGames + RebuildPlatforms + ApplyFilter).
     /// Multiple rapid calls collapse into one background pass so the three scanner events
     /// that fire together never trigger more than one expensive rebuild.
+    /// The heavy list-building computation runs on a thread-pool thread to avoid
+    /// freezing the UI when thousands of games are present.
     /// Fires <see cref="OnMyGamesRebuilt"/> after the rebuild so callers can enrich cover
     /// art once <c>_allMyGames</c> is fully populated.
     /// </summary>
@@ -129,14 +144,41 @@ public partial class LibraryViewModel : ViewModelBase
     {
         if (_rebuildScheduled) return;
         _rebuildScheduled = true;
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        // Take snapshots of the source lists so the background thread doesn't race
+        // with UI-thread updates that might swap the list references.
+        var localGamesSnap = _allLocalGames.ToList();
+        var repacksSnap    = _allRepacks.ToList();
+        var romsSnap       = _allRoms.ToList();
+        var allGamesSnap   = _allGames.ToList();
+
+        System.Threading.Tasks.Task.Run(() =>
         {
-            _rebuildScheduled = false;
-            RebuildMyGames();
-            RebuildPlatforms();
-            ApplyFilter();
-            OnMyGamesRebuilt?.Invoke();
-        }, Avalonia.Threading.DispatcherPriority.Background);
+            // Heavy computation on a background thread
+            var newMyGames = BuildMyGamesList(allGamesSnap, localGamesSnap, repacksSnap, romsSnap);
+            var newPlatforms = BuildPlatformList(allGamesSnap, localGamesSnap, repacksSnap, romsSnap);
+
+            // Switch to UI thread only for collection updates
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                _rebuildScheduled = false;
+
+                _allMyGames.Clear();
+                foreach (var c in newMyGames) _allMyGames.Add(c);
+
+                // Update Platforms list and chips
+                var current = FilterPlatform;
+                Platforms.Clear();
+                Platforms.Add("All");
+                foreach (var p in newPlatforms) Platforms.Add(p);
+                FilterPlatform = Platforms.Contains(current) ? current : "All";
+                RebuildPlatformChips();
+
+                TotalGames = allGamesSnap.Count + localGamesSnap.Count + repacksSnap.Count + romsSnap.Count;
+
+                ApplyFilter();
+                OnMyGamesRebuilt?.Invoke();
+            }, Avalonia.Threading.DispatcherPriority.Background);
+        });
     }
 
     /// <summary>
@@ -169,7 +211,11 @@ public partial class LibraryViewModel : ViewModelBase
             chip.IsSelected = string.Equals(chip.Name, value, StringComparison.OrdinalIgnoreCase);
         ApplyFilter();
     }
-    partial void OnSearchTextChanged(string value)     => ApplyFilter();
+    partial void OnSearchTextChanged(string value)          => ApplyFilter();
+    partial void OnFilterInstallStatusChanged(string value) => ApplyFilter();
+
+    [RelayCommand]
+    private void SetInstallFilter(string status) => FilterInstallStatus = status;
 
     [RelayCommand]
     private void SetPlatform(string platform) => FilterPlatform = platform;
@@ -317,6 +363,120 @@ public partial class LibraryViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Pure (no side-effects) version of <see cref="RebuildMyGames"/> that works on
+    /// snapshot lists passed in as parameters.  Safe to call from a background thread.
+    /// </summary>
+    private static List<LocalGameCardVm> BuildMyGamesList(
+        List<GameLauncher.Models.Game> allGames,
+        List<LocalGame> localGames,
+        List<LocalRepack> repacks,
+        List<LocalRom> roms)
+    {
+        var result = new List<LocalGameCardVm>();
+
+        var installedTitles = GameScannerService.BuildFuzzyTitleSet(
+            localGames.Select(g => g.Title));
+
+        var cloudByPlatform = allGames
+            .GroupBy(g => PlatformHelper.NormalizePlatform(g.Platform), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                grp => grp.Key,
+                grp => new HashSet<string>(grp.Select(g => g.Title), StringComparer.OrdinalIgnoreCase),
+                StringComparer.OrdinalIgnoreCase);
+
+        cloudByPlatform.TryGetValue("PC", out var cloudPcTitles);
+        var cloudPcStripped = cloudPcTitles != null
+            ? new HashSet<string>(cloudPcTitles.Select(PlatformHelper.StripSpecialSymbols), StringComparer.OrdinalIgnoreCase)
+            : null;
+
+        foreach (var g in localGames)
+        {
+            if (cloudPcTitles != null &&
+                (cloudPcTitles.Contains(g.Title) ||
+                 cloudPcStripped!.Contains(PlatformHelper.StripSpecialSymbols(g.Title))))
+                continue;
+
+            result.Add(new LocalGameCardVm
+            {
+                Title         = g.Title,
+                Platform      = "PC",
+                CoverGradient = "#0d2137,#163d5e",
+                SourceGame    = g,
+            });
+        }
+
+        foreach (var r in repacks)
+        {
+            if (GameScannerService.RepackMatchesInstalledTitle(r.Title, installedTitles))
+                continue;
+
+            result.Add(new LocalGameCardVm
+            {
+                Title         = r.Title,
+                Platform      = "PC",
+                CoverGradient = r.IsInstalledGame ? "#0d2137,#163d5e" : "#2d1b00,#5c3800",
+                SourceRepack  = r,
+            });
+        }
+
+        var cloudByPlatformTitleId = allGames
+            .Where(g => !string.IsNullOrEmpty(g.TitleId))
+            .GroupBy(g => PlatformHelper.NormalizePlatform(g.Platform), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                grp => grp.Key,
+                grp => new HashSet<string>(grp.Select(g => g.TitleId!), StringComparer.OrdinalIgnoreCase),
+                StringComparer.OrdinalIgnoreCase);
+
+        foreach (var r in roms)
+        {
+            if (!string.IsNullOrEmpty(r.TitleId) &&
+                cloudByPlatformTitleId.TryGetValue(r.Platform, out var cloudTitleIds) &&
+                cloudTitleIds.Contains(r.TitleId))
+                continue;
+
+            if (cloudByPlatform.TryGetValue(r.Platform, out var cloudTitles) &&
+                (cloudTitles.Contains(r.Title) ||
+                 cloudTitles.Any(ct => string.Equals(
+                     PlatformHelper.StripSpecialSymbols(ct),
+                     PlatformHelper.StripSpecialSymbols(r.Title),
+                     StringComparison.OrdinalIgnoreCase))))
+                continue;
+
+            result.Add(new LocalGameCardVm
+            {
+                Title         = r.Title,
+                Platform      = r.Platform,
+                CoverGradient = "#0d1f3c,#1a3264",
+                SourceRom     = r,
+            });
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Pure (no side-effects) version of platform-list building.
+    /// Returns an ordered, distinct list of platform names (without "All").
+    /// Safe to call from a background thread.
+    /// </summary>
+    private static List<string> BuildPlatformList(
+        List<GameLauncher.Models.Game> allGames,
+        List<LocalGame> localGames,
+        List<LocalRepack> repacks,
+        List<LocalRom> roms)
+    {
+        return allGames
+            .Select(g => PlatformHelper.NormalizePlatform(g.Platform))
+            .Concat(roms.Select(r => r.Platform))
+            .Concat(localGames.Select(_ => "PC"))
+            .Concat(repacks.Select(_ => "PC"))
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(p => p)
+            .ToList();
+    }
+
     /// <summary>Rebuilds the Platforms filter list from all game sources combined.</summary>
     private void RebuildPlatforms()
     {
@@ -381,8 +541,15 @@ public partial class LibraryViewModel : ViewModelBase
 
     private void ApplyFilter()
     {
-        var search = SearchText;
-        var plat   = FilterPlatform;
+        var search         = SearchText;
+        var plat           = FilterPlatform;
+        var installStatus  = FilterInstallStatus;
+
+        // Build a quick lookup of locally-installed PC game titles (normalised) so we can
+        // apply the "Installed" / "Not Installed" filter to the cloud library section.
+        var installedPcTitles = new HashSet<string>(
+            _allLocalGames.Select(g => PlatformHelper.StripSpecialSymbols(g.Title)),
+            StringComparer.OrdinalIgnoreCase);
 
         // ── Cloud games ──────────────────────────────────────────────────
         FilteredGames.Clear();
@@ -394,6 +561,17 @@ public partial class LibraryViewModel : ViewModelBase
         if (!string.IsNullOrWhiteSpace(search))
             cloudResults = cloudResults.Where(g =>
                 g.Title.Contains(search, StringComparison.OrdinalIgnoreCase));
+
+        // Apply install-status filter to cloud games (PC only — ROMs are always local)
+        if (installStatus == "Installed")
+            cloudResults = cloudResults.Where(g =>
+                !string.Equals(PlatformHelper.NormalizePlatform(g.Platform), "PC", StringComparison.OrdinalIgnoreCase) ||
+                installedPcTitles.Contains(PlatformHelper.StripSpecialSymbols(g.Title)));
+        else if (installStatus == "Not Installed")
+            cloudResults = cloudResults.Where(g =>
+                !string.Equals(PlatformHelper.NormalizePlatform(g.Platform), "PC", StringComparison.OrdinalIgnoreCase) ||
+                !installedPcTitles.Contains(PlatformHelper.StripSpecialSymbols(g.Title)));
+
         foreach (var g in cloudResults.OrderByDescending(g => g.Rating ?? 0))
             FilteredGames.Add(g);
 
@@ -445,6 +623,10 @@ public partial class LibraryViewModel : ViewModelBase
         if (!string.IsNullOrWhiteSpace(search))
             myResults = myResults.Where(c =>
                 c.Title.Contains(search, StringComparison.OrdinalIgnoreCase));
+        // My Games are all local — "Not Installed" hides them, "Installed" keeps them
+        if (installStatus == "Not Installed")
+            myResults = Enumerable.Empty<LocalGameCardVm>();
+
         foreach (var c in myResults.OrderBy(c => c.Title))
             FilteredMyGames.Add(c);
         HasMyGames = FilteredMyGames.Count > 0;

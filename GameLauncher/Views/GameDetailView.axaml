@@ -122,13 +122,15 @@
                         <!-- ── Action buttons: Play + ··· when installed ── -->
                         <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,16,0,0"
                                     IsVisible="{Binding IsInstalled}">
-                            <!-- Play button -->
+                            <!-- Play / Playing... / Resume button -->
+                            <!-- "Resume" state: game is running and user returned to launcher -->
                             <Button Classes="btn-primary"
+                                    Classes.btn-resume="{Binding PlayButtonIsResume}"
                                     Padding="24,12"
                                     Command="{Binding LaunchGameCommand}">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="▶" FontSize="16" VerticalAlignment="Center"/>
-                                    <TextBlock Text="Play" FontSize="15" FontWeight="Bold"
+                                    <TextBlock Text="{Binding PlayButtonLabel}" FontSize="15" FontWeight="Bold"
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
@@ -157,11 +159,12 @@
                                     IsVisible="{Binding IsRepack}">
                             <Button Classes="btn-success"
                                     Padding="24,12"
+                                    IsEnabled="{Binding !IsExtracting}"
                                     Command="{Binding InstallRepackCommand}">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="⬇" FontSize="16" VerticalAlignment="Center"/>
-                                    <!-- Label: always "Install" -->
-                                    <TextBlock Text="Install" FontSize="15" FontWeight="Bold"
+                                    <!-- Label changes to "Installing..." during extraction -->
+                                    <TextBlock Text="{Binding InstallButtonLabel}" FontSize="15" FontWeight="Bold"
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>

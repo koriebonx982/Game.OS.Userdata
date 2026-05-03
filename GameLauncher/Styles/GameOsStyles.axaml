@@ -136,6 +136,37 @@
         <Setter Property="Background" Value="#388bfd"/>
     </Style>
 
+    <!-- "Resume" modifier — overrides btn-primary to a brighter blue to indicate
+         the game is still running and clicking will switch focus to it. -->
+    <Style Selector="Button.btn-primary.btn-resume">
+        <Setter Property="Background" Value="#0ea5e9"/>
+    </Style>
+
+    <Style Selector="Button.btn-primary.btn-resume:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#38bdf8"/>
+    </Style>
+
+    <!-- ─── Install-status / filter chips (library page) ─── -->
+    <Style Selector="Button.filter-chip">
+        <Setter Property="Background" Value="#21262d"/>
+        <Setter Property="Foreground" Value="#8b949e"/>
+        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="Padding" Value="14,6"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="#30363d"/>
+        <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+
+    <Style Selector="Button.filter-chip:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#2d333b"/>
+    </Style>
+
+    <Style Selector="Button.filter-chip.filter-chip-active">
+        <Setter Property="Background" Value="#1f6feb"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderBrush" Value="#1f6feb"/>
+    </Style>
+
     <!-- ─── Secondary Button ─── -->
     <Style Selector="Button.btn-secondary">
         <Setter Property="Background" Value="Transparent"/>
@@ -201,11 +232,11 @@
         <Setter Property="CornerRadius" Value="10"/>
         <Setter Property="Padding" Value="20,16"/>
         <Setter Property="Margin" Value="0,0,12,0"/>
-        <Setter Property="Width" Value="130"/>
+        <Setter Property="MinWidth" Value="130"/>
     </Style>
 
     <Style Selector="TextBlock.stat-number">
-        <Setter Property="FontSize" Value="32"/>
+        <Setter Property="FontSize" Value="28"/>
         <Setter Property="FontWeight" Value="Bold"/>
         <Setter Property="Foreground" Value="White"/>
     </Style>
