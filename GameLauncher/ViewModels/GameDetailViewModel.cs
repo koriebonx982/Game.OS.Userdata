@@ -339,6 +339,23 @@ public partial class GameDetailViewModel : ViewModelBase
 
         Services.GameReviewService.AddOrUpdateReview(Platform, Title, review);
 
+        // Upload to Games.Database in the background (fire-and-forget)
+        string? titleId = _currentLocalRom?.TitleId ?? _databaseTitleId;
+        string  title   = Title;
+        string  platform = Platform;
+        _ = System.Threading.Tasks.Task.Run(async () =>
+        {
+            try
+            {
+                using var svc = new Services.GitHubDataService();
+                await svc.UploadReviewToDatabaseAsync(platform, titleId, title, review);
+            }
+            catch (Exception ex)
+            {
+                Services.DevLogService.Log($"[Review] Upload failed: {ex.Message}");
+            }
+        });
+
         // Refresh the displayed list
         LoadReviews();
 

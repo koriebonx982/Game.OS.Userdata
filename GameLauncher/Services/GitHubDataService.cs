@@ -1431,6 +1431,103 @@ namespace GameLauncher.Services
                 string.Equals(g.TitleId, titleId, StringComparison.OrdinalIgnoreCase));
         }
 
+        // ── Review upload to Games.Database ──────────────────────────────────
+
+        /// <summary>
+        /// Maps a canonical platform name (e.g. "Switch", "PS3") to the corresponding
+        /// folder name used in the Games.Database Data/ directory.
+        /// </summary>
+        internal static string? PlatformToDbFolder(string platform)
+            => NormalizePlatform(platform) switch
+            {
+                "Switch"   => "Nintendo - Switch",
+                "PS3"      => "Sony - PlayStation 3",
+                "PS4"      => "Sony - PlayStation 4",
+                "PS5"      => "Sony - PlayStation 5",
+                "PS1"      => "Sony - PlayStation",
+                "PS2"      => "Sony - PlayStation 2",
+                "PSP"      => "Sony - PSP",
+                "PS Vita"  => "Sony - PS Vita",
+                "Xbox 360" => "Microsoft - Xbox 360",
+                "Xbox One" => "Microsoft - Xbox One",
+                "PC"       => "PC",
+                _          => null,
+            };
+
+        /// <summary>
+        /// Sanitizes a string for use as a folder name in Games.Database
+        /// by replacing file-system-unsafe characters with underscores.
+        /// </summary>
+        private static string SanitizeDbFolderName(string name)
+        {
+            foreach (char c in Path.GetInvalidFileNameChars())
+                name = name.Replace(c, '_');
+            return name;
+        }
+
+        /// <summary>
+        /// Uploads a single user review for a game to the public Games.Database repository,
+        /// storing it at <c>Data/{platformFolder}/Games/{titleId}/reviews.json</c>.
+        ///
+        /// The list is read first so existing reviews (including other users') are preserved.
+        /// Any previous review by the same username is replaced (one review per user per game).
+        /// </summary>
+        /// <param name="platform">Canonical platform name (e.g. "Switch", "PC", "Xbox 360").</param>
+        /// <param name="titleId">
+        /// The game's title ID (e.g. a 16-hex Switch TitleID or BLUS serial).
+        /// When <c>null</c> or empty, <paramref name="gameTitle"/> is used as the folder name.
+        /// </param>
+        /// <param name="gameTitle">Display title, used as the folder name when no title ID is available.</param>
+        /// <param name="review">The review to add or replace.</param>
+        /// <param name="ct">Cancellation token.</param>
+        public async Task UploadReviewToDatabaseAsync(
+            string platform, string? titleId, string gameTitle,
+            Models.GameReview review, CancellationToken ct = default)
+        {
+            string? folder = PlatformToDbFolder(platform);
+            if (folder == null)
+            {
+                DevLogService.Log($"[ReviewDb] Unknown platform '{platform}' — skipping upload.");
+                return;
+            }
+
+            string idSegment = !string.IsNullOrWhiteSpace(titleId)
+                ? titleId.Trim()
+                : SanitizeDbFolderName(gameTitle);
+
+            if (string.IsNullOrWhiteSpace(idSegment))
+            {
+                DevLogService.Log("[ReviewDb] Cannot determine game folder — skipping upload.");
+                return;
+            }
+
+            string filePath = $"Data/{folder}/Games/{idSegment}/reviews.json";
+            DevLogService.Log($"[ReviewDb] Uploading review by '{review.Username}' to {filePath}…");
+
+            try
+            {
+                List<Models.GameReview>? reviews;
+                string? sha;
+                (reviews, sha) = await ReadGamesDatabaseFileAsync<List<Models.GameReview>>(filePath, ct);
+                reviews ??= new List<Models.GameReview>();
+
+                reviews.RemoveAll(r =>
+                    string.Equals(r.Username, review.Username, StringComparison.OrdinalIgnoreCase));
+                reviews.Add(review);
+
+                await WriteGamesDatabaseFileAsync(
+                    filePath, reviews,
+                    $"Review: {review.Username} rated '{gameTitle}' {review.Rating}/5",
+                    sha, ct);
+
+                DevLogService.Log($"[ReviewDb] Successfully uploaded review for '{gameTitle}'.");
+            }
+            catch (Exception ex)
+            {
+                DevLogService.Log($"[ReviewDb] Failed to upload review for '{gameTitle}': {ex.Message}");
+            }
+        }
+
         // ── GitHub API response models ─────────────────────────────────────────
         private sealed class GitHubFileResponse
         {
