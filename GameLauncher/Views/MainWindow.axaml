@@ -159,7 +159,18 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Sign out / Switch account -->
+                    <!-- Sign out / Switch account / Exit App (Power section) -->
+                    <Button DockPanel.Dock="Bottom"
+                            Classes="nav-item"
+                            HorizontalAlignment="Stretch"
+                            Command="{Binding ExitAppCommand}"
+                            Margin="8,0,8,4">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock Text="✕" FontSize="16" Foreground="#f85149"/>
+                            <TextBlock Text="Exit App" Foreground="#f85149"/>
+                        </StackPanel>
+                    </Button>
+
                     <Button DockPanel.Dock="Bottom"
                             Classes="nav-item"
                             HorizontalAlignment="Stretch"

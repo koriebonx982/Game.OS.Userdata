@@ -32,6 +32,30 @@ public partial class SettingsViewModel : ViewModelBase
     /// <summary>Write all debug output and exceptions to Dev.log next to the exe.</summary>
     [ObservableProperty] private bool _devLogs = false;
 
+    // ── Game launch settings ───────────────────────────────────────────────
+    /// <summary>Minimise Game.OS when a game launches; restore when it exits.</summary>
+    [ObservableProperty] private bool _minimizeOnGameLaunch = false;
+    /// <summary>Also watch child processes in the game folder (for mod clients like Plutonium).</summary>
+    [ObservableProperty] private bool _trackFolderProcesses = true;
+
+    // ── Notification settings ──────────────────────────────────────────────
+    /// <summary>Show a toast when a friend comes online.</summary>
+    [ObservableProperty] private bool _notifyFriendOnline = false;
+    /// <summary>Show a toast when a friend starts playing a game.</summary>
+    [ObservableProperty] private bool _notifyFriendGameStart = false;
+    /// <summary>Broadcast to friends when the user starts playing a game.</summary>
+    [ObservableProperty] private bool _broadcastGameStart = false;
+    /// <summary>Broadcast to friends when the user comes online.</summary>
+    [ObservableProperty] private bool _broadcastUserOnline = false;
+
+    // ── Third-party integration settings (stored locally, never synced) ────
+    /// <summary>Steam Web API key — local only.</summary>
+    [ObservableProperty] private string _steamApiKey = "";
+    /// <summary>Exophase username for achievement scraping.</summary>
+    [ObservableProperty] private string _exophaseUsername = "";
+    /// <summary>Exophase password — local only.</summary>
+    [ObservableProperty] private string _exophasePassword = "";
+
     // ── Active settings section (Steam-style left-nav) ────────────────────
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsAppSection))]
@@ -40,14 +64,16 @@ public partial class SettingsViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(IsSyncSection))]
     [NotifyPropertyChangedFor(nameof(IsAccountSection))]
     [NotifyPropertyChangedFor(nameof(IsSystemSection))]
+    [NotifyPropertyChangedFor(nameof(IsNotificationsSection))]
     private string _selectedSection = "app";
 
-    public bool IsAppSection      => SelectedSection == "app";
-    public bool IsEmulatorSection => SelectedSection == "emulator";
-    public bool IsPlaytimeSection => SelectedSection == "playtime";
-    public bool IsSyncSection     => SelectedSection == "sync";
-    public bool IsAccountSection  => SelectedSection == "account";
-    public bool IsSystemSection   => SelectedSection == "system";
+    public bool IsAppSection           => SelectedSection == "app";
+    public bool IsEmulatorSection      => SelectedSection == "emulator";
+    public bool IsPlaytimeSection      => SelectedSection == "playtime";
+    public bool IsSyncSection          => SelectedSection == "sync";
+    public bool IsAccountSection       => SelectedSection == "account";
+    public bool IsSystemSection        => SelectedSection == "system";
+    public bool IsNotificationsSection => SelectedSection == "notifications";
 
     [RelayCommand]
     private void SelectSection(string section) => SelectedSection = section;
@@ -140,11 +166,20 @@ public partial class SettingsViewModel : ViewModelBase
         }
 
         var appSettings = AppSettingsService.Load();
-        AutoUpdate     = appSettings.AutoUpdate;
-        ShowIntroVideo = appSettings.ShowIntroVideo;
-        IntroVideoPath = appSettings.IntroVideoPath;
-        ReadSwitchLog  = appSettings.ReadSwitchLog;
-        DevLogs        = appSettings.DevLogs;
+        AutoUpdate             = appSettings.AutoUpdate;
+        ShowIntroVideo         = appSettings.ShowIntroVideo;
+        IntroVideoPath         = appSettings.IntroVideoPath;
+        ReadSwitchLog          = appSettings.ReadSwitchLog;
+        DevLogs                = appSettings.DevLogs;
+        MinimizeOnGameLaunch   = appSettings.MinimizeOnGameLaunch;
+        TrackFolderProcesses   = appSettings.TrackFolderProcesses;
+        NotifyFriendOnline     = appSettings.NotifyFriendOnline;
+        NotifyFriendGameStart  = appSettings.NotifyFriendGameStart;
+        BroadcastGameStart     = appSettings.BroadcastGameStart;
+        BroadcastUserOnline    = appSettings.BroadcastUserOnline;
+        SteamApiKey            = appSettings.SteamApiKey;
+        ExophaseUsername       = appSettings.ExophaseUsername;
+        ExophasePassword       = appSettings.ExophasePassword;
 
         // ── Startup apps: merge saved entries with the built-in presets ──
         LoadStartupApps(appSettings.StartupApps);
@@ -301,12 +336,21 @@ public partial class SettingsViewModel : ViewModelBase
 
         AppSettingsService.Save(new Models.AppSettings
         {
-            AutoUpdate     = AutoUpdate,
-            ShowIntroVideo = ShowIntroVideo,
-            IntroVideoPath = IntroVideoPath,
-            ReadSwitchLog  = ReadSwitchLog,
-            DevLogs        = DevLogs,
-            StartupApps    = StartupApps.Select(r => new Models.StartupAppEntry
+            AutoUpdate            = AutoUpdate,
+            ShowIntroVideo        = ShowIntroVideo,
+            IntroVideoPath        = IntroVideoPath,
+            ReadSwitchLog         = ReadSwitchLog,
+            DevLogs               = DevLogs,
+            MinimizeOnGameLaunch  = MinimizeOnGameLaunch,
+            TrackFolderProcesses  = TrackFolderProcesses,
+            NotifyFriendOnline    = NotifyFriendOnline,
+            NotifyFriendGameStart = NotifyFriendGameStart,
+            BroadcastGameStart    = BroadcastGameStart,
+            BroadcastUserOnline   = BroadcastUserOnline,
+            SteamApiKey           = SteamApiKey,
+            ExophaseUsername      = ExophaseUsername,
+            ExophasePassword      = ExophasePassword,
+            StartupApps           = StartupApps.Select(r => new Models.StartupAppEntry
             {
                 Label     = r.Label,
                 Path      = r.Path,

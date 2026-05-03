@@ -129,8 +129,10 @@ namespace GameLauncher.Models
 
     public class PresenceData
     {
-        [JsonPropertyName("username")] public string? Username { get; set; }
-        [JsonPropertyName("lastSeen")] public string? LastSeen { get; set; }
+        [JsonPropertyName("username")]    public string? Username    { get; set; }
+        [JsonPropertyName("lastSeen")]    public string? LastSeen    { get; set; }
+        /// <summary>Title of the game the user is currently playing, or null when idle.</summary>
+        [JsonPropertyName("currentGame")] public string? CurrentGame { get; set; }
     }
 
     /// <summary>
@@ -368,6 +370,64 @@ namespace GameLauncher.Models
         /// Includes built-in presets (Steam, Epic, Radmin VPN) and user-defined entries.
         /// </summary>
         [JsonPropertyName("startupApps")] public List<StartupAppEntry> StartupApps { get; set; } = new();
+
+        // ── Notifications ────────────────────────────────────────────────────
+
+        /// <summary>Show a toast notification when a friend comes online.</summary>
+        [JsonPropertyName("notifyFriendOnline")] public bool NotifyFriendOnline { get; set; } = false;
+
+        /// <summary>Show a toast notification when a friend starts playing a game.</summary>
+        [JsonPropertyName("notifyFriendGameStart")] public bool NotifyFriendGameStart { get; set; } = false;
+
+        /// <summary>Broadcast a "now playing" presence update to friends when a game is launched.</summary>
+        [JsonPropertyName("broadcastGameStart")] public bool BroadcastGameStart { get; set; } = false;
+
+        /// <summary>Broadcast an online presence update to friends when the user first logs in.</summary>
+        [JsonPropertyName("broadcastUserOnline")] public bool BroadcastUserOnline { get; set; } = false;
+
+        // ── Game Launch ──────────────────────────────────────────────────────
+
+        /// <summary>
+        /// When <see langword="true"/>, Game.OS minimises to the background when a game
+        /// launches and restores to full-screen when the game exits.
+        /// </summary>
+        [JsonPropertyName("minimizeOnGameLaunch")] public bool MinimizeOnGameLaunch { get; set; } = false;
+
+        /// <summary>
+        /// When <see langword="true"/>, Game.OS also watches for child processes spawned
+        /// inside the game's folder (e.g. Plutonium, iw4x, Project BO4 mod clients) and
+        /// continues tracking playtime until all related processes have exited.
+        /// </summary>
+        [JsonPropertyName("trackFolderProcesses")] public bool TrackFolderProcesses { get; set; } = true;
+
+        // ── Third-party integrations (stored locally, never synced to cloud) ─
+
+        /// <summary>
+        /// Steam Web API key — stored locally only, never uploaded to the cloud.
+        /// Used to fetch the user's Steam game library via the Steam Web API.
+        /// Obtain yours at https://steamcommunity.com/dev/apikey
+        /// </summary>
+        [JsonPropertyName("steamApiKey")] public string SteamApiKey { get; set; } = "";
+
+        /// <summary>
+        /// Exophase username for achievement scraping.
+        /// Stored locally only, never synced.
+        /// </summary>
+        [JsonPropertyName("exophaseUsername")] public string ExophaseUsername { get; set; } = "";
+
+        /// <summary>
+        /// Exophase password — stored locally only, never uploaded to the cloud.
+        /// Used alongside <see cref="ExophaseUsername"/> to authenticate scrape requests.
+        /// </summary>
+        [JsonPropertyName("exophasePassword")] public string ExophasePassword { get; set; } = "";
+
+        // ── Placeholder future feature ───────────────────────────────────────
+
+        /// <summary>
+        /// Placeholder for the upcoming Local Transfer feature (peer-to-peer game
+        /// file sharing between devices on the same network).  Not yet implemented.
+        /// </summary>
+        [JsonPropertyName("localTransferEnabled")] public bool LocalTransferEnabled { get; set; } = false;
     }
 
     // ── Game launch settings (saved locally per game title) ───────────────────
@@ -618,5 +678,72 @@ namespace GameLauncher.Models
         /// excluded from playtime totals and not shown in history to avoid double-counting.
         /// </summary>
         [JsonPropertyName("isCheckpoint")]   public bool   IsCheckpoint  { get; set; }
+    }
+
+    // ── Gamer Score ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Computed Gamer Score for a user — a unique system that mixes playtime,
+    /// achievement unlocks, and challenges into a single prestige value.
+    ///
+    /// Formula (subject to tuning):
+    ///   PlaytimePoints  = totalMinutesPlayed / 10   (1 point per 10 minutes played)
+    ///   AchievementPoints = unlockedAchievements * 15
+    ///   Total = PlaytimePoints + AchievementPoints
+    ///
+    /// Challenges are not yet implemented; their weight is reserved for a future update.
+    /// </summary>
+    public class GamerScore
+    {
+        /// <summary>Total Gamer Score points.</summary>
+        public int Total            { get; set; }
+        /// <summary>Points earned from playtime (1 per 10 minutes played).</summary>
+        public int PlaytimePoints   { get; set; }
+        /// <summary>Points earned from unlocked achievements (15 per achievement).</summary>
+        public int AchievementPoints{ get; set; }
+        /// <summary>Human-readable label, e.g. "1 250 GS".</summary>
+        public string Label         => $"{Total:N0} GS";
+
+        /// <summary>
+        /// Computes the Gamer Score from <paramref name="totalPlaytimeMinutes"/> and
+        /// <paramref name="unlockedAchievementCount"/>.
+        /// </summary>
+        public static GamerScore Compute(int totalPlaytimeMinutes, int unlockedAchievementCount)
+        {
+            int pt  = totalPlaytimeMinutes / 10;
+            int ach = unlockedAchievementCount * 15;
+            return new GamerScore
+            {
+                PlaytimePoints    = pt,
+                AchievementPoints = ach,
+                Total             = pt + ach,
+            };
+        }
+    }
+
+    // ── Wallet ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The user's in-app Wallet, containing a Coins balance that can be spent on
+    /// cosmetic items (intro videos, banners, profile pictures, etc.).
+    ///
+    /// Coins are earned automatically as Gamer Score increases — every 100 GS awards
+    /// 10 Coins.  The actual purchase flow for cosmetics is not yet implemented;
+    /// this model exists to make the system ready for that future feature.
+    /// </summary>
+    public class Wallet
+    {
+        /// <summary>Current coin balance.</summary>
+        [JsonPropertyName("coins")] public int Coins { get; set; }
+
+        /// <summary>Human-readable label, e.g. "💰 250 Coins".</summary>
+        public string Label => $"💰 {Coins:N0} Coins";
+
+        /// <summary>
+        /// Derives the expected coin balance from <paramref name="gamerScore"/>.
+        /// Awards 10 Coins per 100 GS.  Actual balance may differ if coins have
+        /// been spent; the returned value is the maximum earnable coins.
+        /// </summary>
+        public static int CoinsFromScore(int gamerScore) => (gamerScore / 100) * 10;
     }
 }

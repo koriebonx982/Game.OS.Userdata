@@ -87,6 +87,17 @@
                     </StackPanel>
                 </Button>
 
+                <Button Classes="settings-nav-item"
+                        Classes.active="{Binding IsNotificationsSection}"
+                        HorizontalAlignment="Stretch"
+                        Command="{Binding SelectSectionCommand}"
+                        CommandParameter="notifications">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="🔔" FontSize="16" VerticalAlignment="Center"/>
+                        <TextBlock Text="Notifications" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
             </StackPanel>
         </Border>
 
@@ -202,6 +213,56 @@
                                               OffContent="" OnContent=""
                                               VerticalAlignment="Center"
                                               Margin="16,0,0,0"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <!-- Minimize on game launch -->
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Minimize on Game Launch"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Game.OS minimises to the background when you launch a game and automatically restores to full-screen when the game exits."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding MinimizeOnGameLaunch}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <!-- Track folder processes (mod clients) -->
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Track Mod-Client Processes"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Watches the game folder for child processes so mod clients (Plutonium, iw4x, Project BO4, etc.) are tracked correctly — even when they launch a separate executable."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding TrackFolderProcesses}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <!-- Local Transfer placeholder -->
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Local Transfer"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Coming soon — peer-to-peer game file sharing between devices on the same network. This feature is under development."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <Border Background="#21262d" CornerRadius="4" Padding="8,4"
+                                        VerticalAlignment="Center" Margin="16,0,0,0">
+                                    <TextBlock Text="Soon" FontSize="11" Foreground="#8b949e"/>
+                                </Border>
                             </Grid>
 
                         </StackPanel>
@@ -516,6 +577,73 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Steam API key -->
+                    <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,20">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="🎮  Steam Integration"
+                                       FontSize="14" FontWeight="Bold" Foreground="White"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#8b949e">
+                                Enter your Steam Web API key to automatically import your Steam game library.
+                                This key is stored locally on this device only and is never uploaded to the cloud.
+                                Get yours at steamcommunity.com/dev/apikey
+                            </TextBlock>
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Steam API Key"
+                                           FontSize="12" Foreground="#8b949e"/>
+                                <TextBox Classes="form-input"
+                                         Text="{Binding SteamApiKey}"
+                                         Watermark="Enter your Steam Web API key…"
+                                         PasswordChar="•"
+                                         FontSize="12"/>
+                                <TextBlock Text="Stored locally only — never sent to Game.OS servers."
+                                           FontSize="10" Foreground="#484f58"/>
+                            </StackPanel>
+                            <Button Classes="btn-primary"
+                                    Content="💾  Save Settings"
+                                    Command="{Binding SaveCommand}"
+                                    Width="180" HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Exophase integration -->
+                    <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,20">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="🏆  Exophase Integration"
+                                       FontSize="14" FontWeight="Bold" Foreground="White"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#8b949e">
+                                Link your Exophase account to automatically track achievements across Steam, Xbox,
+                                Epic, PlayStation, and more. Game.OS will scrape your Exophase profile on game launch
+                                and refresh every 2 minutes to pick up newly unlocked achievements.
+                                Credentials are stored locally only and are never uploaded to the cloud.
+                            </TextBlock>
+                            <Grid ColumnDefinitions="*,*" HorizontalAlignment="Stretch">
+                                <StackPanel Grid.Column="0" Spacing="6" Margin="0,0,8,0">
+                                    <TextBlock Text="Exophase Username"
+                                               FontSize="12" Foreground="#8b949e"/>
+                                    <TextBox Classes="form-input"
+                                             Text="{Binding ExophaseUsername}"
+                                             Watermark="Your Exophase username…"
+                                             FontSize="12"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Spacing="6" Margin="8,0,0,0">
+                                    <TextBlock Text="Exophase Password"
+                                               FontSize="12" Foreground="#8b949e"/>
+                                    <TextBox Classes="form-input"
+                                             Text="{Binding ExophasePassword}"
+                                             Watermark="Your Exophase password…"
+                                             PasswordChar="•"
+                                             FontSize="12"/>
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="Stored locally only — never sent to Game.OS servers."
+                                       FontSize="10" Foreground="#484f58"/>
+                            <Button Classes="btn-primary"
+                                    Content="💾  Save Settings"
+                                    Command="{Binding SaveCommand}"
+                                    Width="180" HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </Border>
+
                 </StackPanel>
 
                 <!-- ── System ── -->
@@ -668,6 +796,110 @@
                                     Command="{Binding AddStartupAppCommand}">
                                 + Add Startup App
                             </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Save button -->
+                    <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,24">
+                        <Button Classes="btn-primary"
+                                Content="💾  Save Settings"
+                                Command="{Binding SaveCommand}"
+                                Width="180"/>
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   Foreground="#3fb950"
+                                   FontSize="13"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding IsSaveSuccess}"/>
+                    </StackPanel>
+
+                </StackPanel>
+
+                <!-- ── Notifications ── -->
+                <StackPanel IsVisible="{Binding IsNotificationsSection}" Spacing="0">
+
+                    <TextBlock Text="Notifications" Classes="page-title" Margin="0,0,0,4"/>
+                    <TextBlock Text="Control which game and friend events trigger desktop notifications."
+                               Classes="page-subtitle" Margin="0,0,0,24"/>
+
+                    <!-- Friend notifications -->
+                    <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,24">
+                        <StackPanel Spacing="16">
+                            <TextBlock Text="👥  Friend Activity"
+                                       FontSize="14" FontWeight="Bold" Foreground="White"/>
+
+                            <!-- Notify when friend comes online -->
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Notify when a friend comes online"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Shows a toast notification when one of your friends logs in to Game.OS."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding NotifyFriendOnline}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <!-- Notify when friend starts a game -->
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Notify when a friend starts playing a game"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Shows a toast notification when a friend launches a game on Game.OS."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding NotifyFriendGameStart}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Broadcast settings -->
+                    <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,24">
+                        <StackPanel Spacing="16">
+                            <TextBlock Text="📡  Broadcast to Friends"
+                                       FontSize="14" FontWeight="Bold" Foreground="White"/>
+
+                            <!-- Broadcast when user comes online -->
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Broadcast when I come online"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Updates your presence immediately when you log in so friends see you as Online straight away."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding BroadcastUserOnline}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <!-- Broadcast when user starts a game -->
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Broadcast when I start playing a game"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Sends a presence update with the game title when you launch a game so friends can see what you're playing."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding BroadcastGameStart}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
                         </StackPanel>
                     </Border>
 

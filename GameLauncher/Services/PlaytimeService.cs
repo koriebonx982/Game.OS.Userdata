@@ -316,6 +316,184 @@ namespace GameLauncher.Services
         }
 
         /// <summary>
+        /// Tracks a game session that uses a <em>launcher-style</em> executable: the
+        /// original process may exit quickly while the real game client is a child process
+        /// spawned inside <paramref name="gameFolderPath"/>.
+        ///
+        /// This covers mod-clients such as Plutonium.pw, iw4x, and Project BO4 that
+        /// start their own process from the game's installation folder instead of using
+        /// the original game executable.  The method polls for new processes whose
+        /// working directory or module path resides under the game folder every two seconds.
+        /// Once at least one such process is detected the session is considered "active";
+        /// it ends when all of them have exited.
+        ///
+        /// Tracking falls back gracefully to the original <paramref name="launcherProc"/>
+        /// if no folder-resident process is found within 30 seconds of the launcher
+        /// exiting (e.g. the game was closed quickly or the mod client was not used).
+        /// </summary>
+        public void TrackProcessWithFolderWatch(
+            Process launcherProc, string title, string platform,
+            string gameFolderPath, List<Game>? libraryToUpdate = null)
+        {
+            if (launcherProc == null) return;
+            if (string.IsNullOrEmpty(gameFolderPath) || !Directory.Exists(gameFolderPath))
+            {
+                // Folder not accessible — fall back to standard tracking
+                TrackProcess(launcherProc, title, platform, libraryToUpdate);
+                return;
+            }
+
+            var startedAt = DateTime.UtcNow;
+            string key    = MakeKey(platform, title);
+
+            lock (_activeSessionsLock)
+                _activeSessions[key] = startedAt;
+
+            if (libraryToUpdate != null)
+                StampLastPlayedAt(libraryToUpdate, platform, title);
+
+            // Run the folder-watch logic on a dedicated thread-pool thread so the
+            // caller (UI thread) is not blocked.
+            System.Threading.Tasks.Task.Run(() =>
+                WatchFolderForChildProcesses(
+                    launcherProc, key, title, platform, gameFolderPath,
+                    startedAt, libraryToUpdate));
+        }
+
+        /// <summary>
+        /// Background worker for <see cref="TrackProcessWithFolderWatch"/>.
+        /// Polls every 2 seconds for processes that live in <paramref name="gameFolder"/>.
+        /// </summary>
+        private static void WatchFolderForChildProcesses(
+            Process launcherProc, string key, string title, string platform,
+            string gameFolder, DateTime startedAt, List<Game>? libraryToUpdate)
+        {
+            try
+            {
+                // Normalise the folder path for prefix-matching
+                string normalizedFolder = gameFolder.TrimEnd(
+                    Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    .ToLowerInvariant();
+
+                var trackedPids  = new HashSet<int>();
+                bool launcherExited = false;
+                DateTime? launcherExitedAt = null;
+
+                // Maximum time to wait for a child process after the launcher exits
+                const int MaxWaitAfterLauncherExitSeconds = 30;
+
+                var checkpoint = new Timer(_ =>
+                {
+                    lock (_activeSessionsLock)
+                    {
+                        if (!_activeSessions.ContainsKey(key)) return;
+                    }
+                    SaveCheckpoint(new PlaySession
+                    {
+                        Platform     = platform,
+                        Title        = title,
+                        StartedAt    = startedAt.ToString("o"),
+                        EndedAt      = DateTime.UtcNow.ToString("o"),
+                        Minutes      = Math.Max(1, (int)(DateTime.UtcNow - startedAt).TotalMinutes),
+                        IsCheckpoint = true,
+                    });
+                }, null,
+                TimeSpan.FromMinutes(CheckpointIntervalMinutes),
+                TimeSpan.FromMinutes(CheckpointIntervalMinutes));
+
+                while (true)
+                {
+                    Thread.Sleep(2000);
+
+                    bool sessionStillActive;
+                    lock (_activeSessionsLock)
+                        sessionStillActive = _activeSessions.ContainsKey(key);
+                    if (!sessionStillActive) break;
+
+                    // Track the launcher process exit time
+                    if (!launcherExited && launcherProc.HasExited)
+                    {
+                        launcherExited   = true;
+                        launcherExitedAt = DateTime.UtcNow;
+                    }
+
+                    // Enumerate all running processes and find any that reside in
+                    // the game folder (by executable path or working-set module).
+                    var folderProcs = new List<int>();
+                    try
+                    {
+                        foreach (var p in Process.GetProcesses())
+                        {
+                            try
+                            {
+                                string? exePath = null;
+                                try { exePath = p.MainModule?.FileName; } catch { }
+
+                                if (exePath == null) continue;
+                                if (exePath.ToLowerInvariant().StartsWith(
+                                        normalizedFolder, StringComparison.Ordinal))
+                                    folderProcs.Add(p.Id);
+                            }
+                            catch { /* skip processes we can't inspect */ }
+                        }
+                    }
+                    catch { /* GetProcesses itself may fail in restricted environments */ }
+
+                    // Register any newly found processes
+                    foreach (var pid in folderProcs)
+                        trackedPids.Add(pid);
+
+                    // Check if all previously tracked processes have exited
+                    bool anyAlive = false;
+                    foreach (var pid in trackedPids)
+                    {
+                        try
+                        {
+                            var p = Process.GetProcessById(pid);
+                            if (!p.HasExited) { anyAlive = true; break; }
+                        }
+                        catch { /* process no longer exists — treat as exited */ }
+                    }
+
+                    if (anyAlive) continue;
+
+                    // No tracked folder-resident process is alive
+                    if (trackedPids.Count > 0)
+                    {
+                        // We found and tracked at least one child process — session is done
+                        break;
+                    }
+
+                    // No child process was ever found yet
+                    if (launcherExited)
+                    {
+                        // If the launcher exited and we still haven't found a child process
+                        // within the timeout, give up and end the session
+                        var elapsed = (DateTime.UtcNow - launcherExitedAt!.Value).TotalSeconds;
+                        if (elapsed > MaxWaitAfterLauncherExitSeconds)
+                            break;
+                    }
+                    // else launcher still running — keep polling
+                }
+
+                checkpoint.Change(Timeout.Infinite, Timeout.Infinite);
+                checkpoint.Dispose();
+
+                lock (_activeSessionsLock)
+                    _activeSessions.Remove(key);
+
+                FinaliseSession(key, platform, title, startedAt, libraryToUpdate);
+            }
+            catch
+            {
+                // On any unexpected error fall back to plain process tracking
+                lock (_activeSessionsLock)
+                    _activeSessions.Remove(key);
+                FinaliseSession(key, platform, title, startedAt, libraryToUpdate);
+            }
+        }
+
+        /// <summary>
         /// Loads the accumulated playtime totals from disk and applies them to
         /// the given library list (updating <see cref="Game.PlaytimeMinutes"/> and
         /// <see cref="Game.LastPlayedAt"/> for each matching game).

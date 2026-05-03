@@ -1,3 +1,4 @@
+using System;
 using Avalonia.Controls;
 using Avalonia.Input;
 using GameLauncher.ViewModels;
@@ -10,6 +11,20 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         KeyDown += OnKeyDown;
+        DataContextChanged += OnDataContextChanged;
+    }
+
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            vm.MinimizeWindowRequested = () => WindowState = WindowState.Minimized;
+            vm.RestoreWindowRequested  = () =>
+            {
+                WindowState = WindowState.Normal;
+                Activate();
+            };
+        }
     }
 
     /// <summary>

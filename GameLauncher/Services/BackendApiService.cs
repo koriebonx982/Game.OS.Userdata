@@ -333,15 +333,48 @@ namespace GameLauncher.Services
 
         // ── Presence ──────────────────────────────────────────────────────────
 
-        public async Task UpdatePresenceAsync(string username, CancellationToken ct = default)
+        /// <summary>
+        /// Updates the logged-in user's presence timestamp and optionally sets the
+        /// currently playing game.  Non-fatal — failures are swallowed.
+        /// </summary>
+        public async Task UpdatePresenceAsync(string username, string? currentGame = null,
+                                              CancellationToken ct = default)
         {
             try
             {
-                var body = new { username };
+                object body = string.IsNullOrEmpty(currentGame)
+                    ? (object)new { username }
+                    : new { username, currentGame };
                 using var resp = await _http.PostAsJsonAsync("/api/update-presence", body, ct);
                 // Presence updates are non-critical — failures should not interrupt user operations
             }
             catch { }
+        }
+
+        /// <summary>
+        /// Fetches full presence data (lastSeen + currentGame) for the given user.
+        /// Returns <c>null</c> when offline or the user is not found.
+        /// </summary>
+        public async Task<PresenceData?> GetFullPresenceAsync(string username,
+                                                              CancellationToken ct = default)
+        {
+            try
+            {
+                using var resp = await _http.GetAsync(
+                    $"/api/get-presence?username={Uri.EscapeDataString(username)}", ct);
+                if (!resp.IsSuccessStatusCode) return null;
+
+                var data = await resp.Content
+                    .ReadFromJsonAsync<FullPresenceResponse>(_jsonOpts, ct);
+                if (data == null) return null;
+                return new PresenceData
+                {
+                    Username    = username,
+                    LastSeen    = data.LastSeen,
+                    CurrentGame = data.CurrentGame,
+                };
+            }
+            catch { return null; }
         }
 
         public async Task<string?> GetPresenceAsync(string username, CancellationToken ct = default)
@@ -353,7 +386,7 @@ namespace GameLauncher.Services
                 if (!resp.IsSuccessStatusCode) return null;
 
                 var data = await resp.Content
-                    .ReadFromJsonAsync<PresenceResponse>(_jsonOpts, ct);
+                    .ReadFromJsonAsync<FullPresenceResponse>(_jsonOpts, ct);
                 return data?.LastSeen;
             }
             catch { return null; }
@@ -564,6 +597,17 @@ namespace GameLauncher.Services
                 throw new GameOsException(401, "Not authenticated.");
         }
 
+        /// <summary>
+        /// Clears the stored bearer token and HTTP Authorization header so the next
+        /// login uses fresh credentials.  Called by <see cref="GameOsClient.Logout"/>
+        /// to prevent the stale token from leaking into a subsequent account's requests.
+        /// </summary>
+        public void ClearAuthentication()
+        {
+            _bearerToken = null;
+            _http.DefaultRequestHeaders.Authorization = null;
+        }
+
         public void Dispose() => _http.Dispose();
 
         // ── Response DTOs ─────────────────────────────────────────────────────
@@ -610,6 +654,12 @@ namespace GameLauncher.Services
         private sealed class PresenceResponse
         {
             [JsonPropertyName("lastSeen")] public string? LastSeen { get; set; }
+        }
+
+        private sealed class FullPresenceResponse
+        {
+            [JsonPropertyName("lastSeen")]    public string? LastSeen    { get; set; }
+            [JsonPropertyName("currentGame")] public string? CurrentGame { get; set; }
         }
 
         private sealed class MessagesResponse

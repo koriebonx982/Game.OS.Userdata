@@ -173,6 +173,9 @@ namespace GameLauncher
         {
             _username    = null;
             _bearerToken = null;
+            // Also clear the HTTP Authorization header on the underlying backend client
+            // so that a subsequent login for a different account starts with clean state.
+            _backend?.ClearAuthentication();
         }
 
         // ── Profile ───────────────────────────────────────────────────────────
@@ -331,13 +334,19 @@ namespace GameLauncher
         }
 
         // ── Presence ──────────────────────────────────────────────────────────
-        public async Task UpdatePresenceAsync(CancellationToken ct = default)
+
+        /// <summary>
+        /// Updates the logged-in user's presence timestamp.  Pass <paramref name="currentGame"/>
+        /// to also broadcast the game currently being played to friends.
+        /// </summary>
+        public async Task UpdatePresenceAsync(string? currentGame = null,
+                                              CancellationToken ct = default)
         {
             if (_username == null) return;
 
             if (_backend != null)
             {
-                await _backend.UpdatePresenceAsync(_username, ct);
+                await _backend.UpdatePresenceAsync(_username, currentGame, ct);
                 return;
             }
             await _github!.UpdatePresenceAsync(_username, ct);
@@ -350,6 +359,27 @@ namespace GameLauncher
                 return await _backend.GetPresenceAsync(username, ct);
 
             return await _github!.GetPresenceAsync(username, ct);
+        }
+
+        /// <summary>
+        /// Fetches full presence data (lastSeen + currentGame) for the given user.
+        /// Returns a <see cref="PresenceData"/> with at least <c>LastSeen</c> populated,
+        /// or <c>null</c> when offline or the user cannot be found.
+        /// </summary>
+        public async Task<Models.PresenceData?> GetFriendPresenceAsync(
+            string username, CancellationToken ct = default)
+        {
+            try
+            {
+                if (_backend != null)
+                    return await _backend.GetFullPresenceAsync(username, ct);
+
+                // GitHub-direct mode — only lastSeen is available
+                var lastSeen = await _github!.GetPresenceAsync(username, ct);
+                if (lastSeen == null) return null;
+                return new Models.PresenceData { Username = username, LastSeen = lastSeen };
+            }
+            catch { return null; }
         }
 
         // ── Messages ──────────────────────────────────────────────────────────

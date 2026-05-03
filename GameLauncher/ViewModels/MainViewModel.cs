@@ -62,6 +62,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     private Timer? _presenceTimer;
 
+    // ── Friend presence poller ─────────────────────────────────────────────
+    /// <summary>Fires every 2 minutes to detect when friends come online or start a game.</summary>
+    private Timer? _friendPresencePoller;
+    /// <summary>Last known presence per friend: username → (isOnline, currentGame).</summary>
+    private readonly Dictionary<string, (bool IsOnline, string? CurrentGame)> _lastKnownFriendPresence =
+        new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>True once the first friend-presence poll has completed (avoids false "online" bursts at login).</summary>
+    private bool _friendPresenceInitialized;
+
     // ── Offline reconnect timer ────────────────────────────────────────────
     /// <summary>
     /// Fires every 5 minutes while the app is in Offline Mode to check whether
@@ -91,6 +100,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private Timer? _heartbeatPoller;
     /// <summary>Last <c>lastActivityAt</c> value read from sync-signal.json.</summary>
     private string? _lastKnownSyncSignal;
+
+    // ── Window minimize/restore actions (wired by MainWindow code-behind) ──
+    /// <summary>
+    /// Invoked on the UI thread when a game launches and the "Minimize on Game Launch"
+    /// setting is enabled.  MainWindow subscribes to this to minimise the window.
+    /// </summary>
+    public Action? MinimizeWindowRequested { get; set; }
+
+    /// <summary>
+    /// Invoked on the UI thread when a tracked game exits and the "Minimize on Game Launch"
+    /// setting is enabled.  MainWindow subscribes to this to restore the window.
+    /// </summary>
+    public Action? RestoreWindowRequested { get; set; }
 
     // ── Session data ───────────────────────────────────────────────────────
     private UserProfile     _profile      = new();
@@ -177,10 +199,57 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // dashboard so "Continue Playing" shows the game.
         DetailVm.OnRequestPlaytimeTracking = (proc, title, platform) =>
         {
+            var settings = Services.AppSettingsService.Load();
+
+            // ── Game-start broadcast ────────────────────────────────────────
+            if (settings.BroadcastGameStart)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try { await _client.UpdatePresenceAsync(title).ConfigureAwait(false); }
+                    catch { }
+                });
+            }
+
+            // ── Window minimize ─────────────────────────────────────────────
+            if (settings.MinimizeOnGameLaunch)
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => MinimizeWindowRequested?.Invoke());
+
+            // ── Playtime tracking ───────────────────────────────────────────
             // Run TrackProcess on the thread pool — it sets up event handlers and
             // timers but never blocks, and keeping it off the UI thread ensures the
             // launcher stays responsive even if many games are tracked simultaneously.
-            _ = Task.Run(() => _playtimeSvc.TrackProcess(proc, title, platform, _library));
+            if (settings.TrackFolderProcesses && proc != null)
+            {
+                // Determine the game's installation folder for mod-client tracking.
+                string? gameFolder = null;
+                try
+                {
+                    if (!proc.HasExited)
+                    {
+                        string? exe = proc.MainModule?.FileName;
+                        if (!string.IsNullOrEmpty(exe))
+                            gameFolder = System.IO.Path.GetDirectoryName(exe);
+                    }
+                }
+                catch { /* MainModule may not be accessible */ }
+
+                if (!string.IsNullOrEmpty(gameFolder))
+                {
+                    _ = Task.Run(() => _playtimeSvc.TrackProcessWithFolderWatch(
+                        proc, title, platform, gameFolder, _library));
+                }
+                else
+                {
+                    _ = Task.Run(() => _playtimeSvc.TrackProcess(proc, title, platform, _library));
+                }
+            }
+            else
+            {
+                if (proc != null)
+                    _ = Task.Run(() => _playtimeSvc.TrackProcess(proc, title, platform, _library));
+            }
+
             // Refresh dashboard immediately so the game appears in "Continue Playing"
             RefreshDashboardLocalGames();
         };
@@ -188,7 +257,27 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // When a tracked game session ends, refresh the dashboard one more time
         // so the stored playtime and status reflect the completed session.
         PlaytimeService.SessionCompleted += (platform, title) =>
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => RefreshDashboardLocalGames());
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                RefreshDashboardLocalGames();
+
+                // Restore the window if it was minimized for the game
+                var s = Services.AppSettingsService.Load();
+                if (s.MinimizeOnGameLaunch)
+                    RestoreWindowRequested?.Invoke();
+
+                // Clear the "now playing" presence broadcast
+                if (s.BroadcastGameStart)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try { await _client.UpdatePresenceAsync(null).ConfigureAwait(false); }
+                        catch { }
+                    });
+                }
+            });
+        };
 
         LoginVm.OnLoginSuccess = OnLoginSuccess;
 
@@ -413,6 +502,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // the web app's updatePresence() call at startup + setInterval every 2 minutes.
             _ = _client.UpdatePresenceAsync();
             StartPresenceHeartbeat();
+
+            // Start polling friend presence to fire notifications
+            StartFriendPresencePolling();
 
             // Start periodic sync check (every 5 minutes while online): re-fetches remote
             // user data and invalidates stale Games.Database caches.
@@ -1362,6 +1454,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _presenceTimer?.Dispose();
         _presenceTimer = null;
 
+        StopFriendPresencePoller();
         StopOfflineReconnectTimer();
         StopSyncCheckTimer();
         StopHeartbeatPoller();
@@ -1411,6 +1504,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _presenceTimer?.Dispose();
         _presenceTimer = null;
 
+        StopFriendPresencePoller();
         StopOfflineReconnectTimer();
         StopSyncCheckTimer();
         StopHeartbeatPoller();
@@ -1440,12 +1534,33 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         IsOfflineMode = false;
     }
 
+    /// <summary>
+    /// Shuts down the application immediately.  Equivalent to the Power → Exit in
+    /// Windows — stops all background services and exits the process.
+    /// </summary>
+    [RelayCommand]
+    private void ExitApp()
+    {
+        Dispose();
+        // Use the Avalonia lifetime for a clean shutdown
+        if (Avalonia.Application.Current?.ApplicationLifetime is
+            Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.Shutdown();
+        }
+        else
+        {
+            Environment.Exit(0);
+        }
+    }
+
     public void Dispose()
     {
         _messagePoller?.Dispose();
         _messagePoller = null;
         _presenceTimer?.Dispose();
         _presenceTimer = null;
+        StopFriendPresencePoller();
         StopOfflineReconnectTimer();
         StopSyncCheckTimer();
         StopHeartbeatPoller();
@@ -1476,6 +1591,96 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 catch { /* presence update failure is non-fatal */ }
             });
         }, null, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(2));
+    }
+
+    // ── Friend presence polling ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Starts a background timer that fires every 2 minutes to check whether any
+    /// friends have come online or started playing a game.  When enabled settings are
+    /// detected the appropriate toast notifications are fired.
+    /// The first tick is intentionally delayed by 2 minutes so that the initial
+    /// "all friends come online" burst at login does not fire a flood of toasts.
+    /// </summary>
+    private void StartFriendPresencePolling()
+    {
+        _friendPresencePoller?.Dispose();
+        _friendPresenceInitialized = false;
+        _lastKnownFriendPresence.Clear();
+
+        _friendPresencePoller = new Timer(_ =>
+        {
+            Task.Run(async () =>
+            {
+                try   { await PollFriendPresenceAsync().ConfigureAwait(false); }
+                catch { /* non-fatal */ }
+            });
+        }, null, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(2));
+    }
+
+    private void StopFriendPresencePoller()
+    {
+        _friendPresencePoller?.Dispose();
+        _friendPresencePoller = null;
+        _friendPresenceInitialized = false;
+        _lastKnownFriendPresence.Clear();
+    }
+
+    /// <summary>
+    /// Fetches presence data for all friends and fires notifications when a status
+    /// change is detected (online/offline transition or new game started).
+    /// </summary>
+    private async Task PollFriendPresenceAsync()
+    {
+        var settings = AppSettingsService.Load();
+        bool notifyOnline    = settings.NotifyFriendOnline;
+        bool notifyGameStart = settings.NotifyFriendGameStart;
+        if (!notifyOnline && !notifyGameStart) return;
+
+        List<string> friends;
+        try   { friends = await _client.GetFriendsAsync().ConfigureAwait(false); }
+        catch { return; }
+
+        if (friends.Count == 0) return;
+
+        foreach (var friend in friends)
+        {
+            try
+            {
+                var presence = await _client.GetFriendPresenceAsync(friend).ConfigureAwait(false);
+                if (presence == null) continue;
+
+                // Determine online status: lastSeen within 5 minutes
+                bool isOnline = false;
+                if (!string.IsNullOrEmpty(presence.LastSeen) &&
+                    DateTime.TryParse(presence.LastSeen, null,
+                        System.Globalization.DateTimeStyles.RoundtripKind, out var lastSeen))
+                {
+                    isOnline = (DateTime.UtcNow - lastSeen).TotalMinutes < 5;
+                }
+
+                string? currentGame = presence.CurrentGame;
+
+                _lastKnownFriendPresence.TryGetValue(friend, out var prev);
+
+                if (_friendPresenceInitialized)
+                {
+                    // Friend came online
+                    if (notifyOnline && isOnline && !prev.IsOnline)
+                        NotificationService.ShowFriendOnlineNotification(friend);
+
+                    // Friend started a new game (or a different game)
+                    if (notifyGameStart && !string.IsNullOrEmpty(currentGame) &&
+                        !string.Equals(currentGame, prev.CurrentGame, StringComparison.OrdinalIgnoreCase))
+                        NotificationService.ShowFriendGameStartNotification(friend, currentGame);
+                }
+
+                _lastKnownFriendPresence[friend] = (isOnline, currentGame);
+            }
+            catch { /* skip individual friend on error */ }
+        }
+
+        _friendPresenceInitialized = true;
     }
 
     // ── Offline reconnect timer ───────────────────────────────────────────────

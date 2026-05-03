@@ -28,6 +28,39 @@ namespace GameLauncher.Services
             catch { /* best-effort — notifications are non-critical */ }
         }
 
+        /// <summary>
+        /// Shows a "Friend is now online" toast notification.
+        /// </summary>
+        /// <param name="friendUsername">Username of the friend who just came online.</param>
+        public static void ShowFriendOnlineNotification(string friendUsername)
+        {
+            if (!OperatingSystem.IsWindows()) return;
+            try
+            {
+                ShowWindowsToast(
+                    "Friend Online 🟢",
+                    $"{friendUsername} is now online on Game.OS");
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Shows a "Friend started playing a game" toast notification.
+        /// </summary>
+        /// <param name="friendUsername">Username of the friend who started playing.</param>
+        /// <param name="gameTitle">Title of the game they are now playing.</param>
+        public static void ShowFriendGameStartNotification(string friendUsername, string gameTitle)
+        {
+            if (!OperatingSystem.IsWindows()) return;
+            try
+            {
+                ShowWindowsToast(
+                    $"{friendUsername} is now playing 🎮",
+                    gameTitle);
+            }
+            catch { }
+        }
+
         // ── Windows Toast via PowerShell ──────────────────────────────────────
 
         /// <summary>
