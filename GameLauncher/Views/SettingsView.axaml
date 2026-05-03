@@ -222,7 +222,7 @@
                                 <StackPanel Grid.Column="0" Spacing="2">
                                     <TextBlock Text="Minimize on Game Launch"
                                                FontSize="13" Foreground="#e6edf3"/>
-                                    <TextBlock Text="Game.OS minimises to the background when you launch a game and automatically restores to full-screen when the game exits."
+                                    <TextBlock Text="Game.OS minimizes to the background when you launch a game and automatically restores to full-screen when the game exits."
                                                FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
                                 </StackPanel>
                                 <ToggleSwitch Grid.Column="1"

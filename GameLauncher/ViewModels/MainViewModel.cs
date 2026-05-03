@@ -1653,7 +1653,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 // Determine online status: lastSeen within 5 minutes
                 bool isOnline = false;
                 if (!string.IsNullOrEmpty(presence.LastSeen) &&
-                    DateTime.TryParse(presence.LastSeen, null,
+                    DateTime.TryParse(presence.LastSeen,
+                        System.Globalization.CultureInfo.InvariantCulture,
                         System.Globalization.DateTimeStyles.RoundtripKind, out var lastSeen))
                 {
                     isOnline = (DateTime.UtcNow - lastSeen).TotalMinutes < 5;
@@ -1661,9 +1662,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
                 string? currentGame = presence.CurrentGame;
 
-                _lastKnownFriendPresence.TryGetValue(friend, out var prev);
+                bool wasKnown = _lastKnownFriendPresence.TryGetValue(friend, out var prev);
 
-                if (_friendPresenceInitialized)
+                if (_friendPresenceInitialized && wasKnown)
                 {
                     // Friend came online
                     if (notifyOnline && isOnline && !prev.IsOnline)

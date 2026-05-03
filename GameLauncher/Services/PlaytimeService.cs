@@ -370,11 +370,6 @@ namespace GameLauncher.Services
         {
             try
             {
-                // Normalise the folder path for prefix-matching
-                string normalizedFolder = gameFolder.TrimEnd(
-                    Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                    .ToLowerInvariant();
-
                 var trackedPids  = new HashSet<int>();
                 bool launcherExited = false;
                 DateTime? launcherExitedAt = null;
@@ -430,8 +425,8 @@ namespace GameLauncher.Services
                                 try { exePath = p.MainModule?.FileName; } catch { }
 
                                 if (exePath == null) continue;
-                                if (exePath.ToLowerInvariant().StartsWith(
-                                        normalizedFolder, StringComparison.Ordinal))
+                                if (exePath.StartsWith(gameFolder,
+                                        StringComparison.OrdinalIgnoreCase))
                                     folderProcs.Add(p.Id);
                             }
                             catch { /* skip processes we can't inspect */ }

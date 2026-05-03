@@ -388,7 +388,7 @@ namespace GameLauncher.Models
         // ── Game Launch ──────────────────────────────────────────────────────
 
         /// <summary>
-        /// When <see langword="true"/>, Game.OS minimises to the background when a game
+        /// When <see langword="true"/>, Game.OS minimizes to the background when a game
         /// launches and restores to full-screen when the game exits.
         /// </summary>
         [JsonPropertyName("minimizeOnGameLaunch")] public bool MinimizeOnGameLaunch { get; set; } = false;
