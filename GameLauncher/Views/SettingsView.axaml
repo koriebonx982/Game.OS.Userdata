@@ -211,23 +211,6 @@
 
                             <Rectangle Height="1" Fill="#21262d"/>
 
-                            <!-- Dev Logs toggle -->
-                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-                                <StackPanel Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="Dev Logs"
-                                               FontSize="13" Foreground="#e6edf3"/>
-                                    <TextBlock Text="Write all debug output, trace messages, and unhandled exceptions to Dev.log next to the launcher exe. Useful for diagnosing startup, video, or network issues. Takes effect on next launch."
-                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
-                                </StackPanel>
-                                <ToggleSwitch Grid.Column="1"
-                                              IsChecked="{Binding DevLogs}"
-                                              OffContent="" OnContent=""
-                                              VerticalAlignment="Center"
-                                              Margin="16,0,0,0"/>
-                            </Grid>
-
-                            <Rectangle Height="1" Fill="#21262d"/>
-
                             <!-- Minimize on game launch -->
                             <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
                                 <StackPanel Grid.Column="0" Spacing="2">

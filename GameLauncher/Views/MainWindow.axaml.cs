@@ -53,9 +53,11 @@ public partial class MainWindow : Window
     {
         if (DataContext is not MainViewModel vm) return;
 
-        // Left Shift + Left Ctrl → Quick Menu toggle (takes priority)
-        if (e.Key == Key.LeftCtrl &&
-            e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        // Left Shift + Left Ctrl → Quick Menu toggle (takes priority).
+        // Handle both orderings: user may press Shift first then Ctrl, or Ctrl first then Shift.
+        bool isShiftCtrl = (e.Key == Key.LeftCtrl  && e.KeyModifiers.HasFlag(KeyModifiers.Shift)) ||
+                           (e.Key == Key.LeftShift && e.KeyModifiers.HasFlag(KeyModifiers.Control));
+        if (isShiftCtrl)
         {
             vm.ToggleQuickMenu();
             e.Handled = true;

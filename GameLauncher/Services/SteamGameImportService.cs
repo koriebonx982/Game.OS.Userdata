@@ -111,6 +111,51 @@ public static class SteamGameImportService
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Fetches the player's achievement status for a single Steam game from the
+    /// <c>ISteamUserStats/GetPlayerAchievements</c> endpoint and returns only the
+    /// achievements the player has already unlocked.
+    /// Returns an empty list when the game has no community stats, when the profile
+    /// is private, or on any network/parsing error.
+    /// </summary>
+    public static async Task<List<SteamPlayerAchievement>> FetchPlayerAchievementsAsync(
+        string apiKey, string steamUserId, int appId)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(steamUserId))
+            return new List<SteamPlayerAchievement>();
+
+        try
+        {
+            string url =
+                $"https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v0001/" +
+                $"?appid={appId}" +
+                $"&key={Uri.EscapeDataString(apiKey)}" +
+                $"&steamid={Uri.EscapeDataString(steamUserId)}" +
+                $"&l=en";
+
+            string body = await _http.GetStringAsync(url).ConfigureAwait(false);
+            var root = JsonSerializer.Deserialize<SteamGetPlayerAchievementsResponse>(body,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            var playerStats = root?.PlayerStats;
+            if (playerStats?.Success != true || playerStats.Achievements == null)
+                return new List<SteamPlayerAchievement>();
+
+            // Return only unlocked achievements
+            var unlocked = new List<SteamPlayerAchievement>();
+            foreach (var a in playerStats.Achievements)
+            {
+                if (a.Achieved == 1)
+                    unlocked.Add(a);
+            }
+            return unlocked;
+        }
+        catch
+        {
+            return new List<SteamPlayerAchievement>();
+        }
+    }
+
     private static string SanitiseName(string name)
         => string.Concat(name.Split(Path.GetInvalidFileNameChars()));
 }
@@ -148,4 +193,37 @@ public class SteamOwnedGame
     /// <summary>Steam store page URL for the "View on Steam" button.</summary>
     [JsonIgnore]
     public string StoreUrl => $"https://store.steampowered.com/app/{AppId}";
+}
+
+// ── Steam GetPlayerAchievements response models ───────────────────────────────
+
+/// <summary>Root wrapper from ISteamUserStats/GetPlayerAchievements.</summary>
+public class SteamGetPlayerAchievementsResponse
+{
+    [JsonPropertyName("playerstats")] public SteamPlayerStats? PlayerStats { get; set; }
+}
+
+public class SteamPlayerStats
+{
+    [JsonPropertyName("steamID")]      public string? SteamId      { get; set; }
+    [JsonPropertyName("gameName")]     public string? GameName     { get; set; }
+    [JsonPropertyName("achievements")] public List<SteamPlayerAchievement>? Achievements { get; set; }
+    [JsonPropertyName("success")]      public bool    Success      { get; set; }
+}
+
+/// <summary>A single achievement entry from the GetPlayerAchievements response.</summary>
+public class SteamPlayerAchievement
+{
+    [JsonPropertyName("apiname")]       public string ApiName      { get; set; } = "";
+    [JsonPropertyName("achieved")]      public int    Achieved     { get; set; } // 1 = unlocked, 0 = locked
+    [JsonPropertyName("unlocktime")]    public long   UnlockTime   { get; set; } // Unix timestamp
+    [JsonPropertyName("name")]          public string Name         { get; set; } = "";
+    [JsonPropertyName("description")]   public string Description  { get; set; } = "";
+
+    /// <summary>UTC DateTime of when the achievement was unlocked (MinValue if locked).</summary>
+    [JsonIgnore]
+    public DateTime UnlockedAt =>
+        Achieved == 1 && UnlockTime > 0
+            ? DateTimeOffset.FromUnixTimeSeconds(UnlockTime).UtcDateTime
+            : DateTime.MinValue;
 }

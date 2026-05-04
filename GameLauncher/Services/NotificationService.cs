@@ -119,8 +119,10 @@ namespace GameLauncher.Services
         /// <summary>
         /// Displays a Windows toast notification by invoking a hidden PowerShell
         /// command that uses the built-in Windows.UI.Notifications WinRT API.
-        /// Writing the XML payload to a temp file avoids PowerShell argument-length
-        /// limits and prevents any injection through user-supplied text.
+        /// Registers the "Game.OS" AppUserModelID in the current-user registry so
+        /// Windows accepts the notifier — required for unpackaged (non-Store) apps.
+        /// Writing the XML payload to a temp file avoids argument-length limits and
+        /// prevents injection through user-supplied text.
         /// </summary>
         private static void ShowWindowsToast(string title, string body)
         {
@@ -137,8 +139,6 @@ namespace GameLauncher.Services
                 $"</toast>";
 
             // Write to a temp file so the PowerShell command stays short and safe.
-            // GetTempFileName always returns a path in the system temp dir which
-            // on Windows never contains single quotes, but we escape just in case.
             string xmlPath = Path.GetTempFileName();
             try
             {
@@ -146,16 +146,24 @@ namespace GameLauncher.Services
 
                 // Escape single quotes in the path for safe embedding in the PS command
                 string safePath = xmlPath.Replace("'", "''");
-                string appId    = "Game.OS"; // Displayed as the notification source name
+                const string AppId = "Game.OS";
 
-                // PowerShell script: load WinRT types, read XML from file, show toast
+                // PowerShell script:
+                //  1. Register the AUMID under HKCU so Windows accepts the notifier.
+                //  2. Load WinRT types and show the toast.
+                //  3. Clean up the temp file.
                 string ps =
+                    // ── AUMID registration (required for unpackaged apps) ──
+                    $"$regPath='HKCU:\\SOFTWARE\\Classes\\AppUserModelId\\{AppId}'; " +
+                    $"if(-not(Test-Path $regPath)){{New-Item -Path $regPath -Force|Out-Null; " +
+                    $"New-ItemProperty -Path $regPath -Name 'DisplayName' -Value '{AppId}' -PropertyType String -Force|Out-Null}}; " +
+                    // ── Toast notification ──
                     "[void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]; " +
                     "[void][Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, ContentType = WindowsRuntime]; " +
                     $"$xml = New-Object Windows.Data.Xml.Dom.XmlDocument; " +
                     $"$xml.LoadXml([System.IO.File]::ReadAllText('{safePath}')); " +
                     $"$toast = [Windows.UI.Notifications.ToastNotification]::new($xml); " +
-                    $"[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{appId}').Show($toast); " +
+                    $"[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{AppId}').Show($toast); " +
                     $"Remove-Item -LiteralPath '{safePath}' -ErrorAction SilentlyContinue";
 
                 var psi = new ProcessStartInfo("powershell.exe",
@@ -170,7 +178,6 @@ namespace GameLauncher.Services
                 // Start and immediately dispose: we do not need to wait for the
                 // PowerShell process since it handles its own temp-file cleanup.
                 using var proc = Process.Start(psi);
-                // proc may be null if the shell is unavailable; that is a no-op.
             }
             catch
             {
