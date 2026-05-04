@@ -10,6 +10,8 @@
     <!-- Share the authentication source directly (no Avalonia/UI dependency needed) -->
     <Compile Include="../GameLauncher/Services/DevLogService.cs" />
     <Compile Include="../GameLauncher/Services/GitHubDataService.cs" />
+    <Compile Include="../GameLauncher/Services/SteamGameImportService.cs" />
+    <Compile Include="../GameLauncher/Services/UserDataService.cs" />
     <Compile Include="../GameLauncher/Services/BackendApiService.cs" />
     <Compile Include="../GameLauncher/Services/StorageHelpers.cs" />
     <Compile Include="../GameLauncher/Services/OfflineDataCacheService.cs" />
