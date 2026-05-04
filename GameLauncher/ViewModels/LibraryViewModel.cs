@@ -276,6 +276,14 @@ public partial class LibraryViewModel : ViewModelBase
                 grp => new HashSet<string>(grp.Select(g => g.Title), StringComparer.OrdinalIgnoreCase),
                 StringComparer.OrdinalIgnoreCase);
 
+        // Also build a set of Steam AppIds in the cloud library so that locally-installed
+        // Steam games that were imported via the Steam API (and thus appear in the cloud
+        // library) are not shown a second time in the "My Games" local section.
+        var cloudSteamAppIds = new HashSet<long>(
+            _allGames
+                .Where(g => g.SteamAppId.HasValue && g.SteamAppId.Value > 0)
+                .Select(g => g.SteamAppId!.Value));
+
         // LocalGames → platform = "PC"
         // Skip installed games whose title is already represented in the cloud library
         // so the same PC game doesn't appear twice (once in the cloud section and once here).
@@ -288,9 +296,14 @@ public partial class LibraryViewModel : ViewModelBase
             : null;
         foreach (var g in _allLocalGames)
         {
+            // Skip if the cloud library has this game by exact/fuzzy title match
             if (cloudPcTitles != null &&
                 (cloudPcTitles.Contains(g.Title) ||
                  cloudPcStripped!.Contains(PlatformHelper.StripSpecialSymbols(g.Title))))
+                continue;
+
+            // Skip if the cloud library already has this game by Steam AppId
+            if (g.SteamAppId > 0 && cloudSteamAppIds.Contains(g.SteamAppId))
                 continue;
 
             _allMyGames.Add(new LocalGameCardVm
@@ -391,11 +404,19 @@ public partial class LibraryViewModel : ViewModelBase
             ? new HashSet<string>(cloudPcTitles.Select(PlatformHelper.StripSpecialSymbols), StringComparer.OrdinalIgnoreCase)
             : null;
 
+        var cloudSteamAppIds = new HashSet<long>(
+            allGames
+                .Where(g => g.SteamAppId.HasValue && g.SteamAppId.Value > 0)
+                .Select(g => g.SteamAppId!.Value));
+
         foreach (var g in localGames)
         {
             if (cloudPcTitles != null &&
                 (cloudPcTitles.Contains(g.Title) ||
                  cloudPcStripped!.Contains(PlatformHelper.StripSpecialSymbols(g.Title))))
+                continue;
+
+            if (g.SteamAppId > 0 && cloudSteamAppIds.Contains(g.SteamAppId))
                 continue;
 
             result.Add(new LocalGameCardVm

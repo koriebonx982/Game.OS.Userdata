@@ -671,16 +671,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                             sg.PlaytimeMinutes, _library);
                 }
 
-                // Sync Steam achievements for played games with community stats.
+                // Sync Steam achievements for all games with community stats.
                 // Fetches unlocked achievements and uploads them to the cloud so
                 // the detail view shows which achievements the user has earned.
+                // Prioritise played games; unplayed ones are checked in background.
                 if (importSettings.EnableAchievementAutoSync &&
                     !string.IsNullOrWhiteSpace(steamUserId) &&
                     !string.IsNullOrWhiteSpace(apiKey))
                 {
                     _ = SyncSteamAchievementsAsync(apiKey, steamUserId,
-                            steamGames.Where(g => g.HasCommunityStats && g.PlaytimeMinutes > 0)
-                                      .ToList());
+                            steamGames.OrderByDescending(g => g.PlaytimeMinutes).ToList());
                 }
 
                 // Contribute new Steam games to the public Games.Database so other
@@ -801,76 +801,104 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
                     // Only auto-refresh if the cache is absent or older than 24 hours
                     string cachePath = Services.SteamGameImportService.GetCachePath(profile.Username);
-                    if (System.IO.File.Exists(cachePath))
+                    bool cacheIsStale = !System.IO.File.Exists(cachePath) ||
+                        (DateTime.UtcNow - System.IO.File.GetLastWriteTimeUtc(cachePath)).TotalHours >= 24;
+
+                    List<Services.SteamOwnedGame> steamGames;
+                    if (cacheIsStale)
                     {
-                        var age = DateTime.UtcNow - System.IO.File.GetLastWriteTimeUtc(cachePath);
-                        if (age.TotalHours < 24) return;
+                        steamGames = await Services.SteamGameImportService
+                            .FetchAndSaveAsync(settings.SteamApiKey, settings.SteamUserId, profile.Username)
+                            .ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        // Cache is still fresh — use it directly for achievement scraping
+                        steamGames = Services.SteamGameImportService.LoadCached(profile.Username);
                     }
 
-                    var steamGames = await Services.SteamGameImportService
-                        .FetchAndSaveAsync(settings.SteamApiKey, settings.SteamUserId, profile.Username)
-                        .ConfigureAwait(false);
-
-                    int added = 0;
-                    var existingTitles = new System.Collections.Generic.HashSet<string>(
-                        _library.Select(g => g.Title), StringComparer.OrdinalIgnoreCase);
-                    var libraryByTitle = _library
-                        .Where(g => g.SteamAppId == null)
-                        .GroupBy(g => g.Title, StringComparer.OrdinalIgnoreCase)
-                        .ToDictionary(grp => grp.Key, grp => grp.First(),
-                                      StringComparer.OrdinalIgnoreCase);
-                    var libraryByAppId = _library
-                        .Where(g => g.SteamAppId.HasValue && g.SteamAppId.Value > 0)
-                        .GroupBy(g => g.SteamAppId!.Value)
-                        .ToDictionary(grp => grp.Key, grp => grp.First());
-                    foreach (var sg in steamGames)
+                    if (cacheIsStale && steamGames.Count > 0)
                     {
-                        if (sg.AppId > 0 && libraryByAppId.ContainsKey(sg.AppId)) continue;
-                        if (!existingTitles.Contains(sg.Name))
+                        int added = 0;
+                        var existingTitles = new System.Collections.Generic.HashSet<string>(
+                            _library.Select(g => g.Title), StringComparer.OrdinalIgnoreCase);
+                        var libraryByTitle = _library
+                            .Where(g => g.SteamAppId == null)
+                            .GroupBy(g => g.Title, StringComparer.OrdinalIgnoreCase)
+                            .ToDictionary(grp => grp.Key, grp => grp.First(),
+                                          StringComparer.OrdinalIgnoreCase);
+                        var libraryByAppId = _library
+                            .Where(g => g.SteamAppId.HasValue && g.SteamAppId.Value > 0)
+                            .GroupBy(g => g.SteamAppId!.Value)
+                            .ToDictionary(grp => grp.Key, grp => grp.First());
+                        foreach (var sg in steamGames)
                         {
-                            _library.Add(new Models.Game
+                            if (sg.AppId > 0 && libraryByAppId.ContainsKey(sg.AppId)) continue;
+                            if (!existingTitles.Contains(sg.Name))
                             {
-                                Platform        = "PC",
-                                Title           = sg.Name,
-                                CoverUrl        = sg.CoverUrl,
-                                AddedAt         = DateTime.UtcNow.ToString("O"),
-                                PlaytimeMinutes = sg.PlaytimeMinutes,
-                                TitleId         = $"steam:{sg.AppId}",
-                                SteamAppId      = sg.AppId,
+                                _library.Add(new Models.Game
+                                {
+                                    Platform        = "PC",
+                                    Title           = sg.Name,
+                                    CoverUrl        = sg.CoverUrl,
+                                    AddedAt         = DateTime.UtcNow.ToString("O"),
+                                    PlaytimeMinutes = sg.PlaytimeMinutes,
+                                    TitleId         = $"steam:{sg.AppId}",
+                                    SteamAppId      = sg.AppId,
+                                });
+                                existingTitles.Add(sg.Name);
+                                added++;
+                            }
+                            else if (libraryByTitle.TryGetValue(sg.Name, out var existing))
+                            {
+                                existing.SteamAppId = sg.AppId;
+                            }
+                        }
+
+                        // Merge Steam playtime (take max, avoid double-counting)
+                        if (settings.EnableSteamSync)
+                        {
+                            foreach (var sg in steamGames.Where(g => g.PlaytimeMinutes > 0))
+                                Services.PlaytimeService.MergeExternalMinutes("PC", sg.Name,
+                                    sg.PlaytimeMinutes, _library);
+                        }
+
+                        if (added > 0)
+                        {
+                            DevLogService.Log($"[Steam Auto-Sync] Added {added} new Steam games to library.");
+
+                            // Trigger workflow to add new Steam games to the public Games.Database.
+                            // ContributeSteamGamesToDatabaseAsync filters to truly new games internally.
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    var ghSvc = new Services.GitHubDataService();
+                                    await ghSvc.ContributeSteamGamesToDatabaseAsync(steamGames)
+                                               .ConfigureAwait(false);
+                                }
+                                catch { /* best-effort */ }
                             });
-                            existingTitles.Add(sg.Name);
-                            added++;
+
+                            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                            {
+                                LibraryVm.Load(_library);
+                                ProfileVm.Load(_profile, _library, _achievements, _client.IsAdmin);
+                            });
                         }
-                        else if (libraryByTitle.TryGetValue(sg.Name, out var existing))
-                        {
-                            existing.SteamAppId = sg.AppId;
-                        }
                     }
 
-                    // Merge Steam playtime (take max, avoid double-counting)
-                    if (settings.EnableSteamSync)
+                    // ── Startup achievement scraping ────────────────────────────────────
+                    // On every app start, scrape Steam achievements for all library games
+                    // that have a SteamAppId so achievements are always up-to-date and
+                    // sync across devices via the cloud.  Runs regardless of cache staleness.
+                    if (settings.EnableAchievementAutoSync && steamGames.Count > 0)
                     {
-                        foreach (var sg in steamGames.Where(g => g.PlaytimeMinutes > 0))
-                            Services.PlaytimeService.MergeExternalMinutes("PC", sg.Name,
-                                sg.PlaytimeMinutes, _library);
-                    }
-
-                    // Auto-sync Steam achievements in background on login
-                    if (settings.EnableAchievementAutoSync)
-                    {
-                        _ = SyncSteamAchievementsAsync(settings.SteamApiKey, settings.SteamUserId,
-                                steamGames.Where(g => g.HasCommunityStats && g.PlaytimeMinutes > 0)
-                                          .ToList());
-                    }
-
-                    if (added > 0)
-                    {
-                        DevLogService.Log($"[Steam Auto-Sync] Added {added} new Steam games to library.");
-                        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                        {
-                            LibraryVm.Load(_library);
-                            ProfileVm.Load(_profile, _library, _achievements, _client.IsAdmin);
-                        });
+                        // Prioritise games the user has played (playtime > 0) then others
+                        var toSync = steamGames
+                            .OrderByDescending(g => g.PlaytimeMinutes)
+                            .ToList();
+                        _ = SyncSteamAchievementsAsync(settings.SteamApiKey, settings.SteamUserId, toSync);
                     }
                 }
                 catch { /* best-effort — Steam sync failure must not block login */ }
@@ -1901,16 +1929,35 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         var seen   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var result = new List<Game>(library.Count);
 
-        // Process games with a SteamAppId first so they are preferred over stub entries
+        // Process games with a SteamAppId first so they are preferred over stub entries.
+        // Within same-AppId ties, prefer entries that have richer metadata (cover URL).
         var ordered = library
             .OrderByDescending(g => g.SteamAppId.HasValue && g.SteamAppId.Value > 0 ? 1 : 0)
             .ThenByDescending(g => string.IsNullOrEmpty(g.CoverUrl) ? 0 : 1);
 
         foreach (var game in ordered)
         {
-            string key = $"{game.Platform?.ToLowerInvariant()}||{game.Title?.ToLowerInvariant()}";
-            if (seen.Add(key))
+            // Primary dedup key: platform + exact title
+            string titleLower    = game.Title?.ToLowerInvariant() ?? "";
+            string platformLower = game.Platform?.ToLowerInvariant() ?? "";
+            string key           = $"{platformLower}||{titleLower}";
+
+            // Secondary key: platform + normalised title (handles "Alien - Colonial Marines"
+            // vs "Alien: Colonial Marines" and symbol variants like "LEGO® HP" vs "LEGO HP").
+            string normTitle = NormalizeGameTitle(
+                Models.PlatformHelper.StripSpecialSymbols(game.Title ?? "")).ToLowerInvariant();
+            string normKey   = $"{platformLower}||{normTitle}";
+
+            // Check by exact key first; fall through to normalised key so that the
+            // same game showing up under marginally different title strings is caught.
+            bool isDuplicate = !seen.Add(key);
+            if (!isDuplicate && normKey != key)
+                isDuplicate = seen.Contains(normKey);
+
+            if (!isDuplicate)
             {
+                // Register both keys so future duplicates are caught either way
+                seen.Add(normKey);
                 result.Add(game);
             }
             else
@@ -1918,7 +1965,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 // Merge useful fields from the duplicate into the already-kept entry
                 var kept = result.FirstOrDefault(g =>
                     string.Equals(g.Platform, game.Platform, StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(g.Title,    game.Title,    StringComparison.OrdinalIgnoreCase));
+                    (string.Equals(g.Title, game.Title, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(
+                         NormalizeGameTitle(Models.PlatformHelper.StripSpecialSymbols(g.Title ?? "")),
+                         NormalizeGameTitle(Models.PlatformHelper.StripSpecialSymbols(game.Title ?? "")),
+                         StringComparison.OrdinalIgnoreCase)));
                 if (kept != null)
                 {
                     if (!kept.SteamAppId.HasValue && game.SteamAppId.HasValue)
@@ -1927,6 +1978,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                         kept.CoverUrl = game.CoverUrl;
                     if (string.IsNullOrEmpty(kept.AchievementsUrl) && !string.IsNullOrEmpty(game.AchievementsUrl))
                         kept.AchievementsUrl = game.AchievementsUrl;
+                    // Carry forward the highest playtime so it isn't lost when a duplicate
+                    // entry (e.g. same game under a different AppID) has more play data.
+                    if (game.PlaytimeMinutes > kept.PlaytimeMinutes)
+                        kept.PlaytimeMinutes = game.PlaytimeMinutes;
                 }
             }
         }

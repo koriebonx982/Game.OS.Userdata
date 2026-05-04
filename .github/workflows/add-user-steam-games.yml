@@ -1,0 +1,291 @@
+# Add new Steam games to the Games.Database
+#
+# Triggered by the Game OS launcher whenever a user imports their Steam library
+# and at least one game is not yet in Games.Database/PC.Games.json.
+#
+# Each call passes a compact JSON array of { title, appid } objects as the
+# `games_json` input.  The workflow reads the current PC.Games.json, appends
+# any entries that are absent (checked by both AppID and title), and commits
+# the result.  Running inside GitHub Actions serialises concurrent requests
+# from multiple launcher instances and avoids SHA-conflict write failures.
+#
+# For each new game the workflow also creates an empty achievement placeholder
+# at Data/PC/Games/{appid}/achievements.json when that file does not already
+# exist, so achievement data can be filled in later.
+#
+# Required secret:
+#   GAMES_DB_TOKEN  – fine-grained PAT with Contents: Read and write on
+#                     Koriebonx98/Games.Database.
+
+name: Add User Steam Games to Database
+
+on:
+  workflow_dispatch:
+    inputs:
+      games_json:
+        description: 'JSON array of {title, appid} objects to add'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  add-games:
+    name: Append new Steam games to PC.Games.json
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check for GAMES_DB_TOKEN
+        run: |
+          if [ -z "${{ secrets.GAMES_DB_TOKEN }}" ]; then
+            echo "❌ GAMES_DB_TOKEN secret is not set."
+            exit 1
+          fi
+          echo "✅ GAMES_DB_TOKEN is present."
+
+      - name: Add games to PC.Games.json and create achievement stubs
+        env:
+          GAMES_DB_TOKEN: ${{ secrets.GAMES_DB_TOKEN }}
+          GAMES_JSON: ${{ inputs.games_json }}
+        run: |
+          python3 << 'PYEOF'
+          import json, base64, os, sys
+          import urllib.request, urllib.error
+
+          REQUEST_TIMEOUT = 120
+
+          # ── 1. Parse the incoming game list ───────────────────────────────
+          games_raw = os.environ.get('GAMES_JSON', '[]')
+          try:
+              incoming = json.loads(games_raw)
+          except json.JSONDecodeError as e:
+              print(f'❌ Could not parse games_json input: {e}')
+              sys.exit(1)
+
+          if not isinstance(incoming, list) or len(incoming) == 0:
+              print('ℹ️  No games in input — nothing to do.')
+              sys.exit(0)
+
+          print(f'📥 Received {len(incoming)} game(s) to add.')
+
+          # ── 2. Set up GitHub API helpers ───────────────────────────────────
+          token   = os.environ['GAMES_DB_TOKEN']
+          owner   = 'Koriebonx98'
+          repo    = 'Games.Database'
+          path    = 'PC.Games.json'
+          api     = f'https://api.github.com/repos/{owner}/{repo}/contents/{path}'
+          raw_url = f'https://raw.githubusercontent.com/{owner}/{repo}/main/{path}'
+          git_api = f'https://api.github.com/repos/{owner}/{repo}'
+
+          headers = {
+              'Authorization': f'Bearer {token}',
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'Content-Type': 'application/json',
+          }
+
+          def git_request(url, method='GET', data_dict=None):
+              data = json.dumps(data_dict).encode('utf-8') if data_dict is not None else None
+              req  = urllib.request.Request(url, data=data, headers=headers, method=method)
+              with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+                  return json.loads(resp.read())
+
+          def get_blob_sha_via_tree(path_in_repo):
+              ref_data    = git_request(f'{git_api}/git/ref/heads/main')
+              current_sha = ref_data['object']['sha']
+              commit_data = git_request(f'{git_api}/git/commits/{current_sha}')
+              tree_data   = git_request(
+                  f'{git_api}/git/trees/{commit_data["tree"]["sha"]}?recursive=true')
+              for item in tree_data.get('tree', []):
+                  if item.get('path') == path_in_repo:
+                      return item['sha']
+              return None
+
+          def extract_games_arr(data):
+              if isinstance(data, dict):
+                  return data.get('Games') or data.get('games') or []
+              if isinstance(data, list):
+                  return data
+              return []
+
+          # ── 3. Read existing PC.Games.json ─────────────────────────────────
+          existing_sha  = None
+          existing_arr  = []
+          existing_meta = {}
+
+          try:
+              req = urllib.request.Request(api, headers=headers)
+              with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+                  file_meta = json.loads(resp.read())
+              existing_sha = file_meta.get('sha')
+              if file_meta.get('content'):
+                  existing_data = json.loads(
+                      base64.b64decode(file_meta['content'].replace('\n', '')))
+              else:
+                  with urllib.request.urlopen(
+                          file_meta['download_url'], timeout=REQUEST_TIMEOUT) as r:
+                      existing_data = json.loads(r.read())
+              if isinstance(existing_data, dict):
+                  existing_meta = {k: v for k, v in existing_data.items()
+                                   if k not in ('Games', 'games')}
+              existing_arr = extract_games_arr(existing_data)
+              print(f'ℹ️  PC.Games.json has {len(existing_arr)} existing game(s).')
+          except urllib.error.HTTPError as e:
+              if e.code == 403:
+                  # File too large for Contents API — read via raw URL
+                  try:
+                      with urllib.request.urlopen(raw_url, timeout=REQUEST_TIMEOUT) as r:
+                          existing_data = json.loads(r.read())
+                      if isinstance(existing_data, dict):
+                          existing_meta = {k: v for k, v in existing_data.items()
+                                           if k not in ('Games', 'games')}
+                      existing_arr = extract_games_arr(existing_data)
+                      print(f'ℹ️  (Large file) {len(existing_arr)} existing game(s).')
+                  except Exception as read_exc:
+                      print(f'❌ Could not read PC.Games.json: {read_exc}')
+                      sys.exit(1)
+                  try:
+                      existing_sha = get_blob_sha_via_tree(path)
+                  except Exception as tree_exc:
+                      print(f'⚠️  Could not look up SHA: {tree_exc}')
+              elif e.code == 404:
+                  print('ℹ️  PC.Games.json does not exist yet — will create.')
+              else:
+                  print(f'❌ HTTP {e.code} reading PC.Games.json')
+                  sys.exit(1)
+
+          # ── 4. Identify games not yet in the file ──────────────────────────
+          existing_appids = set()
+          existing_titles = set()
+          for g in existing_arr:
+              aid = g.get('appid') or g.get('TitleID')
+              if aid is not None:
+                  try:
+                      existing_appids.add(int(aid))
+                  except (ValueError, TypeError):
+                      pass
+              t = (g.get('Title') or g.get('title') or '').strip().lower()
+              if t:
+                  existing_titles.add(t)
+
+          new_entries = []
+          for g in incoming:
+              appid = int(g.get('appid', 0))
+              title = (g.get('title') or '').strip()
+              if not title or appid <= 0:
+                  continue
+              if appid in existing_appids:
+                  continue
+              if title.lower() in existing_titles:
+                  continue
+              new_entries.append({
+                  'Title':   title,
+                  'TitleID': str(appid),
+                  'appid':   appid,
+                  'image':   f'https://cdn.akamai.steamstatic.com/steam/apps/{appid}/header.jpg',
+                  'stores':  [{'name': 'Steam',
+                                'url': f'https://store.steampowered.com/app/{appid}/'}],
+              })
+              existing_appids.add(appid)
+              existing_titles.add(title.lower())
+
+          if not new_entries:
+              print('✅ All incoming games already exist in PC.Games.json — nothing to add.')
+              sys.exit(0)
+
+          print(f'🆕 Adding {len(new_entries)} new game(s).')
+
+          # ── 5. Write updated PC.Games.json ─────────────────────────────────
+          updated_arr  = list(existing_arr) + new_entries
+          payload_data = dict(existing_meta)
+          payload_data.setdefault('Platform', 'PC')
+          payload_data.setdefault('source',
+              'https://api.steampowered.com/ISteamApps/GetAppList/v2/')
+          payload_data['Games'] = updated_arr
+
+          file_bytes = json.dumps(
+              payload_data, separators=(',', ':'), ensure_ascii=False
+          ).encode('utf-8')
+          file_b64   = base64.b64encode(file_bytes).decode('ascii')
+
+          try:
+              blob        = git_request(f'{git_api}/git/blobs', 'POST',
+                                        {'content': file_b64, 'encoding': 'base64'})
+              blob_sha    = blob['sha']
+              ref_data    = git_request(f'{git_api}/git/ref/heads/main')
+              current_sha = ref_data['object']['sha']
+              commit_data = git_request(f'{git_api}/git/commits/{current_sha}')
+              base_tree   = commit_data['tree']['sha']
+              new_tree    = git_request(f'{git_api}/git/trees', 'POST', {
+                  'base_tree': base_tree,
+                  'tree': [{'path': path, 'mode': '100644', 'type': 'blob', 'sha': blob_sha}],
+              })
+              commit_msg  = (
+                  f'Add {len(new_entries)} game(s) from user Steam library '
+                  f'(total: {len(updated_arr)})'
+              )
+              new_commit  = git_request(f'{git_api}/git/commits', 'POST', {
+                  'message':   commit_msg,
+                  'tree':      new_tree['sha'],
+                  'parents':   [current_sha],
+                  'committer': {'name': 'Game.OS Admin', 'email': 'admin@gameos.local'},
+              })
+              git_request(f'{git_api}/git/refs/heads/main', 'PATCH',
+                          {'sha': new_commit['sha']})
+              print(f'✅ PC.Games.json updated (commit: {new_commit["sha"][:7]})')
+              for g in new_entries[:10]:
+                  print(f'   + [{g["appid"]}] {g["Title"]}')
+              if len(new_entries) > 10:
+                  print(f'   … and {len(new_entries) - 10} more')
+          except urllib.error.HTTPError as e:
+              body = e.read().decode('utf-8', errors='replace')
+              print(f'❌ Failed to write PC.Games.json: HTTP {e.code}')
+              print(body)
+              sys.exit(1)
+
+          # ── 6. Create achievement stubs for games that don't have them yet ─
+          print('\n📋 Checking achievement stubs…')
+          created_stubs = 0
+          for g in new_entries:
+              stub_path = f'Data/PC/Games/{g["appid"]}/achievements.json'
+              stub_api  = (f'https://api.github.com/repos/{owner}/{repo}'
+                           f'/contents/{urllib.request.quote(stub_path)}')
+              # Check if the file already exists
+              try:
+                  with urllib.request.urlopen(
+                          urllib.request.Request(stub_api, headers=headers),
+                          timeout=REQUEST_TIMEOUT) as r:
+                      pass  # file exists — skip
+                  continue
+              except urllib.error.HTTPError as e:
+                  if e.code != 404:
+                      continue  # unexpected error — skip this game
+
+              # File does not exist: create an empty achievements stub
+              stub_bytes = json.dumps([], separators=(',', ':')).encode('utf-8')
+              stub_b64   = base64.b64encode(stub_bytes).decode('ascii')
+              stub_payload = {
+                  'message': f'Add achievements stub for {g["Title"]} (AppId {g["appid"]})',
+                  'content': stub_b64,
+                  'committer': {'name': 'Game.OS Admin', 'email': 'admin@gameos.local'},
+              }
+              try:
+                  create_req = urllib.request.Request(
+                      stub_api,
+                      data=json.dumps(stub_payload).encode('utf-8'),
+                      headers=headers,
+                      method='PUT',
+                  )
+                  with urllib.request.urlopen(
+                          create_req, timeout=REQUEST_TIMEOUT) as resp:
+                      pass
+                  created_stubs += 1
+              except Exception as stub_exc:
+                  print(f'   ⚠️  Could not create stub for {g["Title"]}: {stub_exc}')
+
+          if created_stubs > 0:
+              print(f'✅ Created {created_stubs} achievement stub file(s).')
+          else:
+              print('ℹ️  No new achievement stubs needed.')
+          PYEOF

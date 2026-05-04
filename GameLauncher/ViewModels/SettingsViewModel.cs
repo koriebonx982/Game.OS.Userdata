@@ -54,6 +54,24 @@ public partial class SettingsViewModel : ViewModelBase
     /// <summary>Automatically record and sync achievement unlocks from emulator logs.</summary>
     [ObservableProperty] private bool _enableAchievementAutoSync = true;
 
+    // ── Scanner diagnostic logging toggles ─────────────────────────────────
+    /// <summary>Log Games-folder scan summary per drive.</summary>
+    [ObservableProperty] private bool _logGamesScanner = false;
+    /// <summary>Log every individual game found (advanced mode).</summary>
+    [ObservableProperty] private bool _logGamesScannerAdvanced = false;
+    /// <summary>Log ROMs-folder scan summary per drive / platform.</summary>
+    [ObservableProperty] private bool _logRomsScanner = false;
+    /// <summary>Log every individual ROM found (advanced mode).</summary>
+    [ObservableProperty] private bool _logRomsScannerAdvanced = false;
+    /// <summary>Log Repacks-folder scan summary per drive.</summary>
+    [ObservableProperty] private bool _logRepacksScanner = false;
+    /// <summary>Log every individual repack found (advanced mode).</summary>
+    [ObservableProperty] private bool _logRepacksScannerAdvanced = false;
+    /// <summary>Log local Steam (ACF + folder) scan activity.</summary>
+    [ObservableProperty] private bool _logLocalSteamScanner = false;
+    /// <summary>Log Steam Web API import activity.</summary>
+    [ObservableProperty] private bool _logSteamApiScanner = false;
+
     // ── Third-party integration settings (stored locally, never synced) ────
     /// <summary>Steam Web API key — local only.</summary>
     [ObservableProperty] private string _steamApiKey = "";
@@ -282,6 +300,14 @@ public partial class SettingsViewModel : ViewModelBase
         ExophasePassword       = appSettings.ExophasePassword;
         EnableSteamSync        = appSettings.EnableSteamSync;
         EnableAchievementAutoSync = appSettings.EnableAchievementAutoSync;
+        LogGamesScanner           = appSettings.LogGamesScanner;
+        LogGamesScannerAdvanced   = appSettings.LogGamesScannerAdvanced;
+        LogRomsScanner            = appSettings.LogRomsScanner;
+        LogRomsScannerAdvanced    = appSettings.LogRomsScannerAdvanced;
+        LogRepacksScanner         = appSettings.LogRepacksScanner;
+        LogRepacksScannerAdvanced = appSettings.LogRepacksScannerAdvanced;
+        LogLocalSteamScanner      = appSettings.LogLocalSteamScanner;
+        LogSteamApiScanner        = appSettings.LogSteamApiScanner;
 
         // ── Startup apps: merge saved entries with the built-in presets ──
         LoadStartupApps(appSettings.StartupApps);
@@ -455,6 +481,14 @@ public partial class SettingsViewModel : ViewModelBase
             ExophasePassword      = ExophasePassword,
             EnableSteamSync       = EnableSteamSync,
             EnableAchievementAutoSync = EnableAchievementAutoSync,
+            LogGamesScanner           = LogGamesScanner,
+            LogGamesScannerAdvanced   = LogGamesScannerAdvanced,
+            LogRomsScanner            = LogRomsScanner,
+            LogRomsScannerAdvanced    = LogRomsScannerAdvanced,
+            LogRepacksScanner         = LogRepacksScanner,
+            LogRepacksScannerAdvanced = LogRepacksScannerAdvanced,
+            LogLocalSteamScanner      = LogLocalSteamScanner,
+            LogSteamApiScanner        = LogSteamApiScanner,
             StartupApps           = StartupApps.Select(r => new Models.StartupAppEntry
             {
                 Label     = r.Label,

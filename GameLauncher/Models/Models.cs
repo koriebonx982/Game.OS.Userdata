@@ -479,6 +479,34 @@ namespace GameLauncher.Models
         /// file sharing between devices on the same network).  Not yet implemented.
         /// </summary>
         [JsonPropertyName("localTransferEnabled")] public bool LocalTransferEnabled { get; set; } = false;
+
+        // ── Scanner diagnostic logging ────────────────────────────────────────
+        // Each flag gates a specific scanner's verbose output to Dev.log.
+        // The "Advanced" companions additionally print every individual item found.
+
+        /// <summary>Log Games-folder scan results (per-drive summary) to Dev.log.</summary>
+        [JsonPropertyName("logGamesScanner")] public bool LogGamesScanner { get; set; } = false;
+
+        /// <summary>Log every individual game found per drive when LogGamesScanner is on.</summary>
+        [JsonPropertyName("logGamesScannerAdvanced")] public bool LogGamesScannerAdvanced { get; set; } = false;
+
+        /// <summary>Log ROMs-folder scan results (per-drive, per-platform summary) to Dev.log.</summary>
+        [JsonPropertyName("logRomsScanner")] public bool LogRomsScanner { get; set; } = false;
+
+        /// <summary>Log every individual ROM found per drive when LogRomsScanner is on.</summary>
+        [JsonPropertyName("logRomsScannerAdvanced")] public bool LogRomsScannerAdvanced { get; set; } = false;
+
+        /// <summary>Log Repacks-folder scan results (per-drive summary) to Dev.log.</summary>
+        [JsonPropertyName("logRepacksScanner")] public bool LogRepacksScanner { get; set; } = false;
+
+        /// <summary>Log every individual repack found per drive when LogRepacksScanner is on.</summary>
+        [JsonPropertyName("logRepacksScannerAdvanced")] public bool LogRepacksScannerAdvanced { get; set; } = false;
+
+        /// <summary>Log local Steam (ACF + folder) scan results to Dev.log.</summary>
+        [JsonPropertyName("logLocalSteamScanner")] public bool LogLocalSteamScanner { get; set; } = false;
+
+        /// <summary>Log Steam Web API import results to Dev.log.</summary>
+        [JsonPropertyName("logSteamApiScanner")] public bool LogSteamApiScanner { get; set; } = false;
     }
 
     // ── Game launch settings (saved locally per game title) ───────────────────

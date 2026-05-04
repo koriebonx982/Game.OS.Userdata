@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -94,6 +95,25 @@ public static class SteamGameImportService
         games.RemoveAll(g =>
             g.Name.EndsWith(" Demo", StringComparison.OrdinalIgnoreCase) ||
             g.Name.EndsWith("(Demo)", StringComparison.OrdinalIgnoreCase));
+
+        // Deduplicate by normalised title: Steam occasionally returns the same game
+        // under more than one AppID (e.g. "Alien: Colonial Marines" with different
+        // regional AppIDs).  Keep the entry with the highest playtime so the user's
+        // most-played copy is used as the canonical entry.
+        var dedupedByTitle = new Dictionary<string, SteamOwnedGame>(StringComparer.OrdinalIgnoreCase);
+        foreach (var g in games)
+        {
+            string normTitle = g.Name.Trim();
+            if (!dedupedByTitle.TryGetValue(normTitle, out var existing) ||
+                g.PlaytimeMinutes > existing.PlaytimeMinutes)
+            {
+                dedupedByTitle[normTitle] = g;
+            }
+        }
+        if (dedupedByTitle.Count < games.Count)
+        {
+            games = dedupedByTitle.Values.ToList();
+        }
 
         // Persist to disk
         string cachePath = GetCachePath(username);

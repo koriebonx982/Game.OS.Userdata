@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using GameLauncher.Models;
+using GameLauncher.Services;
 
 namespace GameLauncher.Services;
 
@@ -99,6 +101,72 @@ public static class DevLogService
             // Fall back to Debug output so mid-session write failures are still visible.
             Debug.WriteLine($"[DevLog] Write failed: {ex.Message} — original: {message}");
         }
+    }
+
+    // ── Per-scanner conditional helpers ────────────────────────────────────
+    // The scanner service reads these flags directly from the saved AppSettings so
+    // that the log level can be changed without restarting the app.
+
+    private static Models.AppSettings? _cachedSettings;
+    private static DateTime            _settingsCacheTime = DateTime.MinValue;
+
+    /// <summary>Returns the current <see cref="Models.AppSettings"/>, refreshed at most once per second.</summary>
+    private static Models.AppSettings Settings()
+    {
+        if (_cachedSettings == null || (DateTime.Now - _settingsCacheTime).TotalSeconds >= 1)
+        {
+            _cachedSettings    = Services.AppSettingsService.Load();
+            _settingsCacheTime = DateTime.Now;
+        }
+        return _cachedSettings;
+    }
+
+    /// <summary>Write <paramref name="message"/> only when Games Scanner logging is enabled.</summary>
+    public static void LogGames(string message)
+    {
+        if (_writer != null && Settings().LogGamesScanner) Log(message);
+    }
+
+    /// <summary>Write <paramref name="message"/> only when Games Scanner Advanced logging is enabled.</summary>
+    public static void LogGamesAdvanced(string message)
+    {
+        if (_writer != null && Settings().LogGamesScanner && Settings().LogGamesScannerAdvanced) Log(message);
+    }
+
+    /// <summary>Write <paramref name="message"/> only when ROMs Scanner logging is enabled.</summary>
+    public static void LogRoms(string message)
+    {
+        if (_writer != null && Settings().LogRomsScanner) Log(message);
+    }
+
+    /// <summary>Write <paramref name="message"/> only when ROMs Scanner Advanced logging is enabled.</summary>
+    public static void LogRomsAdvanced(string message)
+    {
+        if (_writer != null && Settings().LogRomsScanner && Settings().LogRomsScannerAdvanced) Log(message);
+    }
+
+    /// <summary>Write <paramref name="message"/> only when Repacks Scanner logging is enabled.</summary>
+    public static void LogRepacks(string message)
+    {
+        if (_writer != null && Settings().LogRepacksScanner) Log(message);
+    }
+
+    /// <summary>Write <paramref name="message"/> only when Repacks Scanner Advanced logging is enabled.</summary>
+    public static void LogRepacksAdvanced(string message)
+    {
+        if (_writer != null && Settings().LogRepacksScanner && Settings().LogRepacksScannerAdvanced) Log(message);
+    }
+
+    /// <summary>Write <paramref name="message"/> only when Local Steam Scanner logging is enabled.</summary>
+    public static void LogLocalSteam(string message)
+    {
+        if (_writer != null && Settings().LogLocalSteamScanner) Log(message);
+    }
+
+    /// <summary>Write <paramref name="message"/> only when Steam API Scanner logging is enabled.</summary>
+    public static void LogSteamApi(string message)
+    {
+        if (_writer != null && Settings().LogSteamApiScanner) Log(message);
     }
 
     // ── Global exception handlers ───────────────────────────────────────────

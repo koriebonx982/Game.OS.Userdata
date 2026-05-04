@@ -1003,6 +1003,132 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Scanner Logging card -->
+                    <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,24">
+                        <StackPanel Spacing="16">
+
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="🔍" FontSize="18" VerticalAlignment="Center"/>
+                                <TextBlock Text="Scanner Logging"
+                                           FontSize="15" FontWeight="Bold"
+                                           Foreground="White" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <TextBlock Text="Enable per-scanner verbose output in Dev.log to diagnose missing games, ROMs, or repacks. Requires Dev.log to be on."
+                                       FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <!-- Games Scanner -->
+                            <Grid ColumnDefinitions="*,Auto,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Games Scanner"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Logs per-drive Games folder summary: total folders, archives, and combined count."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="Advanced"
+                                           FontSize="11" Foreground="#8b949e"
+                                           VerticalAlignment="Center" Margin="12,0,4,0"
+                                           IsVisible="{Binding LogGamesScanner}"/>
+                                <ToggleSwitch Grid.Column="1"
+                                             IsChecked="{Binding LogGamesScannerAdvanced}"
+                                             OffContent="" OnContent=""
+                                             VerticalAlignment="Center"
+                                             Margin="0,0,8,0"
+                                             IsVisible="{Binding LogGamesScanner}"
+                                             ToolTip.Tip="Also print every game title found on each drive"/>
+                                <ToggleSwitch Grid.Column="2"
+                                             IsChecked="{Binding LogGamesScanner}"
+                                             OffContent="" OnContent=""
+                                             VerticalAlignment="Center"
+                                             Margin="16,0,0,0"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <!-- ROMs Scanner -->
+                            <Grid ColumnDefinitions="*,Auto,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="ROMs Scanner"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Logs per-drive, per-platform ROM summary and grand total."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                             IsChecked="{Binding LogRomsScannerAdvanced}"
+                                             OffContent="" OnContent=""
+                                             VerticalAlignment="Center"
+                                             Margin="0,0,8,0"
+                                             IsVisible="{Binding LogRomsScanner}"
+                                             ToolTip.Tip="Also print every ROM title found on each drive"/>
+                                <ToggleSwitch Grid.Column="2"
+                                             IsChecked="{Binding LogRomsScanner}"
+                                             OffContent="" OnContent=""
+                                             VerticalAlignment="Center"
+                                             Margin="16,0,0,0"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <!-- Repacks Scanner -->
+                            <Grid ColumnDefinitions="*,Auto,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Repacks Scanner"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Logs per-drive Repacks folder summary: total folders and archive files found."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                             IsChecked="{Binding LogRepacksScannerAdvanced}"
+                                             OffContent="" OnContent=""
+                                             VerticalAlignment="Center"
+                                             Margin="0,0,8,0"
+                                             IsVisible="{Binding LogRepacksScanner}"
+                                             ToolTip.Tip="Also print every repack title found on each drive"/>
+                                <ToggleSwitch Grid.Column="2"
+                                             IsChecked="{Binding LogRepacksScanner}"
+                                             OffContent="" OnContent=""
+                                             VerticalAlignment="Center"
+                                             Margin="16,0,0,0"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <!-- Local Steam Scanner -->
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Local Steam Scanner"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Logs each Steam library path scanned (ACF manifests + common folder)."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                             IsChecked="{Binding LogLocalSteamScanner}"
+                                             OffContent="" OnContent=""
+                                             VerticalAlignment="Center"
+                                             Margin="16,0,0,0"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <!-- Steam API Scanner -->
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Steam API Scanner"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Logs Steam Web API import requests and results."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                             IsChecked="{Binding LogSteamApiScanner}"
+                                             OffContent="" OnContent=""
+                                             VerticalAlignment="Center"
+                                             Margin="16,0,0,0"/>
+                            </Grid>
+
+                        </StackPanel>
+                    </Border>
+
                     <!-- Feature Flags card -->
                     <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,24">
                         <StackPanel Spacing="16">

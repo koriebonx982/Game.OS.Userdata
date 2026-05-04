@@ -1434,9 +1434,75 @@ namespace GameLauncher.Services
         // ── Steam game contribution to public Games.Database ─────────────────
 
         /// <summary>
+        /// Triggers the <c>add-user-steam-games</c> workflow in this repository via
+        /// the GitHub Actions <c>workflow_dispatch</c> API so new Steam games are added
+        /// to the Games.Database in a serialised, conflict-free way by the CI runner.
+        /// Falls back gracefully (logs the failure) if the token is absent or the
+        /// workflow is not available.
+        /// </summary>
+        public async Task TriggerAddGamesWorkflowAsync(
+            IReadOnlyList<SteamOwnedGame> newGames, CancellationToken ct = default)
+        {
+            if (newGames.Count == 0 || GitHubToken == null) return;
+
+            // Build a compact array of {title, appid} objects for the workflow input
+            var gamesPayload = newGames.Select(g => new { title = g.Name, appid = g.AppId }).ToList();
+            string gamesJson = System.Text.Json.JsonSerializer.Serialize(gamesPayload,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = false });
+
+            // Truncate to GitHub's 65 536-byte workflow input limit (each entry ~40 bytes)
+            // by capping at 1 000 games; typical API response is well under this limit.
+            if (gamesJson.Length > 60_000)
+            {
+                gamesPayload = gamesPayload.Take(1_000).ToList();
+                gamesJson = System.Text.Json.JsonSerializer.Serialize(gamesPayload,
+                    new System.Text.Json.JsonSerializerOptions { WriteIndented = false });
+            }
+
+            // POST /repos/{owner}/{repo}/actions/workflows/{workflow_file}/dispatches
+            string url = $"https://api.github.com/repos/{DataRepoOwner}/Game.OS.Userdata" +
+                         "/actions/workflows/add-user-steam-games.yml/dispatches";
+
+            var payload = new
+            {
+                @ref   = "main",
+                inputs = new { games_json = gamesJson },
+            };
+
+            try
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Post, url)
+                {
+                    Content = JsonContent.Create(payload),
+                };
+                req.Headers.Authorization =
+                    new AuthenticationHeaderValue("Bearer", GitHubToken);
+                req.Headers.Accept.ParseAdd("application/vnd.github+json");
+                req.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
+
+                using var resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+                if (resp.IsSuccessStatusCode)
+                    DevLogService.Log(
+                        $"[GamesDB] Triggered add-user-steam-games workflow for {newGames.Count} game(s).");
+                else
+                {
+                    string err = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                    DevLogService.Log(
+                        $"[GamesDB] Workflow dispatch returned {(int)resp.StatusCode}: {err}");
+                }
+            }
+            catch (Exception ex)
+            {
+                DevLogService.Log($"[GamesDB] TriggerAddGamesWorkflowAsync failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
         /// Contributes new Steam PC games to the public Games.Database <c>PC.Games.json</c>
         /// when they are not already present (checked by AppId and title).
-        /// Reads the existing file, appends missing entries, and writes back in one operation.
+        /// First attempts to trigger the <c>add-user-steam-games</c> GitHub Actions workflow
+        /// (serialised, conflict-free); falls back to a direct file update when the token
+        /// does not have Actions: Write permission (e.g. a read-only token).
         /// Best-effort: failures are logged but never thrown to the caller.
         /// </summary>
         public async Task ContributeSteamGamesToDatabaseAsync(
@@ -1470,6 +1536,27 @@ namespace GameLauncher.Services
 
             if (toContribute.Count == 0) return;
 
+            // ── Preferred path: trigger the CI workflow (serialised, conflict-free) ──
+            // The workflow accepts a JSON list of {title, appid} objects and does the
+            // read-modify-write inside a GitHub Actions runner, avoiding race conditions
+            // between concurrent launcher instances.
+            bool workflowTriggered = false;
+            if (GitHubToken != null)
+            {
+                try
+                {
+                    await TriggerAddGamesWorkflowAsync(toContribute, ct).ConfigureAwait(false);
+                    workflowTriggered = true;
+                    DevLogService.Log(
+                        $"[GamesDB] Dispatched workflow for {toContribute.Count} new game(s) " +
+                        "— skipping direct write.");
+                }
+                catch { /* fall through to direct write below */ }
+            }
+
+            if (workflowTriggered) return;
+
+            // ── Fallback: direct file update (read-modify-write against GitHub Contents API) ──
             const string filePath = "PC.Games.json";
             string? rawJson = null;
             string? sha = null;

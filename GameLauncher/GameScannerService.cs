@@ -31,6 +31,14 @@ public sealed class GameScannerService : IDisposable
     private readonly List<FileSystemWatcher>  _watchers= new();
     private readonly SemaphoreSlim            _lock    = new(1, 1);
     private CancellationTokenSource?          _debounceCts;
+    // Lifetime CTS — cancelled in Dispose() to stop the periodic rescan loop.
+    private readonly CancellationTokenSource  _lifetimeCts = new();
+    // Task returned by PeriodicRescanAsync — stored so Dispose can wait for it.
+    private Task?                             _periodicTask;
+
+    // How often the background timer rescans all drives.  Two minutes is short
+    // enough to notice a freshly-mounted USB drive without hammering the disk.
+    private static readonly TimeSpan PeriodicInterval = TimeSpan.FromMinutes(2);
 
     // ── Cache paths ───────────────────────────────────────────────────────────
     private static readonly string CacheDir  = Path.Combine(
@@ -50,33 +58,89 @@ public sealed class GameScannerService : IDisposable
     // ─────────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Performs an initial scan (with cache fallback) and starts background watchers.
+    /// Performs an initial scan (with cache fallback), starts background watchers,
+    /// and kicks off a periodic background rescan to detect newly mounted drives.
     /// </summary>
     public async Task StartAsync(CancellationToken ct = default)
     {
-        DevLogService.Log("[Scanner] StartAsync — beginning scan.");
-        // Try loading from cache first for faster startup
-        if (TryLoadCache())
+        try
         {
-            DevLogService.Log($"[Scanner] Cache loaded: {_games.Count} games, {_repacks.Count} repacks, {_roms.Count} ROMs.");
-            GamesUpdated?.Invoke(new List<LocalGame>(_games));
-            RepacksUpdated?.Invoke(new List<LocalRepack>(_repacks));
-            RomsUpdated?.Invoke(new List<LocalRom>(_roms));
-        }
-        else
-        {
-            DevLogService.Log("[Scanner] No cache found — starting fresh scan.");
-        }
+            DevLogService.Log("[Scanner] StartAsync — beginning scan.");
+            // Try loading from cache first for faster startup
+            if (TryLoadCache())
+            {
+                DevLogService.Log($"[Scanner] Cache loaded: {_games.Count} games, {_repacks.Count} repacks, {_roms.Count} ROMs.");
+                GamesUpdated?.Invoke(new List<LocalGame>(_games));
+                RepacksUpdated?.Invoke(new List<LocalRepack>(_repacks));
+                RomsUpdated?.Invoke(new List<LocalRom>(_roms));
+            }
+            else
+            {
+                DevLogService.Log("[Scanner] No cache found — starting fresh scan.");
+            }
 
-        // Always do a fresh scan to stay current
-        await ScanAllDrivesAsync(ct);
-        StartWatchers();
+            // Always do a fresh scan to stay current
+            await ScanAllDrivesAsync(ct);
+            StartWatchers();
+
+            // Kick off the periodic rescan loop (uses the lifetime CTS so it stops on Dispose).
+            _periodicTask = PeriodicRescanAsync(_lifetimeCts.Token);
+        }
+        catch (OperationCanceledException) { /* shutdown */ }
+        catch (Exception ex)
+        {
+            DevLogService.Log($"[Scanner] StartAsync failed: {ex.Message}");
+        }
     }
 
     /// <summary>Re-scans all drives on demand.</summary>
     public async Task RescanAsync(CancellationToken ct = default)
     {
         await ScanAllDrivesAsync(ct);
+    }
+
+    /// <summary>
+    /// Background loop that rescans all drives every <see cref="PeriodicInterval"/> so
+    /// that drives mounted after startup (e.g. USB sticks or newly shared folders) are
+    /// discovered automatically without requiring the user to restart the app.
+    /// Also refreshes file-system watchers so any new game/repack/ROM directories are
+    /// monitored for live changes.
+    /// <para>
+    /// The loop is sequential: the <see cref="PeriodicInterval"/> delay begins AFTER
+    /// the previous scan completes, so concurrent scans never accumulate.
+    /// </para>
+    /// </summary>
+    private async Task PeriodicRescanAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(PeriodicInterval, ct).ConfigureAwait(false);
+                    DevLogService.Log("[Scanner] Periodic rescan triggered.");
+                    await ScanAllDrivesAsync(ct).ConfigureAwait(false);
+                    // Re-create watchers so any directories that now exist (but didn't at
+                    // startup) are monitored for live file-system changes.
+                    StartWatchers();
+                }
+                catch (OperationCanceledException)
+                {
+                    // Intentional shutdown via Dispose() — return cleanly without logging
+                    // "terminated unexpectedly", which is reserved for genuine errors.
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    DevLogService.Log($"[Scanner] Periodic rescan error: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            DevLogService.Log($"[Scanner] PeriodicRescanAsync terminated unexpectedly: {ex.Message}");
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -88,28 +152,76 @@ public sealed class GameScannerService : IDisposable
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            foreach (var drive in DriveInfo.GetDrives())
-                if (drive.IsReady)
+            DriveInfo[] drives;
+            try { drives = DriveInfo.GetDrives(); }
+            catch { yield break; }
+
+            foreach (var drive in drives)
+            {
+                bool isReady = false;
+                try { isReady = drive.IsReady; } catch { }
+                if (isReady)
                     yield return drive.RootDirectory.FullName; // e.g. C:\
+            }
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
             // macOS: volumes live under /Volumes
             yield return "/";
             if (Directory.Exists("/Volumes"))
-                foreach (var v in Directory.EnumerateDirectories("/Volumes"))
+            {
+                IEnumerable<string> volumes;
+                try { volumes = Directory.EnumerateDirectories("/Volumes"); }
+                catch { yield break; }
+                foreach (var v in volumes)
                     yield return v;
+            }
         }
         else
         {
-            // Linux: /mnt, /media, and home directory
+            // Linux: root, /mnt, /media, and home directory.
             yield return "/";
-            foreach (var mountRoot in new[] { "/mnt", "/media" })
-                if (Directory.Exists(mountRoot))
-                    foreach (var sub in Directory.EnumerateDirectories(mountRoot))
-                        yield return sub;
 
-            // Also scan user-level subdirs under /media/<username>
+            foreach (var mountRoot in new[] { "/mnt", "/media" })
+            {
+                if (!Directory.Exists(mountRoot)) continue;
+
+                IEnumerable<string> level1;
+                try
+                {
+                    // ToList() forces eager evaluation so the directory access (and any
+                    // resulting exception) happens inside this try block, not lazily
+                    // inside the foreach below.
+                    level1 = Directory.EnumerateDirectories(mountRoot).ToList();
+                }
+                catch (UnauthorizedAccessException) { continue; }
+                catch (IOException) { continue; }
+
+                foreach (var sub in level1)
+                {
+                    yield return sub; // e.g. /mnt/disk1 or /media/username
+
+                    // On Ubuntu/Debian removable drives are mounted at
+                    // /media/<username>/<label> (two levels deep), so we must
+                    // descend one extra level for /media/* entries.
+                    if (!string.Equals(mountRoot, "/media", StringComparison.Ordinal))
+                        continue;
+
+                    IEnumerable<string> level2;
+                    try
+                    {
+                        // Same eager-evaluation rationale as level1 above.
+                        level2 = Directory.EnumerateDirectories(sub).ToList();
+                    }
+                    catch (UnauthorizedAccessException) { continue; }
+                    catch (IOException) { continue; }
+
+                    foreach (var sub2 in level2)
+                        yield return sub2; // e.g. /media/username/MyUSBDrive
+                }
+            }
+
+            // Also include the user's home directory so ~/Games etc. are found.
             string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             if (!string.IsNullOrEmpty(home) && Directory.Exists(home))
                 yield return home;
@@ -137,6 +249,37 @@ public sealed class GameScannerService : IDisposable
                 ScanStorefrontDirs(driveRoot, foundGamesRaw);
                 ScanRepacksDir(driveRoot, foundRepacks);
                 ScanRomsDir(driveRoot, foundRomsRaw);
+            }
+
+            // ── Normalize abbreviated folder names found in Games/ directories ──
+            // Steam uses short install-directory names (e.g. "LHPCR" for
+            // "LEGO® Harry Potter™ Collection") that differ from the game's
+            // display name.  ACF manifest scanning (ScanSteamAcfManifests) runs
+            // alongside ScanGamesDir and records the proper name for each
+            // installdir.  Build a folder-name → proper-title lookup from those
+            // ACF-discovered entries (Source = "Steam") and apply it to any
+            // Games/-folder entries (Source = "Local") whose title matches a raw
+            // Steam install directory name.
+            var steamNameByFolder = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var g in foundGamesRaw)
+            {
+                if (g.Source != "Steam" || string.IsNullOrEmpty(g.FolderPath)) continue;
+                string folderKey = Path.GetFileName(g.FolderPath);
+                if (!steamNameByFolder.ContainsKey(folderKey))
+                    steamNameByFolder[folderKey] = g.Title;
+            }
+
+            foreach (var g in foundGamesRaw)
+            {
+                if (g.Source != "Local" || string.IsNullOrEmpty(g.FolderPath)) continue;
+                string folderName = Path.GetFileName(g.FolderPath);
+                if (steamNameByFolder.TryGetValue(folderName, out var properName) &&
+                    !string.Equals(g.Title, properName, StringComparison.OrdinalIgnoreCase))
+                {
+                    DevLogService.Log(
+                        $"[Scanner] Normalized local game title: \"{g.Title}\" → \"{properName}\"");
+                    g.Title = properName;
+                }
             }
         }, ct);
 
@@ -219,10 +362,14 @@ public sealed class GameScannerService : IDisposable
         string gamesPath = Path.Combine(driveRoot, "Games");
         if (!Directory.Exists(gamesPath)) return;
 
+        int beforeCount = results.Count;
+        int folderCount = 0;
+
         try
         {
             foreach (var gameFolder in Directory.EnumerateDirectories(gamesPath))
             {
+                folderCount++;
                 // Try top-level first, then fall back to two levels deep for games
                 // whose main executable is inside a sub-directory (e.g. Binaries/Win64/).
                 var exe = FindExecutable(gameFolder)
@@ -242,10 +389,17 @@ public sealed class GameScannerService : IDisposable
                     DriveRoot      = driveRoot,
                     Source         = "Local",
                 });
+
+                DevLogService.LogGamesAdvanced($"[Games] Found: \"{title}\" ({gameFolder})");
             }
         }
         catch (UnauthorizedAccessException) { }
         catch (IOException) { }
+
+        int found = results.Count - beforeCount;
+        DevLogService.LogGames(
+            $"[Games] Drive \"{driveRoot}\" — path: \"{gamesPath}\" | " +
+            $"Total Folders: {folderCount}, Games Found: {found}");
     }
 
     /// <summary>
@@ -281,6 +435,7 @@ public sealed class GameScannerService : IDisposable
                             string source = "Local")
         {
             if (!Directory.Exists(path)) return;
+            int beforeCount = results.Count;
             try
             {
                 // Pre-build the existing folder-path set (O(n)) so each per-folder
@@ -314,6 +469,10 @@ public sealed class GameScannerService : IDisposable
             }
             catch (UnauthorizedAccessException) { }
             catch (IOException) { }
+            int added = results.Count - beforeCount;
+            if (added > 0)
+                DevLogService.LogLocalSteam(
+                    $"[LocalSteam/{source}] Dir \"{path}\" — {added} game(s) added via folder scan");
         }
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -572,6 +731,9 @@ public sealed class GameScannerService : IDisposable
         string commonDir = Path.Combine(steamAppsDir, "common");
         if (!Directory.Exists(commonDir)) return;
 
+        DevLogService.LogLocalSteam($"[LocalSteam/ACF] Scanning \"{steamAppsDir}\"");
+        int beforeCount = results.Count;
+
         try
         {
             foreach (var acfFile in Directory.EnumerateFiles(steamAppsDir, "appmanifest_*.acf"))
@@ -625,6 +787,10 @@ public sealed class GameScannerService : IDisposable
         }
         catch (UnauthorizedAccessException) { }
         catch (IOException) { }
+
+        int added = results.Count - beforeCount;
+        DevLogService.LogLocalSteam(
+            $"[LocalSteam/ACF] \"{steamAppsDir}\" — {added} game(s) added from ACF manifests");
     }
 
     /// <summary>
@@ -1356,7 +1522,12 @@ public sealed class GameScannerService : IDisposable
         _ = Task.Delay(500, cts.Token).ContinueWith(async t =>
         {
             if (t.IsCanceled) return;
-            try { await ScanAllDrivesAsync(CancellationToken.None); }
+            try
+            {
+                await ScanAllDrivesAsync(CancellationToken.None);
+                // Refresh watchers so any new subdirectories are also monitored.
+                StartWatchers();
+            }
             catch { }
         }, TaskScheduler.Default);
     }
@@ -1418,6 +1589,13 @@ public sealed class GameScannerService : IDisposable
     public void Dispose()
     {
         DisposeWatchers();
+        _lifetimeCts.Cancel();
+        // Give the periodic task a brief window to observe the cancellation and exit.
+        // We use Wait(timeout) rather than GetAwaiter().GetResult() to avoid an
+        // indefinite block; PeriodicRescanAsync uses ConfigureAwait(false) so it is
+        // not tied to the UI thread and should exit promptly once the token is cancelled.
+        try { _periodicTask?.Wait(TimeSpan.FromMilliseconds(200)); } catch { }
+        _lifetimeCts.Dispose();
         _debounceCts?.Cancel();
         _debounceCts?.Dispose();
         _lock.Dispose();
