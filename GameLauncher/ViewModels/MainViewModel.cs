@@ -867,15 +867,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                         {
                             DevLogService.Log($"[Steam Auto-Sync] Added {added} new Steam games to library.");
 
-                            // Trigger workflow to add new games to the public Games.Database
-                            var newSteamGames = steamGames
-                                .Where(sg => !_library
-                                    .Any(g => (g.SteamAppId.HasValue && g.SteamAppId == sg.AppId) &&
-                                              g.SteamAppId > 0))
-                                .ToList();
-                            if (newSteamGames.Count == 0)
-                                newSteamGames = steamGames.Take(added).ToList();
-
+                            // Trigger workflow to add new Steam games to the public Games.Database.
+                            // ContributeSteamGamesToDatabaseAsync filters to truly new games internally.
                             _ = Task.Run(async () =>
                             {
                                 try

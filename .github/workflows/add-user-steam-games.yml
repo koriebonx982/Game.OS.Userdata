@@ -229,7 +229,7 @@ jobs:
                   'message':   commit_msg,
                   'tree':      new_tree['sha'],
                   'parents':   [current_sha],
-                  'committer': {'name': 'Game.OS Bot', 'email': 'bot@gameos.local'},
+                  'committer': {'name': 'Game.OS Admin', 'email': 'admin@gameos.local'},
               })
               git_request(f'{git_api}/git/refs/heads/main', 'PATCH',
                           {'sha': new_commit['sha']})
@@ -268,7 +268,7 @@ jobs:
               stub_payload = {
                   'message': f'Add achievements stub for {g["Title"]} (AppId {g["appid"]})',
                   'content': stub_b64,
-                  'committer': {'name': 'Game.OS Bot', 'email': 'bot@gameos.local'},
+                  'committer': {'name': 'Game.OS Admin', 'email': 'admin@gameos.local'},
               }
               try:
                   create_req = urllib.request.Request(
