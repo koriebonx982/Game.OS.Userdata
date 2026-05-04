@@ -467,21 +467,69 @@ public partial class GameDetailViewModel : ViewModelBase
 
         // ── Populate exe dropdown with detected executables in the game folder ──
         AvailableExePaths.Clear();
-        const int MaxExeFileSearchResults = 20;
+        const int MaxExeFileSearchResults = 50;
         if (!string.IsNullOrEmpty(SettingsExePath))
             AvailableExePaths.Add(SettingsExePath);
         if (_driveInstances.Count > 0)
         {
-            var folderPath = _driveInstances[0].FolderPath;
-            if (!string.IsNullOrEmpty(folderPath) && System.IO.Directory.Exists(folderPath))
+            // Search all drive instances, not just the first one
+            foreach (var driveInst in _driveInstances)
             {
-                foreach (var exe in System.IO.Directory.EnumerateFiles(folderPath, "*.exe")
-                             .Concat(System.IO.Directory.EnumerateFiles(folderPath, "*.bat"))
-                             .Take(MaxExeFileSearchResults))
+                var folderPath = driveInst.FolderPath;
+                if (string.IsNullOrEmpty(folderPath) || !System.IO.Directory.Exists(folderPath))
+                    continue;
+                try
                 {
-                    if (!AvailableExePaths.Contains(exe))
-                        AvailableExePaths.Add(exe);
+                    // Phase 1: scan top-level directory first (fast)
+                    var topLevel = System.IO.Directory
+                        .EnumerateFiles(folderPath, "*.exe", System.IO.SearchOption.TopDirectoryOnly)
+                        .Concat(System.IO.Directory.EnumerateFiles(folderPath, "*.bat",
+                            System.IO.SearchOption.TopDirectoryOnly));
+
+                    // Phase 2: scan one level of subdirectories (common for Steam/Rockstar launchers)
+                    var oneLevelDeep = System.IO.Directory
+                        .EnumerateDirectories(folderPath, "*", System.IO.SearchOption.TopDirectoryOnly)
+                        .SelectMany(sub =>
+                        {
+                            try
+                            {
+                                return System.IO.Directory
+                                    .EnumerateFiles(sub, "*.exe", System.IO.SearchOption.TopDirectoryOnly)
+                                    .Concat(System.IO.Directory.EnumerateFiles(sub, "*.bat",
+                                        System.IO.SearchOption.TopDirectoryOnly));
+                            }
+                            catch { return System.Linq.Enumerable.Empty<string>(); }
+                        });
+
+                    var exeFiles = topLevel
+                        .Concat(oneLevelDeep)
+                        .Where(f =>
+                        {
+                            string fname = System.IO.Path.GetFileNameWithoutExtension(f)
+                                               .ToLowerInvariant();
+                            return !fname.Contains("unins") &&
+                                   !fname.Contains("setup") &&
+                                   !fname.StartsWith("vc_") &&
+                                   !fname.Contains("vcredist") &&
+                                   !fname.Contains("directx") &&
+                                   !fname.Contains("dxsetup") &&
+                                   !fname.Contains("dotnet") &&
+                                   !fname.Contains("uninst") &&
+                                   !fname.Contains("install") &&
+                                   !fname.Contains("redist") &&
+                                   !fname.Contains("crashreport") &&
+                                   !fname.Contains("crashpad") &&
+                                   !fname.Contains("cef_") &&
+                                   !fname.EndsWith("_reg");
+                        });
+
+                    foreach (var exe in exeFiles.Take(MaxExeFileSearchResults))
+                    {
+                        if (!AvailableExePaths.Contains(exe))
+                            AvailableExePaths.Add(exe);
+                    }
                 }
+                catch { /* skip inaccessible folders */ }
             }
         }
 
@@ -1923,11 +1971,7 @@ public partial class GameDetailViewModel : ViewModelBase
         if (!HasAchievements && !string.IsNullOrEmpty(game.AchievementsUrl))
             _ = FetchAndDisplayAchievementsAsync(game.AchievementsUrl);
 
-        PopulatePlaytime(game.Platform, game.Title);
-        ApplyInstallState(localGame, repack, localRom);
-        // LoadSwitchMods is intentionally called for all platforms: it sets IsSwitch = false
-        // for non-Switch games (clearing stale state from a previously viewed Switch game)
-        // and returns immediately without file system operations.
+        PopulatePlaytime(game.Platform, game.Title, game.PlaytimeMinutes);
         LoadSwitchMods();
         _steamAppId = 0;
 
@@ -1997,7 +2041,7 @@ public partial class GameDetailViewModel : ViewModelBase
     // Populate from a locally detected LocalGame
     // ─────────────────────────────────────────────────────────────────────────
 
-    public void LoadFromLocalGame(LocalGame game)
+    public void LoadFromLocalGame(LocalGame game, int externalMinutes = 0)
     {
         ShowSettings    = false;
         ShowModsPanel   = false;
@@ -2057,7 +2101,7 @@ public partial class GameDetailViewModel : ViewModelBase
         HasMultipleDrives  = _driveInstances.Count > 1;
         SelectedDriveIndex = 0;
         RefreshActiveDrive();
-        PopulatePlaytime("PC", game.Title);
+        PopulatePlaytime("PC", game.Title, externalMinutes);
         _steamAppId = game.SteamAppId;
 
         // For locally-installed Steam games, show the Steam store page link
@@ -2498,10 +2542,16 @@ public partial class GameDetailViewModel : ViewModelBase
         HasScreenshots = Screenshots.Count > 0;
     }
 
-    /// <summary>Loads per-game playtime from the PlaytimeService and updates the display label.</summary>
-    private void PopulatePlaytime(string platform, string title)
+    /// <summary>
+    /// Loads per-game playtime and updates the display label.
+    /// Takes the maximum of locally-stored sessions and <paramref name="externalMinutes"/>
+    /// (e.g. Steam API playtime) so the displayed value is never lower than what the
+    /// external source reports even before a MergeExternalMinutes write completes.
+    /// </summary>
+    private void PopulatePlaytime(string platform, string title, int externalMinutes = 0)
     {
-        int minutes = PlaytimeService.GetTotalMinutes(platform, title);
+        int localMinutes = PlaytimeService.GetTotalMinutes(platform, title);
+        int minutes = Math.Max(localMinutes, externalMinutes);
         if (minutes <= 0)
         {
             PlaytimeLabel = "";

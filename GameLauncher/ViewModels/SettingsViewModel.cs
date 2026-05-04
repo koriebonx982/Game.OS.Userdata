@@ -137,14 +137,19 @@ public partial class SettingsViewModel : ViewModelBase
     /// <summary>
     /// Fires one of each toast notification type with dummy data so the developer
     /// can verify that toasts appear correctly without running a real game session.
+    /// Notifications are staggered by 400 ms so Windows does not throttle them.
     /// </summary>
     [RelayCommand]
-    private void TestToastNotifications()
+    private async System.Threading.Tasks.Task TestToastNotifications()
     {
-        Services.NotificationService.ShowFriendOnlineNotification("TestFriend");
         Services.NotificationService.ShowAchievementUnlockedNotification("Test Achievement", "Test Game");
+        await System.Threading.Tasks.Task.Delay(400);
+        Services.NotificationService.ShowFriendOnlineNotification("TestFriend");
+        await System.Threading.Tasks.Task.Delay(400);
         Services.NotificationService.ShowGameSessionStartedNotification("Test Game");
+        await System.Threading.Tasks.Task.Delay(400);
         Services.NotificationService.ShowSessionEndedNotification("Test Game", 42);
+        await System.Threading.Tasks.Task.Delay(400);
         Services.NotificationService.ShowMessageNotification("TestFriend", "Hello from Game.OS!");
     }
 

@@ -155,6 +155,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public bool IsProfile     => ActivePage == "profile";
     public bool IsFriends     => ActivePage == "friends";
     public bool IsSettings    => ActivePage == "settings";
+    /// <summary>True when the Inbox page is active.</summary>
+    public bool IsInbox       => ActivePage == "inbox";
+    /// <summary>True when the Friends or Inbox page is active (both show FriendsView).</summary>
+    public bool IsFriendsOrInbox => ActivePage == "friends" || ActivePage == "inbox";
 
     partial void OnActivePageChanged(string value)
     {
@@ -164,6 +168,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsProfile));
         OnPropertyChanged(nameof(IsFriends));
         OnPropertyChanged(nameof(IsSettings));
+        OnPropertyChanged(nameof(IsInbox));
+        OnPropertyChanged(nameof(IsFriendsOrInbox));
     }
 
     public MainViewModel()
@@ -655,6 +661,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                             sg.PlaytimeMinutes, _library);
                 }
 
+                // Sync Steam achievements for played games with community stats.
+                // Fetches unlocked achievements and uploads them to the cloud so
+                // the detail view shows which achievements the user has earned.
+                if (importSettings.EnableAchievementAutoSync &&
+                    !string.IsNullOrWhiteSpace(steamUserId) &&
+                    !string.IsNullOrWhiteSpace(apiKey))
+                {
+                    _ = SyncSteamAchievementsAsync(apiKey, steamUserId,
+                            steamGames.Where(g => g.HasCommunityStats && g.PlaytimeMinutes > 0)
+                                      .ToList());
+                }
+
                 // Refresh the library view with the updated data
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
@@ -799,6 +817,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                         foreach (var sg in steamGames.Where(g => g.PlaytimeMinutes > 0))
                             Services.PlaytimeService.MergeExternalMinutes("PC", sg.Name,
                                 sg.PlaytimeMinutes, _library);
+                    }
+
+                    // Auto-sync Steam achievements in background on login
+                    if (settings.EnableAchievementAutoSync)
+                    {
+                        _ = SyncSteamAchievementsAsync(settings.SteamApiKey, settings.SteamUserId,
+                                steamGames.Where(g => g.HasCommunityStats && g.PlaytimeMinutes > 0)
+                                          .ToList());
                     }
 
                     if (added > 0)
@@ -1123,7 +1149,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ActivePage = page;
         if (page == "library")
             LibraryVm.Load(_library);
-        if (page == "friends")
+        if (page == "friends" || page == "inbox")
             FriendsVm.Load(_client, _profile.Username);
         if (page == "profile")
             ProfileVm.Load(_profile, _library, _achievements, _client.IsAdmin);
@@ -1282,8 +1308,23 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void OpenDetailFromLocalGame(LocalGame game)
     {
+        // Look up the matching cloud library entry to use its accumulated playtime
+        // (which includes Steam API data) as a floor. This ensures the detail view
+        // shows the correct playtime even when the local folder name differs from the
+        // Steam API title (e.g. "Call of Duty Black Ops III" vs "Call of Duty: Black Ops III").
+        int cloudPlaytime = 0;
+        var cloudGame = game.SteamAppId > 0
+            ? _library.FirstOrDefault(g => g.SteamAppId == game.SteamAppId)
+              ?? _library.FirstOrDefault(g =>
+                    string.Equals(g.Title, game.Title, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(g.Platform, "PC", StringComparison.OrdinalIgnoreCase))
+            : _library.FirstOrDefault(g =>
+                    string.Equals(g.Title, game.Title, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(g.Platform, "PC", StringComparison.OrdinalIgnoreCase));
+        cloudPlaytime = cloudGame?.PlaytimeMinutes ?? 0;
+
         // Show basic info immediately so the UI is responsive
-        DetailVm.LoadFromLocalGame(game);
+        DetailVm.LoadFromLocalGame(game, cloudPlaytime);
         ShowDetail = true;
 
         // Asynchronously enrich with cover/description/trailer from Games.Database
@@ -1340,7 +1381,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // Load the detail VM in background (no ShowDetail = true) then trigger launch.
         if (card.SourceGame != null)
         {
-            DetailVm.LoadFromLocalGame(card.SourceGame);
+            int cloudPlaytime = _library.FirstOrDefault(g =>
+                (card.SourceGame.SteamAppId > 0 && g.SteamAppId == card.SourceGame.SteamAppId) ||
+                (string.Equals(g.Title, card.SourceGame.Title, StringComparison.OrdinalIgnoreCase) &&
+                 string.Equals(g.Platform, "PC", StringComparison.OrdinalIgnoreCase)))
+                ?.PlaytimeMinutes ?? 0;
+            DetailVm.LoadFromLocalGame(card.SourceGame, cloudPlaytime);
         }
         else if (card.SourceRom != null)
         {
@@ -2163,6 +2209,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // on this device before going offline are not lost when the library reloads.
             PlaytimeService.ApplyStoredPlaytime(games);
 
+            // Re-apply Steam cached games so they are never lost on reconnect.
+            ReapplySteamCachedGames(games);
+
             // Update in-memory state and save fresh cache on UI thread
             var capturedProfile = profile;
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
@@ -2369,6 +2418,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 // every time the periodic sync refreshes the library list).
                 PlaytimeService.ApplyStoredPlaytime(games);
 
+                // Re-apply Steam cached games so they are never lost when the cloud library
+                // is refreshed (Steam-only titles are not stored in the cloud games.json).
+                ReapplySteamCachedGames(games);
+
                 _library      = games;
                 _achievements = achievements;
 
@@ -2442,6 +2495,55 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             StringComparer.Ordinal);
         return b.All(g => aSet.Contains(
             $"{g.Platform?.ToLowerInvariant()}|{g.Title?.ToLowerInvariant()}"));
+    }
+
+    /// <summary>
+    /// Re-applies Steam-cached games (from SteamGames.json) into the given list.
+    /// Called after every library replacement so Steam-only titles (not in the cloud
+    /// games.json) are never silently dropped when the periodic sync replaces
+    /// <c>_library</c> with a fresh cloud fetch.  Uses the maximum of the already-stored
+    /// playtime and the cached Steam playtime to avoid double-counting.
+    /// </summary>
+    private void ReapplySteamCachedGames(List<Models.Game> library)
+    {
+        try
+        {
+            var cached = Services.SteamGameImportService.LoadCached(_profile?.Username ?? "");
+            if (cached.Count == 0) return;
+
+            var existingTitles = new System.Collections.Generic.HashSet<string>(
+                library.Select(g => g.Title), StringComparer.OrdinalIgnoreCase);
+            var libraryByTitle = library
+                .GroupBy(g => g.Title, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(grp => grp.Key, grp => grp.First(), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var sg in cached)
+            {
+                if (!existingTitles.Contains(sg.Name))
+                {
+                    library.Add(new Models.Game
+                    {
+                        Platform        = "PC",
+                        Title           = sg.Name,
+                        CoverUrl        = sg.CoverUrl,
+                        AddedAt         = DateTime.UtcNow.ToString("O"),
+                        PlaytimeMinutes = sg.PlaytimeMinutes,
+                        TitleId         = $"steam:{sg.AppId}",
+                        SteamAppId      = sg.AppId,
+                    });
+                    existingTitles.Add(sg.Name);
+                }
+                else if (libraryByTitle.TryGetValue(sg.Name, out var existing))
+                {
+                    // Stamp SteamAppId and ensure playtime is the maximum
+                    if (existing.SteamAppId == null)
+                        existing.SteamAppId = sg.AppId;
+                    if (sg.PlaytimeMinutes > existing.PlaytimeMinutes)
+                        existing.PlaytimeMinutes = sg.PlaytimeMinutes;
+                }
+            }
+        }
+        catch { /* best-effort — Steam cache re-apply failure must not block sync */ }
     }
 
     /// <summary>
@@ -2527,8 +2629,103 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
+    /// Fetches unlocked Steam achievements for the given list of games and syncs them
+    /// to the Game OS cloud achievement store.  Only achievements not already present
+    /// in <c>_achievements</c> are uploaded to avoid duplicate entries.
+    /// Limited to 40 games per call to keep the sync time reasonable.
+    /// </summary>
+    private async Task SyncSteamAchievementsAsync(
+        string apiKey, string steamUserId, List<Services.SteamOwnedGame> games)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(steamUserId)) return;
+
+        // Build a set of already-known unlocked keys so we skip duplicates
+        var known = new HashSet<string>(
+            _achievements
+                .Where(a => !string.IsNullOrEmpty(a.UnlockedAt))
+                .Select(a => $"pc|{a.GameTitle?.ToLowerInvariant()}|{a.AchievementId?.ToLowerInvariant()}"),
+            StringComparer.Ordinal);
+
+        // Limit concurrent requests — process up to 40 games per sync
+        const int MaxGames = 40;
+        int processed = 0;
+
+        foreach (var sg in games)
+        {
+            if (processed >= MaxGames) break;
+            processed++;
+
+            try
+            {
+                var unlocked = await Services.SteamGameImportService
+                    .FetchPlayerAchievementsAsync(apiKey, steamUserId, sg.AppId)
+                    .ConfigureAwait(false);
+
+                if (unlocked.Count == 0) continue;
+
+                // Find the titleId for this game in the library
+                string? titleId = _library.FirstOrDefault(g =>
+                    g.SteamAppId == sg.AppId ||
+                    string.Equals(g.Title, sg.Name, StringComparison.OrdinalIgnoreCase))
+                    ?.TitleId;
+
+                foreach (var ach in unlocked)
+                {
+                    string key = $"pc|{sg.Name.ToLowerInvariant()}|{ach.ApiName.ToLowerInvariant()}";
+                    if (known.Contains(key)) continue;
+
+                    string unlockedAt = ach.UnlockedAt != DateTime.MinValue
+                        ? ach.UnlockedAt.ToString("O")
+                        : DateTime.UtcNow.ToString("O");
+
+                    // Add to local in-memory list
+                    var achievement = new Models.Achievement
+                    {
+                        Platform      = "PC",
+                        GameTitle     = sg.Name,
+                        AchievementId = ach.ApiName,
+                        Name          = !string.IsNullOrWhiteSpace(ach.Name) ? ach.Name : ach.ApiName,
+                        Description   = ach.Description,
+                        UnlockedAt    = unlockedAt,
+                    };
+                    _achievements.Add(achievement);
+                    known.Add(key);
+
+                    // Log to cloud
+                    try
+                    {
+                        await _client.LogAchievementUnlockAsync(
+                            "PC", sg.Name, titleId,
+                            achievement.Name, null).ConfigureAwait(false);
+                    }
+                    catch { /* log failure must not stop the sync loop */ }
+                }
+
+                // Small delay between requests to avoid hitting Steam rate limits
+                await Task.Delay(200).ConfigureAwait(false);
+            }
+            catch { /* best-effort per game */ }
+        }
+
+        // Update in-memory game achievement lists so the library cards show the right count
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            foreach (var game in _library)
+            {
+                var gameAchs = _achievements
+                    .Where(a => string.Equals(a.Platform, "PC", StringComparison.OrdinalIgnoreCase) &&
+                                string.Equals(a.GameTitle, game.Title, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (gameAchs.Count > 0)
+                    game.GameAchievements = gameAchs;
+            }
+        });
+
+        DevLogService.Log($"[SteamAchievements] Synced achievements for {processed} Steam games.");
+    }
+
+    /// <summary>
     /// Background task: iterates all cloud library games and caches metadata + images
-    /// for any game not yet cached.  For games whose CoverUrl or AchievementsUrl are
     /// not yet populated on the in-memory object (e.g. because enrichment is still
     /// running in parallel), the task fetches the missing data directly from the
     /// Games.Database so all library games — including Switch ROMs — are fully cached.

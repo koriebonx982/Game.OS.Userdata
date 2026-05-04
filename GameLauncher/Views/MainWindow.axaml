@@ -54,7 +54,7 @@
                             <Border IsVisible="{Binding IsStore}">
                                 <views:StoreView DataContext="{Binding StoreVm}"/>
                             </Border>
-                            <Border IsVisible="{Binding IsFriends}">
+                            <Border IsVisible="{Binding IsFriendsOrInbox}">
                                 <views:FriendsView DataContext="{Binding FriendsVm}"/>
                             </Border>
                             <Border IsVisible="{Binding IsProfile}">
@@ -159,37 +159,37 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Sign out / Switch account / Exit App (Power section) -->
+                    <!-- Power menu: Sign Out / Switch Account / Exit App -->
                     <Button DockPanel.Dock="Bottom"
                             Classes="nav-item"
                             HorizontalAlignment="Stretch"
-                            Command="{Binding ExitAppCommand}"
-                            Margin="8,0,8,4">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <TextBlock Text="✕" FontSize="16" Foreground="#f85149"/>
-                            <TextBlock Text="Exit App" Foreground="#f85149"/>
-                        </StackPanel>
-                    </Button>
-
-                    <Button DockPanel.Dock="Bottom"
-                            Classes="nav-item"
-                            HorizontalAlignment="Stretch"
-                            Command="{Binding SignOutCommand}"
-                            Margin="8,0,8,4">
+                            Margin="8,0,8,8">
+                        <Button.Flyout>
+                            <MenuFlyout Placement="TopEdgeAlignedLeft">
+                                <MenuItem Header="Sign Out"
+                                          Command="{Binding SignOutCommand}">
+                                    <MenuItem.Icon>
+                                        <TextBlock Text="⏻" FontSize="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Header="Switch Account"
+                                          Command="{Binding SwitchAccountCommand}">
+                                    <MenuItem.Icon>
+                                        <TextBlock Text="⇄" FontSize="14"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <Separator/>
+                                <MenuItem Header="Exit App"
+                                          Command="{Binding ExitAppCommand}">
+                                    <MenuItem.Icon>
+                                        <TextBlock Text="✕" FontSize="14" Foreground="#f85149"/>
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                            </MenuFlyout>
+                        </Button.Flyout>
                         <StackPanel Orientation="Horizontal" Spacing="12">
                             <TextBlock Text="⏻" FontSize="16"/>
-                            <TextBlock Text="Sign Out"/>
-                        </StackPanel>
-                    </Button>
-
-                    <Button DockPanel.Dock="Bottom"
-                            Classes="nav-item"
-                            HorizontalAlignment="Stretch"
-                            Command="{Binding SwitchAccountCommand}"
-                            Margin="8,0,8,4">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <TextBlock Text="⇄" FontSize="16"/>
-                            <TextBlock Text="Switch Account"/>
+                            <TextBlock Text="Power"/>
                         </StackPanel>
                     </Button>
 
@@ -267,6 +267,17 @@
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <TextBlock Text="👥" FontSize="16"/>
                                 <TextBlock Text="Friends"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="nav-item"
+                                Classes.active="{Binding IsInbox}"
+                                HorizontalAlignment="Stretch"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="inbox">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="📬" FontSize="16"/>
+                                <TextBlock Text="Inbox"/>
                             </StackPanel>
                         </Button>
 
