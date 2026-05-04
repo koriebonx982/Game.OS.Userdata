@@ -33,6 +33,8 @@ public sealed class GameScannerService : IDisposable
     private CancellationTokenSource?          _debounceCts;
     // Lifetime CTS — cancelled in Dispose() to stop the periodic rescan loop.
     private readonly CancellationTokenSource  _lifetimeCts = new();
+    // Task returned by PeriodicRescanAsync — stored so Dispose can wait for it.
+    private Task?                             _periodicTask;
 
     // How often the background timer rescans all drives.  Two minutes is short
     // enough to notice a freshly-mounted USB drive without hammering the disk.
@@ -82,7 +84,7 @@ public sealed class GameScannerService : IDisposable
             StartWatchers();
 
             // Kick off the periodic rescan loop (uses the lifetime CTS so it stops on Dispose).
-            _ = PeriodicRescanAsync(_lifetimeCts.Token);
+            _periodicTask = PeriodicRescanAsync(_lifetimeCts.Token);
         }
         catch (OperationCanceledException) { /* shutdown */ }
         catch (Exception ex)
@@ -106,22 +108,29 @@ public sealed class GameScannerService : IDisposable
     /// </summary>
     private async Task PeriodicRescanAsync(CancellationToken ct)
     {
-        while (!ct.IsCancellationRequested)
+        try
         {
-            try
+            while (!ct.IsCancellationRequested)
             {
-                await Task.Delay(PeriodicInterval, ct).ConfigureAwait(false);
-                DevLogService.Log("[Scanner] Periodic rescan triggered.");
-                await ScanAllDrivesAsync(ct).ConfigureAwait(false);
-                // Re-create watchers so any directories that now exist (but didn't at
-                // startup) are monitored for live file-system changes.
-                StartWatchers();
+                try
+                {
+                    await Task.Delay(PeriodicInterval, ct).ConfigureAwait(false);
+                    DevLogService.Log("[Scanner] Periodic rescan triggered.");
+                    await ScanAllDrivesAsync(ct).ConfigureAwait(false);
+                    // Re-create watchers so any directories that now exist (but didn't at
+                    // startup) are monitored for live file-system changes.
+                    StartWatchers();
+                }
+                catch (OperationCanceledException) { return; }
+                catch (Exception ex)
+                {
+                    DevLogService.Log($"[Scanner] Periodic rescan error: {ex.Message}");
+                }
             }
-            catch (OperationCanceledException) { return; }
-            catch (Exception ex)
-            {
-                DevLogService.Log($"[Scanner] Periodic rescan error: {ex.Message}");
-            }
+        }
+        catch (Exception ex)
+        {
+            DevLogService.Log($"[Scanner] PeriodicRescanAsync terminated unexpectedly: {ex.Message}");
         }
     }
 
@@ -169,7 +178,13 @@ public sealed class GameScannerService : IDisposable
                 if (!Directory.Exists(mountRoot)) continue;
 
                 IEnumerable<string> level1;
-                try { level1 = Directory.EnumerateDirectories(mountRoot).ToList(); }
+                try
+                {
+                    // ToList() forces eager evaluation so the directory access (and any
+                    // resulting exception) happens inside this try block, not lazily
+                    // inside the foreach below.
+                    level1 = Directory.EnumerateDirectories(mountRoot).ToList();
+                }
                 catch (UnauthorizedAccessException) { continue; }
                 catch (IOException) { continue; }
 
@@ -184,7 +199,11 @@ public sealed class GameScannerService : IDisposable
                         continue;
 
                     IEnumerable<string> level2;
-                    try { level2 = Directory.EnumerateDirectories(sub).ToList(); }
+                    try
+                    {
+                        // Same eager-evaluation rationale as level1 above.
+                        level2 = Directory.EnumerateDirectories(sub).ToList();
+                    }
                     catch (UnauthorizedAccessException) { continue; }
                     catch (IOException) { continue; }
 
@@ -1508,6 +1527,9 @@ public sealed class GameScannerService : IDisposable
     {
         DisposeWatchers();
         _lifetimeCts.Cancel();
+        // Give the periodic rescan task a brief window to observe the cancellation
+        // and exit cleanly before the CTS is disposed.
+        try { _periodicTask?.Wait(TimeSpan.FromMilliseconds(200)); } catch { }
         _lifetimeCts.Dispose();
         _debounceCts?.Cancel();
         _debounceCts?.Dispose();
