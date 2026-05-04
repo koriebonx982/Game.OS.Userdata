@@ -480,12 +480,29 @@ public partial class GameDetailViewModel : ViewModelBase
                     continue;
                 try
                 {
-                    // Enumerate .exe and .bat files recursively (all subdirectories),
-                    // filtering out common installer/redistributable executables.
-                    var exeFiles = System.IO.Directory
-                        .EnumerateFiles(folderPath, "*.exe", System.IO.SearchOption.AllDirectories)
+                    // Phase 1: scan top-level directory first (fast)
+                    var topLevel = System.IO.Directory
+                        .EnumerateFiles(folderPath, "*.exe", System.IO.SearchOption.TopDirectoryOnly)
                         .Concat(System.IO.Directory.EnumerateFiles(folderPath, "*.bat",
-                            System.IO.SearchOption.AllDirectories))
+                            System.IO.SearchOption.TopDirectoryOnly));
+
+                    // Phase 2: scan one level of subdirectories (common for Steam/Rockstar launchers)
+                    var oneLevelDeep = System.IO.Directory
+                        .EnumerateDirectories(folderPath, "*", System.IO.SearchOption.TopDirectoryOnly)
+                        .SelectMany(sub =>
+                        {
+                            try
+                            {
+                                return System.IO.Directory
+                                    .EnumerateFiles(sub, "*.exe", System.IO.SearchOption.TopDirectoryOnly)
+                                    .Concat(System.IO.Directory.EnumerateFiles(sub, "*.bat",
+                                        System.IO.SearchOption.TopDirectoryOnly));
+                            }
+                            catch { return System.Linq.Enumerable.Empty<string>(); }
+                        });
+
+                    var exeFiles = topLevel
+                        .Concat(oneLevelDeep)
                         .Where(f =>
                         {
                             string fname = System.IO.Path.GetFileNameWithoutExtension(f)

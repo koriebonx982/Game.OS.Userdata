@@ -155,8 +155,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public bool IsProfile     => ActivePage == "profile";
     public bool IsFriends     => ActivePage == "friends";
     public bool IsSettings    => ActivePage == "settings";
-    /// <summary>True when the Inbox/Messages page is active.</summary>
+    /// <summary>True when the Inbox page is active.</summary>
     public bool IsInbox       => ActivePage == "inbox";
+    /// <summary>True when the Friends or Inbox page is active (both show FriendsView).</summary>
+    public bool IsFriendsOrInbox => ActivePage == "friends" || ActivePage == "inbox";
 
     partial void OnActivePageChanged(string value)
     {
@@ -167,6 +169,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsFriends));
         OnPropertyChanged(nameof(IsSettings));
         OnPropertyChanged(nameof(IsInbox));
+        OnPropertyChanged(nameof(IsFriendsOrInbox));
     }
 
     public MainViewModel()
@@ -2511,7 +2514,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             var existingTitles = new System.Collections.Generic.HashSet<string>(
                 library.Select(g => g.Title), StringComparer.OrdinalIgnoreCase);
             var libraryByTitle = library
-                .Where(g => g.SteamAppId == null)
                 .GroupBy(g => g.Title, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(grp => grp.Key, grp => grp.First(), StringComparer.OrdinalIgnoreCase);
 
