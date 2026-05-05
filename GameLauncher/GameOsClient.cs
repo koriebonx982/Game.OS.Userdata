@@ -274,6 +274,39 @@ namespace GameLauncher
             return await _github!.GetAchievementsAsync(_username, ct);
         }
 
+        /// <summary>
+        /// Persists a batch of newly-unlocked achievements to the user's cloud profile.
+        /// In backend mode: POSTs each achievement to <c>POST /api/me/achievements</c>
+        /// (with a small inter-call delay to avoid rate limits).
+        /// In GitHub-direct mode: reads, merges, and writes
+        /// <c>accounts/{username}/achievements.json</c> in a single round-trip.
+        /// Non-fatal — failures are swallowed.
+        /// </summary>
+        public async Task SaveAchievementsAsync(
+            IReadOnlyList<Achievement> newAchievements, CancellationToken ct = default)
+        {
+            if (_username == null || newAchievements.Count == 0) return;
+
+            if (_backend != null)
+            {
+                foreach (var a in newAchievements)
+                {
+                    if (string.IsNullOrEmpty(a.AchievementId) || string.IsNullOrEmpty(a.UnlockedAt))
+                        continue;
+                    await _backend.SaveAchievementAsync(
+                        a.Platform, a.GameTitle, a.AchievementId, a.Name,
+                        a.Description, a.UnlockedAt, ct).ConfigureAwait(false);
+                    // Small delay between requests to avoid hitting backend rate limits
+                    await Task.Delay(150, ct).ConfigureAwait(false);
+                }
+                return;
+            }
+
+            if (_github != null)
+                await _github.SaveAchievementsAsync(_username, newAchievements, ct)
+                              .ConfigureAwait(false);
+        }
+
         // ── Friends ───────────────────────────────────────────────────────────
         public async Task<List<string>> GetFriendsAsync(CancellationToken ct = default)
         {

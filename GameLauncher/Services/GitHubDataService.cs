@@ -522,6 +522,69 @@ namespace GameLauncher.Services
             }
         }
 
+        /// <summary>
+        /// Merges newly-unlocked achievements into the user's
+        /// <c>accounts/{username}/achievements.json</c> file so they are visible in
+        /// the cloud profile and on other devices.
+        /// Deduplicates by (Platform, GameTitle, AchievementId) before writing.
+        /// Retries up to 3 times on SHA-conflict.  Non-fatal — failures are swallowed.
+        /// </summary>
+        public async Task SaveAchievementsAsync(
+            string username, IReadOnlyList<Achievement> newAchievements,
+            CancellationToken ct = default)
+        {
+            if (newAchievements.Count == 0) return;
+
+            var key = $"accounts/{username.ToLowerInvariant()}/achievements.json";
+
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                try
+                {
+                    var (existingAchievements, sha) = await ReadFileAsync<List<Achievement>>(key, ct)
+                        .ConfigureAwait(false);
+                    var list = existingAchievements ?? new List<Achievement>();
+
+                    bool changed = false;
+                    foreach (var a in newAchievements)
+                    {
+                        // Only persist achievements that are actually unlocked
+                        if (string.IsNullOrEmpty(a.UnlockedAt)) continue;
+
+                        bool found = list.Any(e =>
+                            string.Equals(e.Platform,      a.Platform,      StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(e.GameTitle,     a.GameTitle,     StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(e.AchievementId, a.AchievementId, StringComparison.OrdinalIgnoreCase));
+
+                        if (!found)
+                        {
+                            list.Add(a);
+                            changed = true;
+                        }
+                    }
+
+                    if (!changed) return;
+
+                    await WriteFileAsync(key, list,
+                        $"Sync achievements for {username}",
+                        sha, ct).ConfigureAwait(false);
+                    return;
+                }
+                catch (GameOsException ex) when (ex.StatusCode == 409 && attempt < 2)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[GitHubDataService] SaveAchievements SHA conflict (attempt {attempt + 1}): {ex.Message}");
+                    await Task.Delay(300 * (attempt + 1), ct).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[GitHubDataService] SaveAchievements failed: {ex.Message}");
+                    return;
+                }
+            }
+        }
+
         // ── Activity / Playtime ───────────────────────────────────────────────
         /// <summary>
         /// Appends a completed play session to the user's cloud activity log
@@ -1666,12 +1729,13 @@ namespace GameLauncher.Services
             if (achievements.Count == 0 || appId <= 0) return null;
 
             // Format understood by FetchAndDisplayAchievementsAsync:
-            // [{ "name": "...", "description": "...", "iconUrl": "..." }]
+            // [{ "achievementId": "...", "name": "...", "description": "...", "iconUrl": "..." }]
             var dbAchievements = achievements.Select(a => new
             {
-                name        = string.IsNullOrWhiteSpace(a.DisplayName) ? a.ApiName : a.DisplayName,
-                description = a.Description,
-                iconUrl     = string.IsNullOrEmpty(a.Icon) ? null : a.Icon,
+                achievementId = a.ApiName,
+                name          = string.IsNullOrWhiteSpace(a.DisplayName) ? a.ApiName : a.DisplayName,
+                description   = a.Description,
+                iconUrl       = string.IsNullOrEmpty(a.Icon) ? null : a.Icon,
             }).ToList();
 
             string filePath = $"Data/PC/Games/{appId}/achievements.json";

@@ -1967,9 +1967,11 @@ public partial class GameDetailViewModel : ViewModelBase
         HasMultipleDrives = false;
         DriveLabels.Clear();
 
-        // Load achievements from the database URL when not already populated
-        if (!HasAchievements && !string.IsNullOrEmpty(game.AchievementsUrl))
-            _ = FetchAndDisplayAchievementsAsync(game.AchievementsUrl);
+        // Always load the full achievement template from the database so the detail view
+        // shows ALL achievements (not just the unlocked subset in GameAchievements).
+        // The known-unlocked list is passed so unlocked state is merged after the fetch.
+        if (!string.IsNullOrEmpty(game.AchievementsUrl))
+            _ = FetchAndDisplayAchievementsAsync(game.AchievementsUrl, game.GameAchievements);
 
         PopulatePlaytime(game.Platform, game.Title, game.PlaytimeMinutes);
         LoadSwitchMods();
@@ -2391,12 +2393,20 @@ public partial class GameDetailViewModel : ViewModelBase
     /// available) and populates the Achievements collection.
     /// Mirrors <c>_loadAchievementsInModal</c> in script.js.
     /// </summary>
+    /// <param name="url">URL of the achievements JSON in the Games.Database.</param>
+    /// <param name="knownUnlocked">
+    /// Optional list of already-unlocked achievements (from the user's cloud data).
+    /// When provided, each fetched achievement whose ID or name matches an entry in
+    /// this list will have its <c>UnlockedAt</c> stamped so the detail view shows
+    /// which achievements the user has earned alongside the full template list.
+    /// </param>
     /// <remarks>
     /// Marked <c>internal</c> so <see cref="MainViewModel.EnrichGameAchievementsAsync"/>
     /// can trigger achievement loading for non-PC cloud library games whose
     /// <c>AchievementsUrl</c> was not stored when the game was added to the library.
     /// </remarks>
-    internal async System.Threading.Tasks.Task FetchAndDisplayAchievementsAsync(string url)
+    internal async System.Threading.Tasks.Task FetchAndDisplayAchievementsAsync(
+        string url, List<Achievement>? knownUnlocked = null)
     {
         try
         {
@@ -2438,17 +2448,34 @@ public partial class GameDetailViewModel : ViewModelBase
             var list = new List<Achievement>();
             foreach (var item in arr.EnumerateArray())
             {
-                string name = TryGetStringProp(item, "name", "Name");
-                string desc = TryGetStringProp(item, "description", "Description");
-                string icon = TryGetStringProp(item, "iconUrl", "IconUrl");
+                string name          = TryGetStringProp(item, "name", "Name");
+                string desc          = TryGetStringProp(item, "description", "Description");
+                string icon          = TryGetStringProp(item, "iconUrl", "IconUrl");
+                string achievementId = TryGetStringProp(item, "achievementId", "AchievementId");
 
                 if (string.IsNullOrEmpty(name)) continue;
                 list.Add(new Achievement
                 {
-                    Name        = name,
-                    Description = desc,
-                    IconUrl     = string.IsNullOrEmpty(icon) ? null : icon,
+                    AchievementId = achievementId,
+                    Name          = name,
+                    Description   = desc,
+                    IconUrl       = string.IsNullOrEmpty(icon) ? null : icon,
                 });
+            }
+
+            // Merge in unlock state from the user's known-unlocked list so the full
+            // template is shown with the correct earned/locked presentation.
+            if (knownUnlocked != null && knownUnlocked.Count > 0)
+            {
+                foreach (var a in list)
+                {
+                    var match = knownUnlocked.FirstOrDefault(u =>
+                        (!string.IsNullOrEmpty(a.AchievementId) && !string.IsNullOrEmpty(u.AchievementId) &&
+                         string.Equals(a.AchievementId, u.AchievementId, StringComparison.OrdinalIgnoreCase)) ||
+                        string.Equals(a.Name, u.Name, StringComparison.OrdinalIgnoreCase));
+                    if (match != null && !string.IsNullOrEmpty(match.UnlockedAt))
+                        a.UnlockedAt = match.UnlockedAt;
+                }
             }
 
             if (list.Count > 0)

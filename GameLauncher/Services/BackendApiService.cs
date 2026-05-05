@@ -622,6 +622,37 @@ namespace GameLauncher.Services
             catch { /* best-effort */ }
         }
 
+        /// <summary>
+        /// Persists a single unlocked achievement to the user's cloud profile via
+        /// POST /api/me/achievements.  Non-fatal — failures are swallowed.
+        /// </summary>
+        public async Task SaveAchievementAsync(
+            string platform, string gameTitle, string achievementId, string name,
+            string? description = null, string? unlockedAt = null,
+            CancellationToken ct = default)
+        {
+            try
+            {
+                EnsureAuthenticated();
+                var body = new
+                {
+                    platform,
+                    gameTitle,
+                    achievementId,
+                    name,
+                    description,
+                    unlockedAt = string.IsNullOrEmpty(unlockedAt)
+                        ? DateTimeOffset.UtcNow.ToString("O")
+                        : unlockedAt,
+                };
+                using var resp = await _http.PostAsJsonAsync("/api/me/achievements", body, ct);
+                if (!resp.IsSuccessStatusCode)
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[BackendApiService] SaveAchievement HTTP {(int)resp.StatusCode}: {achievementId} in {gameTitle}");
+            }
+            catch { /* best-effort */ }
+        }
+
         // ── Sync signal (cross-device heartbeat) ──────────────────────────────
 
         /// <summary>

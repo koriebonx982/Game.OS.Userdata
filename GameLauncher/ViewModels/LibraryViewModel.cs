@@ -335,9 +335,16 @@ public partial class LibraryViewModel : ViewModelBase
         // Skip repacks whose game is already installed (detected in the Games folder).
         // Use the shared fuzzy helper so name variants (symbols, "–" vs ":", spacing)
         // don't create duplicate cards for the same title.
+        // Also skip repacks already represented in the cloud library — clicking the
+        // cloud card handles the repack install path via OpenDetailFromGame.
         foreach (var r in _allRepacks)
         {
             if (GameScannerService.RepackMatchesInstalledTitle(r.Title, installedTitles))
+                continue;
+
+            if (cloudPcTitles != null &&
+                (cloudPcTitles.Contains(r.Title) ||
+                 cloudPcStripped!.Contains(PlatformHelper.StripSpecialSymbols(r.Title))))
                 continue;
 
             _allMyGames.Add(new LocalGameCardVm
@@ -482,6 +489,13 @@ public partial class LibraryViewModel : ViewModelBase
         foreach (var r in repacks)
         {
             if (GameScannerService.RepackMatchesInstalledTitle(r.Title, installedTitles))
+                continue;
+
+            // Also skip if the cloud library already has a matching PC entry — clicking the
+            // cloud card already handles the repack install path via OpenDetailFromGame.
+            if (cloudPcTitles != null &&
+                (cloudPcTitles.Contains(r.Title) ||
+                 cloudPcStripped!.Contains(PlatformHelper.StripSpecialSymbols(r.Title))))
                 continue;
 
             result.Add(new LocalGameCardVm

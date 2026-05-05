@@ -1231,7 +1231,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         LocalRepack? repack = null;
         if (localGame == null && string.Equals(game.Platform, "PC", StringComparison.OrdinalIgnoreCase))
             repack = LibraryVm.ReadyToInstall
-                .FirstOrDefault(r => r.Title.Equals(game.Title, StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(r => r.Title.Equals(game.Title, StringComparison.OrdinalIgnoreCase))
+                ?? LibraryVm.ReadyToInstall
+                    .FirstOrDefault(r => Models.PlatformHelper.StripSpecialSymbols(r.Title)
+                        .Equals(Models.PlatformHelper.StripSpecialSymbols(game.Title),
+                                StringComparison.OrdinalIgnoreCase));
 
         // For non-PC platforms, check whether a matching ROM is found on a local drive
         // so the detail view shows a Play button even when the game was added to the
@@ -2833,6 +2837,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // Limit concurrent requests — process up to 40 games per sync
         const int MaxGames = 40;
         int processed = 0;
+        var newlyUnlockedAchievements = new List<Models.Achievement>();
 
         foreach (var sg in games)
         {
@@ -2862,7 +2867,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                         ? ach.UnlockedAt.ToString("O")
                         : DateTime.UtcNow.ToString("O");
 
-                    // Add to local in-memory list
                     var achievement = new Models.Achievement
                     {
                         Platform      = "PC",
@@ -2872,10 +2876,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                         Description   = ach.Description,
                         UnlockedAt    = unlockedAt,
                     };
+                    // Add to local in-memory list and track as new for cloud sync
                     _achievements.Add(achievement);
+                    newlyUnlockedAchievements.Add(achievement);
                     known.Add(key);
 
-                    // Log to cloud
+                    // Log unlock event to the activity feed (non-fatal)
                     try
                     {
                         await _client.LogAchievementUnlockAsync(
@@ -2889,6 +2895,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 await Task.Delay(200).ConfigureAwait(false);
             }
             catch { /* best-effort per game */ }
+        }
+
+        // Persist all newly-unlocked achievements to the cloud user repo
+        // (accounts/{username}/achievements.json) so they survive across sessions
+        // and are visible on other devices / the web profile.
+        if (newlyUnlockedAchievements.Count > 0)
+        {
+            try
+            {
+                await _client.SaveAchievementsAsync(newlyUnlockedAchievements).ConfigureAwait(false);
+                DevLogService.Log($"[SteamAchievements] Saved {newlyUnlockedAchievements.Count} new unlocks to cloud.");
+            }
+            catch { /* best-effort — sync must not block the UI */ }
         }
 
         // Update in-memory game achievement lists so the library cards show the right count
