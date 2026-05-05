@@ -2614,20 +2614,23 @@ public partial class GameDetailViewModel : ViewModelBase
         {
             // Sort: unlocked achievements first (most recently unlocked at top),
             // then locked achievements in their original order.
+            // Parse UnlockedAt once per item to avoid repeated parsing during sort.
             var sorted = achievements
-                .OrderByDescending(a => a.IsUnlocked)
-                .ThenByDescending(a =>
+                .Select(a =>
                 {
-                    if (!a.IsUnlocked) return DateTime.MinValue;
-                    return DateTime.TryParse(a.UnlockedAt, null,
-                        System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
-                        ? dt : DateTime.MinValue;
-                });
+                    var dt = a.IsUnlocked &&
+                             DateTime.TryParse(a.UnlockedAt, null,
+                                 System.Globalization.DateTimeStyles.RoundtripKind, out var parsed)
+                             ? parsed : DateTime.MinValue;
+                    return (Achievement: a, Dt: dt);
+                })
+                .OrderByDescending(x => x.Achievement.IsUnlocked)
+                .ThenByDescending(x => x.Dt)
+                .Select(x => x.Achievement);
             foreach (var a in sorted) Achievements.Add(a);
         }
         HasAchievements   = Achievements.Count > 0;
         ShowAllAchievements = true;
-        HasMoreAchievements = false;
         AchievementsLabel = HasAchievements
             ? $"🏆  Achievements  ({Achievements.Count})"
             : "🏆  Achievements";
