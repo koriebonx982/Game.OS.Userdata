@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace GameLauncher.Services;
 
@@ -323,6 +325,7 @@ public static class SwitchLogReaderService
                             "Data", "SwitchLogSnippets", $"{safeId}.marker");
     }
 
+
     /// <summary>
     /// Writes a complete (full-log) session block to the launcher log, with IP addresses
     /// already redacted.  Writes all <paramref name="fullLines"/> rather than only the
@@ -345,5 +348,156 @@ public static class SwitchLogReaderService
 
         AppendToLauncherLog("--- End of session ---");
         AppendToLauncherLog(""); // blank separator
+    }
+
+    // ── Race-result parsing (for Switch achievement detection) ─────────────────
+
+    /// <summary>
+    /// Holds the key fields extracted from a Ryujinx <c>ServicePrepo ProcessPlayReport</c>
+    /// block whose <c>Room</c> value is <c>match</c>.  Used for Switch achievement detection.
+    /// </summary>
+    public sealed class SwitchRaceResult
+    {
+        /// <summary>Internal course code, e.g. <c>Gu_FirstCircuit</c>.</summary>
+        public string Course        { get; init; } = "";
+        /// <summary><c>Finish</c> when the race completed normally.</summary>
+        public string FinishReason  { get; init; } = "";
+        /// <summary>Finishing position (1 = first place).</summary>
+        public int    Rank          { get; init; }
+        /// <summary>Game mode rule string, e.g. <c>GP</c>, <c>VS</c>, <c>Battle</c>.</summary>
+        public string Rule          { get; init; } = "";
+        /// <summary>Engine class, e.g. <c>150cc</c>, <c>200cc</c>.</summary>
+        public string Engine        { get; init; } = "";
+        /// <summary>Number of coins collected in this race.</summary>
+        public int    CoinNum       { get; init; }
+        /// <summary>Internal driver code, e.g. <c>Mario</c>.</summary>
+        public string Driver        { get; init; } = "";
+    }
+
+    // Ryujinx timestamp prefix: "HH:MM:SS.mmm |L| ..."
+    private static readonly Regex _tsPrefix =
+        new(@"^\d{2}:\d{2}:\d{2}\.\d{3}\s*\|", RegexOptions.Compiled);
+
+    /// <summary>
+    /// Reads new content appended to <paramref name="logPath"/> since the last call and
+    /// returns every <c>Room: match</c> play-report block found in that new content.
+    /// <paramref name="fileOffset"/> is updated to the current end-of-file position so
+    /// subsequent calls only process newly appended lines.
+    /// </summary>
+    public static List<SwitchRaceResult> ReadRaceResultsFromNewContent(
+        string logPath, ref long fileOffset)
+    {
+        var results = new List<SwitchRaceResult>();
+        if (string.IsNullOrEmpty(logPath) || !File.Exists(logPath)) return results;
+
+        try
+        {
+            using var fs = new FileStream(logPath, FileMode.Open,
+                                          FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            if (fileOffset > fs.Length)
+                fileOffset = 0; // log truncated — restart
+
+            fs.Seek(fileOffset, SeekOrigin.Begin);
+            using var reader = new StreamReader(fs, Encoding.UTF8,
+                                                detectEncodingFromByteOrderMarks: false,
+                                                bufferSize: 4096,
+                                                leaveOpen: true);
+            // Collect all new lines into a list for look-ahead parsing
+            var lines = new List<string>();
+            string? line;
+            while ((line = reader.ReadLine()) != null)
+                lines.Add(line);
+
+            fileOffset = fs.Position;
+
+            // Walk lines looking for ProcessPlayReport blocks
+            for (int i = 0; i < lines.Count; i++)
+            {
+                if (!lines[i].Contains("ServicePrepo ProcessPlayReport", StringComparison.Ordinal))
+                    continue;
+
+                // Collect the continuation lines of this block (lines without a new timestamp)
+                var block = new List<string> { lines[i] };
+                for (int j = i + 1; j < lines.Count; j++)
+                {
+                    if (_tsPrefix.IsMatch(lines[j])) break; // next log entry
+                    block.Add(lines[j]);
+                    i = j;
+                }
+
+                // Only care about "Room: match" blocks
+                bool isMatch = block.Any(l =>
+                    l.Contains("Room: match", StringComparison.OrdinalIgnoreCase));
+                if (!isMatch) continue;
+
+                // Extract the JSON report block { ... }
+                var jsonLines = new List<string>();
+                bool inJson = false;
+                foreach (string bl in block)
+                {
+                    string trimmed = bl.TrimStart();
+                    if (!inJson && trimmed.StartsWith("Report:", StringComparison.Ordinal))
+                    {
+                        // Grab the part after "Report:" and start collecting
+                        int idx = bl.IndexOf("Report:", StringComparison.Ordinal);
+                        jsonLines.Add(bl.Substring(idx + "Report:".Length).Trim());
+                        inJson = true;
+                        continue;
+                    }
+                    if (inJson)
+                        jsonLines.Add(bl);
+                }
+
+                if (jsonLines.Count == 0) continue;
+
+                string jsonText = string.Join("\n", jsonLines);
+                // Find the outermost { ... } pair
+                int start = jsonText.IndexOf('{');
+                if (start < 0) continue;
+                int depth = 0;
+                int end = -1;
+                for (int k = start; k < jsonText.Length; k++)
+                {
+                    if (jsonText[k] == '{') depth++;
+                    else if (jsonText[k] == '}') { depth--; if (depth == 0) { end = k; break; } }
+                }
+                if (end < 0) continue;
+
+                string json = jsonText.Substring(start, end - start + 1);
+                try
+                {
+                    using var doc = JsonDocument.Parse(json);
+                    var root = doc.RootElement;
+
+                    static string Str(JsonElement r, string key)
+                    {
+                        if (r.TryGetProperty(key, out var p) && p.ValueKind == JsonValueKind.String)
+                            return p.GetString() ?? "";
+                        return "";
+                    }
+                    static int Int(JsonElement r, string key)
+                    {
+                        if (r.TryGetProperty(key, out var p) && p.ValueKind == JsonValueKind.Number)
+                            return p.GetInt32();
+                        return 0;
+                    }
+
+                    results.Add(new SwitchRaceResult
+                    {
+                        Course       = Str(root, "Course"),
+                        FinishReason = Str(root, "FinishReason"),
+                        Rank         = Int(root, "Rank"),
+                        Rule         = Str(root, "Rule"),
+                        Engine       = Str(root, "Engine"),
+                        CoinNum      = Int(root, "CoinNum"),
+                        Driver       = Str(root, "Driver"),
+                    });
+                }
+                catch { /* malformed JSON — skip this block */ }
+            }
+        }
+        catch { /* best-effort */ }
+
+        return results;
     }
 }

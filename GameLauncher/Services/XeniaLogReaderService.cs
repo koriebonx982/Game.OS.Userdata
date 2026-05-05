@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace GameLauncher.Services;
@@ -10,13 +11,15 @@ namespace GameLauncher.Services;
 /// Reads Xenia emulator log files and extracts achievement-unlock events.
 ///
 /// <para>Xenia outputs lines like:</para>
-/// <code>Achievement unlocked: 1234 My Achievement Name</code>
+/// <code>i&gt; HANDLE Achievement unlocked: My Achievement Name</code>
+/// <para>or (some builds include a numeric ID):</para>
+/// <code>i&gt; HANDLE Achievement unlocked: 1 My Achievement Name</code>
 ///
 /// <para>This service:</para>
 /// <list type="number">
 ///   <item>Locates and optionally clears stale Xenia log files before a session.</item>
-///   <item>After the emulator exits, reads the freshly-written log and extracts
-///         every achievement-unlock line.</item>
+///   <item>Supports real-time log tailing via <see cref="ReadUnlocksFromNewContent"/>
+///         so toasts can fire while the game is still running.</item>
 ///   <item>Cross-references against the per-game achievements cache so that
 ///         achievements already recorded are skipped (Xenia replays all unlocks
 ///         on every emulator restart).</item>
@@ -28,12 +31,13 @@ public static class XeniaLogReaderService
     // ── Pattern matching ────────────────────────────────────────────────────
 
     /// <summary>
-    /// Matches Xenia achievement-unlock log lines:
-    ///   Achievement unlocked: &lt;id&gt; &lt;name&gt;
-    /// Groups: 1 = achievement ID (numeric), 2 = achievement name (rest of line).
+    /// Matches Xenia achievement-unlock log lines in both forms:
+    ///   "Achievement unlocked: 1 My Achievement"  (numeric ID present)
+    ///   "Achievement unlocked: My Achievement"    (no numeric ID — most Xenia builds)
+    /// Groups: 1 = optional numeric ID, 2 = achievement name.
     /// </summary>
     private static readonly Regex _unlockPattern =
-        new(@"achievement\s+unlocked[:\s]+(\d+)\s+(.*)",
+        new(@"achievement\s+unlocked[:\s]+(?:(\d+)\s+)?(.+)",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     // ── Log directory discovery ─────────────────────────────────────────────
@@ -99,6 +103,20 @@ public static class XeniaLogReaderService
     // ── Achievement extraction ──────────────────────────────────────────────
 
     /// <summary>
+    /// Parses a single matched line into an (id, name) tuple.
+    /// When no numeric ID is present the normalized name is used as the ID
+    /// so deduplication still works across sessions.
+    /// </summary>
+    private static (string Id, string Name) ParseMatch(Match m)
+    {
+        string name = m.Groups[2].Value.Trim();
+        string id   = m.Groups[1].Success && !string.IsNullOrEmpty(m.Groups[1].Value)
+                          ? m.Groups[1].Value.Trim()
+                          : name.ToLowerInvariant();
+        return (id, name);
+    }
+
+    /// <summary>
     /// Reads the most recent Xenia log file and returns a list of all achievement-unlock
     /// entries found in it.  Each entry is a tuple of (id, name).
     /// Returns an empty list when the log file does not exist or contains no unlocks.
@@ -115,9 +133,8 @@ public static class XeniaLogReaderService
             {
                 var m = _unlockPattern.Match(line);
                 if (!m.Success) continue;
-                string id   = m.Groups[1].Value.Trim();
-                string name = m.Groups[2].Value.Trim();
-                if (!string.IsNullOrEmpty(id))
+                var (id, name) = ParseMatch(m);
+                if (!string.IsNullOrEmpty(name))
                     unlocks.Add((id, name));
             }
         }
@@ -125,7 +142,55 @@ public static class XeniaLogReaderService
 
         // Deduplicate by id (Xenia may log the same unlock multiple times)
         return unlocks
-            .GroupBy(u => u.Item1)
+            .GroupBy(u => u.Item1, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+    }
+
+    /// <summary>
+    /// Reads new content appended to <paramref name="logPath"/> since the last call,
+    /// returning any achievement-unlock entries found in that new content.
+    /// <paramref name="fileOffset"/> is updated to the new end-of-file position on each call
+    /// so subsequent calls only process lines written after the previous call.
+    /// This is the preferred method for real-time log tailing while the game is running.
+    /// Returns an empty list when the file does not exist or no new unlocks were found.
+    /// </summary>
+    public static IReadOnlyList<(string Id, string Name)> ReadUnlocksFromNewContent(
+        string logPath, ref long fileOffset)
+    {
+        if (string.IsNullOrEmpty(logPath) || !File.Exists(logPath)) return [];
+
+        var unlocks = new List<(string, string)>();
+        try
+        {
+            using var fs = new FileStream(logPath, FileMode.Open,
+                                          FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            if (fileOffset > fs.Length)
+                fileOffset = 0; // log was truncated / replaced — restart from beginning
+
+            fs.Seek(fileOffset, SeekOrigin.Begin);
+            using var reader = new StreamReader(fs, Encoding.UTF8,
+                                                detectEncodingFromByteOrderMarks: false,
+                                                bufferSize: 4096,
+                                                leaveOpen: true);
+            string? line;
+            while ((line = reader.ReadLine()) != null)
+            {
+                var m = _unlockPattern.Match(line);
+                if (m.Success)
+                {
+                    var (id, name) = ParseMatch(m);
+                    if (!string.IsNullOrEmpty(name))
+                        unlocks.Add((id, name));
+                }
+            }
+
+            fileOffset = fs.Position;
+        }
+        catch { /* best-effort — log may be in use */ }
+
+        return unlocks
+            .GroupBy(u => u.Item1, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
             .ToList();
     }

@@ -1356,6 +1356,10 @@ public partial class GameDetailViewModel : ViewModelBase
     private const int MaxEmulatorWaitHours = 24;
     /// <summary>Milliseconds to wait after the emulator exits for its log file to be fully flushed.</summary>
     private const int LogFlushDelayMs = 500;
+    /// <summary>Milliseconds between Xenia log-poll intervals while the game is running.</summary>
+    private const int XeniaPollIntervalMs = 2000;
+    /// <summary>Milliseconds between Ryujinx achievement-poll intervals while the game is running.</summary>
+    private const int SwitchPollIntervalMs = 3000;
 
     private static async System.Threading.Tasks.Task WatchAndRunPostLaunchAsync(
         System.Diagnostics.Process? gameProc, List<LaunchEntry> postEntries)
@@ -1381,23 +1385,83 @@ public partial class GameDetailViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Waits for <paramref name="gameProc"/> to exit then reads the latest Ryujinx
-    /// log file (all lines, IPs redacted) and writes a summary to
-    /// <c>Switch log Reader.log</c> next to the Game.OS launcher executable.
-    /// Before writing, checks whether a log snippet for this TitleID has already
-    /// been recorded; if yes, the session is skipped to avoid duplicates.
+    /// Monitors the Ryujinx log in real-time while the game runs and fires toast
+    /// notifications when Switch achievement conditions are detected.  After the
+    /// game exits, also completes the normal log-snippet recording.
     /// </summary>
     private async System.Threading.Tasks.Task WatchAndReadSwitchLogAsync(
         System.Diagnostics.Process? gameProc, string ryujinxExePath, string gameTitle)
     {
+        // ── Build the set of already-unlocked achievement names from the cache ──
+        string? cachePath = CacheService?.GetCachedAchievementsPath("Switch", null, gameTitle);
+        var alreadyCachedNames = new System.Collections.Generic.HashSet<string>(
+            StringComparer.OrdinalIgnoreCase);
+
+        if (!string.IsNullOrEmpty(cachePath) && System.IO.File.Exists(cachePath))
+        {
+            try
+            {
+                var cachedJson = System.IO.File.ReadAllText(cachePath);
+                var cached = System.Text.Json.JsonSerializer.Deserialize<List<Achievement>>(cachedJson);
+                if (cached != null)
+                {
+                    foreach (var a in cached.Where(a => a.IsUnlocked && !string.IsNullOrEmpty(a.Name)))
+                        alreadyCachedNames.Add(a.Name);
+                }
+            }
+            catch { /* best-effort */ }
+        }
+
+        // ── Real-time achievement detection ─────────────────────────────────────
+        var session     = new SwitchAchievementDetectorService.SessionState();
+        long fileOffset = 0;
+        string? logPath = null;
+
+        async System.Threading.Tasks.Task PollOnceAsync()
+        {
+            logPath ??= SwitchLogReaderService.FindLatestLog(ryujinxExePath);
+            if (string.IsNullOrEmpty(logPath)) return;
+
+            var newResults = SwitchLogReaderService.ReadRaceResultsFromNewContent(logPath, ref fileOffset);
+            if (newResults.Count == 0) return;
+
+            var newUnlocks = SwitchAchievementDetectorService.DetectNewUnlocks(
+                gameTitle, newResults, session, alreadyCachedNames, Achievements);
+
+            foreach (string achName in newUnlocks)
+            {
+                Services.NotificationService.ShowAchievementUnlockedNotification(achName, gameTitle);
+                DevLogService.Log($"[SwitchAch] Unlocked: {achName}");
+
+                // Update in-memory achievement list so the detail view reflects the unlock
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    var existing = Achievements.FirstOrDefault(a =>
+                        string.Equals(a.Name, achName, StringComparison.OrdinalIgnoreCase));
+                    if (existing != null)
+                    {
+                        existing.UnlockedAt = DateTime.UtcNow.ToString("o");
+                        RefreshVisibleAchievements();
+                    }
+                });
+            }
+        }
+
         if (gameProc != null)
         {
             try
             {
-                // Wait up to MaxEmulatorWaitHours for the emulator process to exit
                 using var cts = new System.Threading.CancellationTokenSource(
                     System.TimeSpan.FromHours(MaxEmulatorWaitHours));
-                await gameProc.WaitForExitAsync(cts.Token);
+
+                while (!gameProc.HasExited && !cts.IsCancellationRequested)
+                {
+                    try { await System.Threading.Tasks.Task.Delay(SwitchPollIntervalMs, cts.Token); }
+                    catch (OperationCanceledException) { break; }
+
+                    try { await PollOnceAsync(); }
+                    catch { /* best-effort per-poll */ }
+                }
             }
             catch { /* process may have already exited or be inaccessible */ }
             finally
@@ -1409,7 +1473,12 @@ public partial class GameDetailViewModel : ViewModelBase
         // Give Ryujinx a moment to finish flushing its log to disk
         await System.Threading.Tasks.Task.Delay(LogFlushDelayMs);
 
-        string? latestLog = SwitchLogReaderService.FindLatestLog(ryujinxExePath);
+        // Final poll to catch any events written just before/after exit
+        try { await PollOnceAsync(); }
+        catch { /* best-effort */ }
+
+        // ── Log-snippet recording (original behaviour) ──────────────────────────
+        string? latestLog = logPath ?? SwitchLogReaderService.FindLatestLog(ryujinxExePath);
         if (string.IsNullOrEmpty(latestLog))
         {
             SwitchLogReaderService.AppendToLauncherLog(
@@ -1417,13 +1486,10 @@ public partial class GameDetailViewModel : ViewModelBase
             return;
         }
 
-        // Resolve the best TitleID for deduplication: ROM entry → database match → null
         string? titleId = _currentLocalRom?.TitleId ?? _databaseTitleId;
         if (string.IsNullOrEmpty(titleId) && !string.IsNullOrEmpty(gameTitle))
             titleId = Services.GitHubDataService.TryGetTitleIdFromLocalCache("Switch", gameTitle);
 
-        // Deduplicate: if a log snippet for this TitleID has already been recorded,
-        // skip writing this session to avoid flooding the log with duplicate data.
         if (!string.IsNullOrEmpty(titleId) && SwitchLogReaderService.HasLogSnippet(titleId))
         {
             SwitchLogReaderService.AppendToLauncherLog(
@@ -1431,16 +1497,12 @@ public partial class GameDetailViewModel : ViewModelBase
             return;
         }
 
-        // Read the full log with IP addresses redacted
         var fullLines = SwitchLogReaderService.ReadFullLog(latestLog);
         SwitchLogReaderService.WriteSessionToLauncherLogFull(gameTitle, latestLog, fullLines);
 
-        // Mark this TitleID as "snippet recorded" so future sessions are skipped
         if (!string.IsNullOrEmpty(titleId))
             SwitchLogReaderService.MarkLogSnippetRecorded(titleId);
 
-        // ── Switch log → Games.Database upload ────────────────────────────────
-        // If we have a valid TitleID that is NOT yet in the Games.Database, add it.
         if (!string.IsNullOrEmpty(titleId) && !string.IsNullOrEmpty(gameTitle))
         {
             bool alreadyInDb = Services.GitHubDataService.IsTitleIdInLocalCache("Switch", titleId);
@@ -1509,35 +1571,16 @@ public partial class GameDetailViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Waits for the Xenia emulator process to exit, then reads its log file for
-    /// achievement-unlock events.  New unlocks (not already in the local cache) are
-    /// toasted to the user and synced to the achievements cache.
+    /// Monitors the Xenia log in real-time while the game runs and fires a toast
+    /// notification immediately when each new <c>Achievement unlocked:</c> line appears.
+    /// After the game exits a final pass ensures no late-written lines are missed.
     /// </summary>
     private async System.Threading.Tasks.Task WatchAndReadXeniaLogAsync(
         System.Diagnostics.Process? gameProc, string xeniaExePath, string gameTitle)
     {
-        if (gameProc != null)
-        {
-            try
-            {
-                using var cts = new System.Threading.CancellationTokenSource(
-                    System.TimeSpan.FromHours(MaxEmulatorWaitHours));
-                await gameProc.WaitForExitAsync(cts.Token);
-            }
-            catch { /* process may have already exited or be inaccessible */ }
-            finally
-            {
-                gameProc.Dispose();
-            }
-        }
-
-        // Give Xenia a moment to flush its log to disk
-        await System.Threading.Tasks.Task.Delay(LogFlushDelayMs);
-
-        // Load already-unlocked IDs from the achievements cache to avoid duplicates
-        // Use the local achievements.json file path from the cache service
+        // ── Pre-load IDs already in the achievements cache ───────────────────────
         string? cachePath = CacheService?.GetCachedAchievementsPath("Xbox 360", null, gameTitle);
-        var alreadyUnlocked = new System.Collections.Generic.HashSet<string>(
+        var processedIds = new System.Collections.Generic.HashSet<string>(
             StringComparer.OrdinalIgnoreCase);
 
         if (!string.IsNullOrEmpty(cachePath) && System.IO.File.Exists(cachePath))
@@ -1549,21 +1592,22 @@ public partial class GameDetailViewModel : ViewModelBase
                 if (cached != null)
                 {
                     foreach (var a in cached.Where(a => a.IsUnlocked && !string.IsNullOrEmpty(a.AchievementId)))
-                        alreadyUnlocked.Add(a.AchievementId);
+                        processedIds.Add(a.AchievementId);
                 }
             }
             catch { /* best-effort */ }
         }
 
-        var newUnlocks = XeniaLogReaderService.GetNewUnlocks(xeniaExePath, alreadyUnlocked);
-        if (newUnlocks.Count == 0) return;
+        long fileOffset = 0;
+        string? logPath = null;
 
-        // Fire toast for each newly unlocked achievement and mark it in the cache
-        foreach (var (id, name) in newUnlocks)
+        void HandleUnlock(string id, string name)
         {
+            if (!processedIds.Add(id)) return; // already seen
             Services.NotificationService.ShowAchievementUnlockedNotification(name, gameTitle);
+            DevLogService.Log($"[XeniaAch] Unlocked: {name} (id={id})");
 
-            // Update the in-memory achievement list so the detail view reflects the unlock
+            // Update in-memory achievement list
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
                 var existing = Achievements.FirstOrDefault(a =>
@@ -1575,6 +1619,53 @@ public partial class GameDetailViewModel : ViewModelBase
                 }
             });
         }
+
+        // ── Real-time polling loop ────────────────────────────────────────────────
+        if (gameProc != null)
+        {
+            try
+            {
+                using var cts = new System.Threading.CancellationTokenSource(
+                    System.TimeSpan.FromHours(MaxEmulatorWaitHours));
+
+                while (!gameProc.HasExited && !cts.IsCancellationRequested)
+                {
+                    try { await System.Threading.Tasks.Task.Delay(XeniaPollIntervalMs, cts.Token); }
+                    catch (OperationCanceledException) { break; }
+
+                    try
+                    {
+                        logPath ??= XeniaLogReaderService.FindLatestLog(xeniaExePath);
+                        if (!string.IsNullOrEmpty(logPath))
+                        {
+                            foreach (var (id, name) in XeniaLogReaderService.ReadUnlocksFromNewContent(logPath, ref fileOffset))
+                                HandleUnlock(id, name);
+                        }
+                    }
+                    catch { /* best-effort per-poll */ }
+                }
+            }
+            catch { /* process may have already exited or be inaccessible */ }
+            finally
+            {
+                gameProc.Dispose();
+            }
+        }
+
+        // Give Xenia a moment to flush its log to disk
+        await System.Threading.Tasks.Task.Delay(LogFlushDelayMs);
+
+        // Final pass to catch any lines written just before exit
+        try
+        {
+            logPath ??= XeniaLogReaderService.FindLatestLog(xeniaExePath);
+            if (!string.IsNullOrEmpty(logPath))
+            {
+                foreach (var (id, name) in XeniaLogReaderService.ReadUnlocksFromNewContent(logPath, ref fileOffset))
+                    HandleUnlock(id, name);
+            }
+        }
+        catch { /* best-effort */ }
     }
 
 
