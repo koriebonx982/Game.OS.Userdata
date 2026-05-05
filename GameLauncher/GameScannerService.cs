@@ -439,17 +439,31 @@ public sealed class GameScannerService : IDisposable
         // executable already exist on disk).
         //
         // acfNamesOnly: when true, only adds folders that appear in acfNames.
-        // This mirrors the Game Store reference code which builds an ACF installdir→name
-        // map and ONLY adds game folders that exist in that map.  The practical effect
-        // is that Steam utility folders with no ACF file — "Steamworks Common
-        // Redistributables", "SteamVR", a game's internal "steam_settings" directory,
-        // etc. — are never surfaced as fake game cards in the library.
+        // Intended for use with Steam steamapps/common/ directories, where this
+        // mirrors the Game Store reference approach: only surfaces folders that have
+        // a corresponding ACF installdir entry.  Steam utility folders with no ACF
+        // file — "Steamworks Common Redistributables", "SteamVR", "steam_settings"
+        // sub-directories, etc. — are therefore never added as fake game cards.
+        // Requires acfNames to be non-null and non-empty; if acfNames is null when
+        // acfNamesOnly is true, a warning is logged and the parameter is ignored.
         static void ScanDir(string path, List<LocalGame> results, string driveRoot,
                             string source = "Local",
                             IReadOnlyDictionary<string, string>? acfNames = null,
                             bool acfNamesOnly = false)
         {
             if (!Directory.Exists(path)) return;
+
+            // Guard against misconfiguration: acfNamesOnly without an acfNames map
+            // would silently skip every folder.  Log a warning and fall back to the
+            // standard (non-strict) scan so no games are lost.
+            bool strictMode = acfNamesOnly;
+            if (strictMode && acfNames == null)
+            {
+                DevLogService.LogLocalSteam(
+                    $"[LocalSteam/{source}] WARNING: acfNamesOnly=true but acfNames is null for \"{path}\" — falling back to non-strict scan");
+                strictMode = false;
+            }
+
             int beforeCount = results.Count;
             try
             {
@@ -466,12 +480,11 @@ public sealed class GameScannerService : IDisposable
 
                     string folderName = Path.GetFileName(gameFolder);
 
-                    // When acfNamesOnly is true (used for steamapps/common), skip any
-                    // folder that has no ACF manifest — this is how Game Store.cs filters
-                    // out Steam utility packages (Steamworks Common Redistributables,
-                    // SteamVR, internal steam_settings sub-folders, etc.) that contain
-                    // executables but are not real games.
-                    if (acfNamesOnly && (acfNames == null || !acfNames.ContainsKey(folderName)))
+                    // When strictMode is true (acfNamesOnly for steamapps/common),
+                    // skip any folder that has no ACF manifest. This filters Steam
+                    // utility packages (Steamworks Common Redistributables, SteamVR,
+                    // internal steam_settings sub-folders, etc.).
+                    if (strictMode && !acfNames!.ContainsKey(folderName))
                         continue;
 
                     var exe = FindExecutable(gameFolder);
