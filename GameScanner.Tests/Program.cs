@@ -1079,10 +1079,11 @@ class Program
     /// E.g. folder "LHPCR" → ACF name "LEGO® Harry Potter™ Collection".
     ///
     /// Tests two sub-cases:
-    /// 1. ACF StateFlags=516 (installed + update paused) — bit 4 IS set, so ACF scan
-    ///    adds the game directly with the proper name.
-    /// 2. ACF StateFlags=2 (download queued) — bit 4 is NOT set, so ACF scan skips the
-    ///    game.  The folder-scan fallback must still use the proper ACF name via
+    /// 1. ACF StateFlags=516 (installed + update paused) — the fully-installed flag
+    ///    (value 4) IS set, so ACF scan adds the game directly with the proper name.
+    /// 2. ACF StateFlags=2 (download queued) — the fully-installed flag is NOT set,
+    ///    so ACF scan skips the game.  The folder-scan fallback must still use the
+    ///    proper ACF name via
     ///    <see cref="GameScannerService.BuildAcfInstallDirNames"/>.
     /// </summary>
     private static bool TestSteamAcfNamePriority()
@@ -1100,7 +1101,7 @@ class Program
             Directory.CreateDirectory(gameDir);
             File.WriteAllText(Path.Combine(gameDir, "game.exe"), "fake");
 
-            // ── Case 1: StateFlags=516 (installed + update paused, bit 4 IS set) ─
+            // ── Case 1: StateFlags=516 (installed + update paused, fully-installed flag IS set) ─
             // ACF scan adds the game → folder scan skips it → proper name used.
             WriteAcfManifest(steamAppsDir, appId: "400750",
                              name: "LEGO Harry Potter Collection",
@@ -1140,7 +1141,7 @@ class Program
                 passed = false;
             }
 
-            // ── Case 2: StateFlags=2 (download queued, bit 4 NOT set) ─────────
+            // ── Case 2: StateFlags=2 (download queued, fully-installed flag NOT set) ─
             // ACF scan skips the game.  Folder-scan fallback must use the ACF name
             // via BuildAcfInstallDirNames (which reads all ACF files regardless of
             // StateFlags).  This reproduces the "LHPCR vs LEGO Harry Potter" bug

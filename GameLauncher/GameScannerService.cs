@@ -828,7 +828,7 @@ public sealed class GameScannerService : IDisposable
     /// <remarks>
     /// <para>
     /// <see cref="ScanSteamAcfManifests"/> only adds games whose
-    /// <c>StateFlags</c> bitmask has bit 2 (value 4 = fully installed) set.
+    /// <c>StateFlags</c> bitmask has the fully-installed flag (value 4) set.
     /// A game can be on disk and fully playable yet have <c>StateFlags</c> that
     /// don't satisfy this check (e.g. <c>2</c> = "download queued" if Steam
     /// re-queued an update after the game was already playable).  In that case
