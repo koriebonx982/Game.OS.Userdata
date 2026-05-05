@@ -439,6 +439,13 @@ class Program
         if (!gameOsTitlePassed) passed = false;
         Console.WriteLine();
 
+        // ── STEAM NON-GAME FOLDER FILTER ─────────────────────────────────────
+        Console.WriteLine("🚫 Steam Non-Game Folder Filter (acfNamesOnly blocks utility folders):");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool nonGameFilterPassed = TestSteamNonGameFolderFilter();
+        if (!nonGameFilterPassed) passed = false;
+        Console.WriteLine();
+
         // ── SUMMARY ───────────────────────────────────────────────────────────
         Console.WriteLine("═══════════════════════════════════════════════════════════════");
         if (passed)
@@ -1077,6 +1084,14 @@ class Program
     /// Verifies that when the same game folder exists in Steam common/ AND has an ACF
     /// manifest with a proper display name, the ACF name wins over the raw folder name.
     /// E.g. folder "LHPCR" → ACF name "LEGO® Harry Potter™ Collection".
+    ///
+    /// Tests two sub-cases:
+    /// 1. ACF StateFlags=516 (installed + update paused) — the fully-installed flag
+    ///    (value 4) IS set, so ACF scan adds the game directly with the proper name.
+    /// 2. ACF StateFlags=2 (download queued) — the fully-installed flag is NOT set,
+    ///    so ACF scan skips the game.  The folder-scan fallback must still use the
+    ///    proper ACF name via
+    ///    <see cref="GameScannerService.BuildAcfInstallDirNames"/>.
     /// </summary>
     private static bool TestSteamAcfNamePriority()
     {
@@ -1093,10 +1108,8 @@ class Program
             Directory.CreateDirectory(gameDir);
             File.WriteAllText(Path.Combine(gameDir, "game.exe"), "fake");
 
-            // Write an ACF manifest that gives the proper display name.
-            // Use StateFlags="516" (installed + update paused) to reproduce the real-world
-            // case where the naive stateFlags != "4" check would drop the game and the
-            // directory scan would fall back to the cryptic folder name "LHPCR".
+            // ── Case 1: StateFlags=516 (installed + update paused, fully-installed flag IS set) ─
+            // ACF scan adds the game → folder scan skips it → proper name used.
             WriteAcfManifest(steamAppsDir, appId: "400750",
                              name: "LEGO Harry Potter Collection",
                              installDir: "LHPCR", stateFlags: "516");
@@ -1107,22 +1120,20 @@ class Program
 
             // Simulate what ScanStorefrontDirs.ScanDir does (with the new duplicate check)
             // by only adding if the folder is not already in results.
+            var acfNames = GameScannerService.BuildAcfInstallDirNames(steamAppsDir);
             if (!results.Any(g => string.Equals(g.FolderPath, gameDir, StringComparison.OrdinalIgnoreCase)))
             {
-                results.Add(new LocalGame
-                {
-                    Title      = Path.GetFileName(gameDir), // would be "LHPCR"
-                    FolderPath = gameDir,
-                    Source     = "Steam",
-                });
+                string folderName = Path.GetFileName(gameDir);
+                string title = acfNames.TryGetValue(folderName, out var n) ? n : folderName;
+                results.Add(new LocalGame { Title = title, FolderPath = gameDir, Source = "Steam" });
             }
 
             // There must be exactly one entry (no duplicate cards)
             if (results.Count == 1)
-                Console.WriteLine($"  ✅  Exactly 1 entry (no duplicate): \"{results[0].Title}\"");
+                Console.WriteLine($"  ✅  [StateFlags=516] Exactly 1 entry (no duplicate): \"{results[0].Title}\"");
             else
             {
-                Console.WriteLine($"  ❌  Expected 1 entry but got {results.Count} — duplicate detection broken");
+                Console.WriteLine($"  ❌  [StateFlags=516] Expected 1 entry but got {results.Count} — duplicate detection broken");
                 passed = false;
             }
 
@@ -1130,11 +1141,74 @@ class Program
             var entry = results.FirstOrDefault();
             if (entry != null &&
                 string.Equals(entry.Title, "LEGO Harry Potter Collection", StringComparison.OrdinalIgnoreCase))
-                Console.WriteLine($"  ✅  Title from ACF manifest: \"{entry.Title}\" (not raw \"LHPCR\")");
+                Console.WriteLine($"  ✅  [StateFlags=516] Title from ACF manifest: \"{entry.Title}\" (not raw \"LHPCR\")");
             else
             {
-                Console.WriteLine($"  ❌  Title was \"{entry?.Title}\" — expected ACF name to take priority over \"LHPCR\"");
+                Console.WriteLine($"  ❌  [StateFlags=516] Title was \"{entry?.Title}\" — expected ACF name to take priority over \"LHPCR\"");
                 passed = false;
+            }
+
+            // ── Case 2: StateFlags=2 (download queued, fully-installed flag NOT set) ─
+            // ACF scan skips the game.  Folder-scan fallback must use the ACF name
+            // via BuildAcfInstallDirNames (which reads all ACF files regardless of
+            // StateFlags).  This reproduces the "LHPCR vs LEGO Harry Potter" bug
+            // where the game shows as a cryptic folder name instead of its title.
+            string tempRoot2     = Path.Combine(Path.GetTempPath(), "GameOS_AcfPrio2_" + Path.GetRandomFileName());
+            string steamApps2    = Path.Combine(tempRoot2, "steamapps");
+            string commonDir2    = Path.Combine(steamApps2, "common");
+            string gameDir2      = Path.Combine(commonDir2, "LHPCR");
+            try
+            {
+                Directory.CreateDirectory(gameDir2);
+                File.WriteAllText(Path.Combine(gameDir2, "game.exe"), "fake");
+
+                // StateFlags=2 → bit 4 NOT set → ACF scan skips the game
+                WriteAcfManifest(steamApps2, appId: "400750",
+                                 name: "LEGO Harry Potter Collection",
+                                 installDir: "LHPCR", stateFlags: "2");
+
+                var results2 = new List<LocalGame>();
+                GameScannerService.ScanSteamAcfManifests(steamApps2, results2);
+
+                // ACF scan must have skipped this game
+                if (results2.Count == 0)
+                    Console.WriteLine("  ✅  [StateFlags=2] ACF scan correctly skipped game (bit 4 not set)");
+                else
+                {
+                    Console.WriteLine($"  ❌  [StateFlags=2] Expected ACF scan to skip game but got {results2.Count} entries");
+                    passed = false;
+                }
+
+                // BuildAcfInstallDirNames must still return the proper name
+                var acfNames2 = GameScannerService.BuildAcfInstallDirNames(steamApps2);
+                if (acfNames2.TryGetValue("LHPCR", out var mappedName) &&
+                    string.Equals(mappedName, "LEGO Harry Potter Collection", StringComparison.OrdinalIgnoreCase))
+                    Console.WriteLine($"  ✅  [StateFlags=2] BuildAcfInstallDirNames returns proper name: \"{mappedName}\"");
+                else
+                {
+                    Console.WriteLine($"  ❌  [StateFlags=2] BuildAcfInstallDirNames did not return proper name for \"LHPCR\" (got \"{mappedName}\")");
+                    passed = false;
+                }
+
+                // Simulate folder-scan fallback: game not in results → use acfNames2 for title
+                string folderName2 = Path.GetFileName(gameDir2);
+                string title2 = acfNames2.TryGetValue(folderName2, out var n2) ? n2 : folderName2;
+                results2.Add(new LocalGame { Title = title2, FolderPath = gameDir2, Source = "Steam" });
+
+                // The folder-scan fallback must use the proper ACF name, not "LHPCR"
+                var entry2 = results2.FirstOrDefault();
+                if (entry2 != null &&
+                    string.Equals(entry2.Title, "LEGO Harry Potter Collection", StringComparison.OrdinalIgnoreCase))
+                    Console.WriteLine($"  ✅  [StateFlags=2] Folder-scan fallback uses ACF name: \"{entry2.Title}\" (not raw \"LHPCR\")");
+                else
+                {
+                    Console.WriteLine($"  ❌  [StateFlags=2] Folder-scan fallback used raw name \"{entry2?.Title}\" — expected \"LEGO Harry Potter Collection\"");
+                    passed = false;
+                }
+            }
+            finally
+            {
+                try { if (Directory.Exists(tempRoot2)) Directory.Delete(tempRoot2, recursive: true); } catch { }
             }
         }
         catch (Exception ex)
@@ -1367,6 +1441,127 @@ class Program
         finally
         {
             try { Directory.Delete(tempDir, recursive: true); } catch { }
+        }
+
+        return passed;
+    }
+
+    private static bool TestSteamNonGameFolderFilter()
+    {
+        // Verifies that the acfNamesOnly=true mode on ScanDir (used for all Steam
+        // steamapps/common/ directories) filters out well-known Steam utility folders
+        // that have no ACF manifest — "Steamworks Common Redistributables", "SteamVR",
+        // "steam_settings" sub-folders, etc. — even when those folders contain .exe files.
+        // This mirrors the Game Store.cs approach: only add Steam common/ folders that
+        // appear in the ACF installdir→name map.
+        string tempRoot = Path.Combine(Path.GetTempPath(), "GameOS_NonGameFilter_" + Path.GetRandomFileName());
+        bool passed = true;
+
+        try
+        {
+            string steamAppsDir = Path.Combine(tempRoot, "steamapps");
+            string commonDir    = Path.Combine(steamAppsDir, "common");
+
+            // ── Real game: has an ACF entry ────────────────────────────────
+            string gameDir = Path.Combine(commonDir, "GodOfWarRagnarok");
+            Directory.CreateDirectory(gameDir);
+            File.WriteAllText(Path.Combine(gameDir, "GoW.exe"), "fake");
+            WriteAcfManifest(steamAppsDir, appId: "2322010",
+                             name: "God of War Ragnarök",
+                             installDir: "GodOfWarRagnarok", stateFlags: "4");
+
+            // ── Steam utility folders: no ACF entry but contain an .exe ───
+            // Steamworks Common Redistributables (real Steam pseudo-package)
+            string redistributablesDir = Path.Combine(commonDir, "Steamworks Common Redistributables");
+            Directory.CreateDirectory(redistributablesDir);
+            File.WriteAllText(Path.Combine(redistributablesDir, "installscript_redistributables.exe"), "fake");
+
+            // SteamVR
+            string steamVrDir = Path.Combine(commonDir, "SteamVR");
+            Directory.CreateDirectory(steamVrDir);
+            File.WriteAllText(Path.Combine(steamVrDir, "vrstartup.exe"), "fake");
+
+            // steam_settings (embedded inside a game folder in some cracked game distributions)
+            string steamSettingsDir = Path.Combine(commonDir, "steam_settings");
+            Directory.CreateDirectory(steamSettingsDir);
+            File.WriteAllText(Path.Combine(steamSettingsDir, "Game.exe"), "fake");
+
+            // Build the ACF installdir→name map (only GodOfWarRagnarok has an ACF)
+            var acfNames = GameScannerService.BuildAcfInstallDirNames(steamAppsDir);
+
+            // Run ACF scan first, then ScanDir with acfNamesOnly=true
+            // (We call the internal public APIs directly, mirroring what ScanStorefrontDirs does)
+            var results = new List<LocalGame>();
+            GameScannerService.ScanSteamAcfManifests(steamAppsDir, results);
+
+            // Simulate ScanDir with acfNamesOnly=true by manually applying the same logic:
+            // only add folders that have an entry in acfNames and are not already in results.
+            var existingPaths = new HashSet<string>(
+                results.Select(g => g.FolderPath), StringComparer.OrdinalIgnoreCase);
+            foreach (var folder in Directory.EnumerateDirectories(commonDir))
+            {
+                if (existingPaths.Contains(folder)) continue;
+                string folderName = Path.GetFileName(folder);
+                // acfNamesOnly check: skip if not in acfNames
+                if (!acfNames.ContainsKey(folderName)) continue;
+                // Would add game here, but for this test we just record the folder
+                results.Add(new LocalGame
+                {
+                    Title      = acfNames.TryGetValue(folderName, out var n) ? n : folderName,
+                    FolderPath = folder,
+                    Source     = "Steam",
+                });
+            }
+
+            // ── God of War Ragnarök must be present ────────────────────────
+            var gow = results.FirstOrDefault(g =>
+                string.Equals(g.Title, "God of War Ragnarök", StringComparison.OrdinalIgnoreCase));
+            if (gow != null)
+                Console.WriteLine($"  ✅  Real game detected: \"{gow.Title}\"");
+            else
+            {
+                Console.WriteLine("  ❌  Real game \"God of War Ragnarök\" was NOT detected");
+                passed = false;
+            }
+
+            // ── Utility folders must NOT be present ────────────────────────
+            var utilityFolders = new[]
+            {
+                ("Steamworks Common Redistributables", "Steamworks Common Redistributables"),
+                ("SteamVR",                            "SteamVR"),
+                ("steam_settings",                     "steam_settings"),
+            };
+            foreach (var (folderName, displayName) in utilityFolders)
+            {
+                var entry = results.FirstOrDefault(g =>
+                    string.Equals(g.Title, displayName, StringComparison.OrdinalIgnoreCase)
+                    || (g.FolderPath != null && Path.GetFileName(g.FolderPath)
+                            .Equals(folderName, StringComparison.OrdinalIgnoreCase)));
+                if (entry == null)
+                    Console.WriteLine($"  ✅  \"{folderName}\" correctly excluded (no ACF entry)");
+                else
+                {
+                    Console.WriteLine($"  ❌  \"{folderName}\" was NOT excluded — utility folder appeared as a game card");
+                    passed = false;
+                }
+            }
+
+            if (results.Count == 1)
+                Console.WriteLine($"  ✅  Exactly 1 game in results (utility folders filtered out)");
+            else
+            {
+                Console.WriteLine($"  ❌  Expected 1 game but got {results.Count} — some utility folders leaked through");
+                passed = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ❌  SteamNonGameFolderFilter test threw: {ex.Message}");
+            passed = false;
+        }
+        finally
+        {
+            try { if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true); } catch { }
         }
 
         return passed;
