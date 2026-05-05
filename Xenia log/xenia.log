@@ -1,0 +1,954 @@
+i> 00002410 Build: canary_experimental@3ff5663f5 on May 10 2024
+i> 00002410 Storage root: G:\Apps\Emulators\xenia canary
+i> 00002410 ----------- CONFIG DUMP -----------
+
+[APU]
+apu = "any"                                       	
+apu_max_queued_frames = 64                        	
+ffmpeg_verbose = false                            	
+mute = false                                      	
+use_dedicated_xma_thread = true                   	
+use_new_decoder = false                           	
+
+[CPU]
+break_condition_gpr = -1                          	
+break_condition_op = "eq"                         	
+break_condition_truncate = true                   	
+break_condition_value = 0                         	
+break_on_debugbreak = true                        	
+break_on_instruction = 0                          	
+break_on_start = false                            	
+break_on_unimplemented_instructions = true        	
+clock_no_scaling = false                          	
+clock_source_raw = false                          	
+cpu = "any"                                       	
+debug_symbol_loader = false                       	
+debugprint_trap_log = false                       	
+disable_instruction_infocache = false             	
+disable_prefetch_and_cachecontrol = true          	
+disassemble_functions = false                     	
+dump_translated_hir_functions = false             	
+elide_e0_check = false                            	
+emit_mmio_aware_stores_for_recorded_exception_addresses = true	
+emit_source_annotations = false                   	
+enable_early_precompilation = false               	
+full_optimization_even_with_debug = false         	
+ignore_trap_instructions = true                   	
+ignore_undefined_externs = true                   	
+inline_loadclock = false                          	
+inline_mmio_access = true                         	
+load_module_map = ""                              	
+no_reserved_ops = false                           	
+no_round_to_single = false                        	
+permit_float_constant_evaluation = false          	
+pvr = 7407360                                     	
+store_all_context_values = false                  	
+trace_function_coverage = false                   	
+trace_function_data = false                       	
+trace_function_data_path = ""                     	
+trace_function_references = false                 	
+trace_functions = false                           	
+use_fast_dot_product = false                      	
+validate_hir = false                              	
+writable_code_segments = false                    	
+
+[Config]
+defaults_date = 2020123113                        	
+
+[Content]
+license_mask = 1                                  	
+
+[D3D12]
+d3d12_adapter = -1                                	
+d3d12_allow_variable_refresh_rate_and_tearing = true	
+d3d12_bindless = true                             	
+d3d12_break_on_error = false                      	
+d3d12_break_on_warning = false                    	
+d3d12_debug = false                               	
+d3d12_dxbc_disasm = false                         	
+d3d12_dxbc_disasm_dxilconv = false                	
+d3d12_nvapi_use_driver_heap_priorities = false    	
+d3d12_pipeline_creation_threads = -1              	
+d3d12_queue_priority = 1                          	
+d3d12_readback_memexport = false                  	
+d3d12_readback_resolve = false                    	
+d3d12_submit_on_primary_buffer_end = true         	
+d3d12_tessellation_wireframe = false              	
+d3d12_tiled_shared_memory = true                  	
+
+[Display]
+fullscreen = true                                 	
+host_present_from_non_ui_thread = true            	
+internal_display_resolution = 8                   	
+postprocess_antialiasing = ""                     	
+postprocess_dither = true                         	
+postprocess_ffx_cas_additional_sharpness = 0      	
+postprocess_ffx_fsr_max_upsampling_passes = 4     	
+postprocess_ffx_fsr_sharpness_reduction = 0.20000000298023224	
+postprocess_scaling_and_sharpening = ""           	
+present_letterbox = true                          	
+present_render_pass_clear = true                  	
+present_safe_area_x = 100                         	
+present_safe_area_y = 100                         	
+
+[GPU]
+clear_memory_page_state = false                   	
+depth_float24_convert_in_pixel_shader = false     	
+depth_float24_round = false                       	
+depth_transfer_not_equal_test = true              	
+disassemble_pm4 = false                           	
+draw_resolution_scale_x = 1                       	
+draw_resolution_scale_y = 1                       	
+draw_resolution_scaled_texture_offsets = true     	
+dump_shaders = ""                                 	
+dxbc_source_map = false                           	
+dxbc_switch = true                                	
+execute_unclipped_draw_vs_on_cpu = true           	
+execute_unclipped_draw_vs_on_cpu_for_psi_render_backend = true	
+execute_unclipped_draw_vs_on_cpu_with_scissor = false	
+force_convert_line_loops_to_strips = false        	
+force_convert_quad_lists_to_triangle_lists = false	
+force_convert_triangle_fans_to_lists = false      	
+framerate_limit = 65                              	
+gamma_render_target_as_srgb = false               	
+gpu = "any"                                       	
+gpu_allow_invalid_fetch_constants = true          	
+half_pixel_offset = true                          	
+ignore_32bit_vertex_index_support = false         	
+log_guest_driven_gpu_register_written_values = false	
+log_ringbuffer_kickoff_initiator_bts = false      	
+mrt_edram_used_range_clamp_to_min = true          	
+native_2x_msaa = true                             	
+native_stencil_value_output = true                	
+native_stencil_value_output_d3d12_intel = false   	
+no_discard_stencil_in_transfer_pipelines = false  	
+non_seamless_cube_map = true                      	
+primitive_processor_cache_min_indices = 4096      	
+query_occlusion_fake_sample_count = 1000          	
+render_target_path_d3d12 = ""                     	
+render_target_path_vulkan = ""                    	
+resolve_resolution_scale_fill_half_pixel_offset = true	
+snorm16_render_target_full_range = true           	
+store_shaders = true                              	
+texture_cache_memory_limit_hard = 768             	
+texture_cache_memory_limit_render_to_texture = 24 	
+texture_cache_memory_limit_soft = 384             	
+texture_cache_memory_limit_soft_lifetime = 30     	
+trace_gpu_prefix = "scratch/gpu/"                 	
+trace_gpu_stream = false                          	
+use_fuzzy_alpha_epsilon = false                   	
+vsync = false                                     	
+
+[General]
+allow_game_relative_writes = false                	
+allow_plugins = false                             	
+apply_patches = true                              	
+controller_hotkeys = false                        	
+debug = false                                     	
+discord = true                                    	
+launch_module = ""                                	
+notification_sound_path = ""                      	
+recent_titles_entry_amount = 10                   	
+time_scalar = 1                                   	
+
+[HACKS]
+ac6_ground_fix = false                            	
+
+[HID]
+guide_button = true                               	
+hid = "any"                                       	
+vibration = true                                  	
+
+[HID.WinKey]
+keybind_a = "0xBA"                                	
+keybind_b = "0xDE"                                	
+keybind_back = "Z"                                	
+keybind_dpad_down = "^S"                          	
+keybind_dpad_left = "^A"                          	
+keybind_dpad_right = "^D"                         	
+keybind_dpad_up = "^W"                            	
+keybind_guide = "0x08"                            	
+keybind_left_shoulder = "1"                       	
+keybind_left_thumb = "F"                          	
+keybind_left_thumb_down = "_S"                    	
+keybind_left_thumb_left = "_A"                    	
+keybind_left_thumb_right = "_D"                   	
+keybind_left_thumb_up = "_W"                      	
+keybind_left_trigger = "Q I"                      	
+keybind_right_shoulder = "3"                      	
+keybind_right_thumb = "K"                         	
+keybind_right_thumb_down = "0x28"                 	
+keybind_right_thumb_left = "0x25"                 	
+keybind_right_thumb_right = "0x27"                	
+keybind_right_thumb_up = "0x26"                   	
+keybind_right_trigger = "E O"                     	
+keybind_start = "X"                               	
+keybind_x = "L"                                   	
+keybind_y = "P"                                   	
+
+[Kernel]
+apply_title_update = true                         	
+cl = ""                                           	
+ignore_thread_affinities = true                   	
+ignore_thread_priorities = true                   	
+kernel_build_version = 1888                       	
+kernel_cert_monitor = false                       	
+kernel_debug_monitor = false                      	
+kernel_display_gamma_power = 2.22222233           	
+kernel_display_gamma_type = 2                     	
+kernel_pix = false                                	
+log_high_frequency_kernel_calls = false           	
+max_signed_profiles = 4                           	
+
+[Logging]
+enable_console = false                            	
+flush_log = true                                  	
+log_file = ""                                     	
+log_level = 2                                     	
+log_mask = 0                                      	
+log_string_format_kernel_calls = false            	
+log_to_debugprint = false                         	
+log_to_stdout = true                              	
+
+[Memory]
+ignore_offset_for_ranged_allocations = false      	
+protect_on_release = false                        	
+protect_zero = true                               	
+scribble_heap = false                             	
+writable_executable_memory = true                 	
+
+[SDL]
+mappings_file = "gamecontrollerdb.txt"            	
+
+[Storage]
+cache_root = ""                                   	
+content_root = ""                                 	
+mount_cache = false                               	
+mount_scratch = false                             	
+storage_root = ""                                 	
+
+[UI]
+custom_font_path = ""                             	
+font_size = 12                                    	
+headless = false                                  	
+imgui_debug = false                               	
+profiler_dpi_scaling = false                      	
+show_achievement_notification = true              	
+show_profiler = false                             	
+
+[Video]
+avpack = 8                                        	
+
+[Vulkan]
+vulkan_allow_present_mode_fifo_relaxed = true     	
+vulkan_allow_present_mode_immediate = true        	
+vulkan_allow_present_mode_mailbox = true          	
+vulkan_debug_utils_messenger = false              	
+vulkan_debug_utils_messenger_severity = 2         	
+vulkan_debug_utils_names = false                  	
+vulkan_device = -1                                	
+vulkan_sparse_shared_memory = true                	
+vulkan_validation = false                         	
+
+[Win32]
+enable_rdrand_ntdll_patch = true                  	
+win32_high_resolution_timer = true                	
+win32_mmcss = true                                	
+
+[XConfig]
+user_country = 103                                	
+user_language = 1                                 	
+
+[x64]
+align_all_basic_blocks = 0                        	
+delay_via_maybeyield = false                      	
+enable_host_guest_stack_synchronization = true    	
+enable_incorrect_roundingmode_behavior = false    	
+enable_rmw_context_merging = false                	
+instrument_call_times = false                     	
+max_stackpoints = 65536                           	
+record_mmio_access_exceptions = true              	
+x64_extension_mask = -1                           	
+xop_arithmetic_right_shifts = false               	
+xop_compares = true                               	
+xop_left_shifts = false                           	
+xop_right_shifts = false                          	
+xop_rotates = false                               	
+----------- END OF CONFIG DUMP ----
+i> 00002410 Loaded config: G:\Apps\Emulators\xenia canary\xenia-canary.config.toml
+i> 00002410 Content root: G:\Apps\Emulators\xenia canary\content
+i> 00002410 Host cache root: G:\Apps\Emulators\xenia canary\cache_host
+i> 00004030 winkey: "0x08" binds key 0x8 to controller input GUIDE.
+i> 00004030 winkey: "^A" binds key 0x41 to controller input DPAD_LEFT.
+i> 00004030 winkey: "^D" binds key 0x44 to controller input DPAD_RIGHT.
+i> 00004030 winkey: "^S" binds key 0x53 to controller input DPAD_DOWN.
+i> 00004030 winkey: "^W" binds key 0x57 to controller input DPAD_UP.
+i> 00004030 winkey: "_A" binds key 0x41 to controller input LEFT_THUMB_LEFT.
+i> 00004030 winkey: "_D" binds key 0x44 to controller input LEFT_THUMB_RIGHT.
+i> 00004030 winkey: "_S" binds key 0x53 to controller input LEFT_THUMB_DOWN.
+i> 00004030 winkey: "_W" binds key 0x57 to controller input LEFT_THUMB_UP.
+i> 00004030 winkey: "F" binds key 0x46 to controller input LEFT_THUMB_PRESSED.
+i> 00004030 winkey: "0x26" binds key 0x26 to controller input RIGHT_THUMB_UP.
+i> 00004030 winkey: "0x28" binds key 0x28 to controller input RIGHT_THUMB_DOWN.
+i> 00004030 winkey: "0x27" binds key 0x27 to controller input RIGHT_THUMB_RIGHT.
+i> 00004030 winkey: "0x25" binds key 0x25 to controller input RIGHT_THUMB_LEFT.
+i> 00004030 winkey: "K" binds key 0x4B to controller input RIGHT_THUMB_PRESSED.
+i> 00004030 winkey: "L" binds key 0x4C to controller input X.
+i> 00004030 winkey: "0xDE" binds key 0xDE to controller input B.
+i> 00004030 winkey: "0xBA" binds key 0xBA to controller input A.
+i> 00004030 winkey: "P" binds key 0x50 to controller input Y.
+i> 00004030 winkey: "Q" binds key 0x51 to controller input LEFT_TRIGGER.
+i> 00004030 winkey: "I" binds key 0x49 to controller input LEFT_TRIGGER.
+i> 00004030 winkey: "E" binds key 0x45 to controller input RIGHT_TRIGGER.
+i> 00004030 winkey: "O" binds key 0x4F to controller input RIGHT_TRIGGER.
+i> 00004030 winkey: "Z" binds key 0x5A to controller input BACK.
+i> 00004030 winkey: "X" binds key 0x58 to controller input START.
+i> 00004030 winkey: "1" binds key 0x31 to controller input LEFT_SHOULDER.
+i> 00004030 winkey: "3" binds key 0x33 to controller input RIGHT_SHOULDER.
+i> 00002410 SDL Version 2.30.0 initialized.
+i> 00002410 SDL OnControllerDeviceAdded: "Xbox One Controller", JoystickType(1), GameControllerType(2), VendorID(0x045E), ProductID(0x02FF), GUID(0300938d5e040000ff02000000007200)
+i> 00002410 SDL OnControllerDeviceAdded: Added at index 0.
+i> 00002410 SDL Controller 0: 0300938d5e040000ff02000000007200,*,a:b0,b:b1,x:b2,y:b3,back:b6,guide:b10,start:b7,leftstick:b8,rightstick:b9,leftshoulder:b4,rightshoulder:b5,dpup:h0.1,dpdown:h0.4,dpleft:h0.8,dpright:h0.2,leftx:a0,lefty:a1,rightx:a2,righty:a3,lefttrigger:a4,righttrigger:a5,crc:8d93,platform:Windows
+w> 00002410 SDL GameControllerDB: file 'gamecontrollerdb.txt' does not exist.
+i> 00004030 PatchDB: Loaded patches for 189 titles
+w> 00004030 Attempting to save unsupported profile setting to disk
+w> 00004030 Attempting to save unsupported profile setting to disk
+w> 00004030 Attempting to save unsupported profile setting to disk
+i> 00004030 Added handle:F8000000 for class xe::kernel::XObject
+i> 00004030 Added handle:01000004 for class xe::kernel::XObject
+i> 00004030 Added handle:01000008 for class xe::kernel::XObject
+i> 00004030 Added handle:0100000C for class xe::kernel::XObject
+i> 00004030 DXGI adapter: NVIDIA GeForce GTX 1650 SUPER (vendor 0x10DE, device 0x2187)
+i> 00004030 Direct3D 12 device and OS features:
+* Max GPU virtual address bits per resource: 40
+* Non-zeroed heap creation: yes
+* Pixel-shader-specified stencil reference: no
+* Programmable sample positions: tier 2
+* Rasterizer-ordered views: yes
+* Resource binding: tier 3
+* Tiled resources: tier 3
+* Unaligned block-compressed textures: no
+i> 00004030 Added handle:01000010 for class xe::kernel::XObject
+i> 00004030 XThread01000010 (1) Stack: 70010000-70030000
+i> 00004030 Added handle:01000014 for class xe::kernel::XObject
+i> 00004030 XThread01000014 (2) Stack: 70050000-70070000
+K> 01000010 XThread::Execute thid 1 (handle=01000010, 'GPU Commands (01000010)', native=00002DA8, <host>)
+K> 01000014 XThread::Execute thid 2 (handle=01000014, 'GPU Frame limiter (01000014)', native=00000E88, <host>)
+i> 00004030 Added handle:01000018 for class xe::kernel::XObject
+i> 00004030 XThread01000018 (3) Stack: 70090000-700B0000
+i> 00004030 Added handle:0100001C for class xe::kernel::XObject
+i> 00004030 XThread0100001C (4) Stack: 700D0000-700F0000
+K> 01000018 XThread::Execute thid 3 (handle=01000018, 'XMA Decoder (01000018)', native=00001990, <host>)
+K> 0100001C XThread::Execute thid 4 (handle=0100001C, 'Audio Worker (0100001C)', native=00002660, <host>)
+F> 00002410 DiscZarchiveDevice::ResolvePath(\GameInfo.bin)
+i> 00002410 Loading module game:\default.xex
+i> 00002410 Added handle:F8000004 for class xe::kernel::XObject
+F> 00002410 DiscZarchiveDevice::ResolvePath(\default.xex)
+i> 00002410 Module \Device\Cdrom0\default.xex:
+Module Hash: FC22FC272282C072
+    Module Flags: 00000001
+Security Header:
+     Image Flags: 00000000
+    Load Address: 82000000
+      Image Size: 004D0000
+    Export Table: 00000000
+Optional Header Count: 15
+  XEX_HEADER_RESOURCE_INFO:
+    584109B7 824A0000-824CE646, 190022b
+  XEX_HEADER_FILE_FORMAT_INFO (TODO):
+  XEX_HEADER_ENTRY_POINT: 82142600
+  XEX_HEADER_IMAGE_BASE_ADDRESS: 82000000
+  XEX_HEADER_IMPORT_LIBRARIES:
+    xam.xex - 154 imports
+      Version: 0.0.9328.32
+      Min Version: 0.0.1861.32
+    xboxkrnl.exe - 254 imports
+      Version: 0.0.9328.32
+      Min Version: 0.0.1861.32
+  XEX_HEADER_CHECKSUM_TIMESTAMP:
+    Checksum : 00341CED
+    Time Stamp: 4B01264B - Mon Nov 16 10:15:39 2009
+  XEX_HEADER_ORIGINAL_PE_NAME: NasX.exe
+  XEX_HEADER_STATIC_LIBRARIES:
+    XAPILIB  : 2.0.9328.0
+    D3DX9    : 2.0.9328.0
+    XBOXKRNL : 2.0.9328.0
+    XNET     : 2.0.9328.0
+    LIBCPMT  : 2.0.9328.0
+    XONLINE  : 2.0.9328.0
+    QNETXA2  : 2.0.9328.0
+    XRNSS    : 2.0.9328.0
+    XRNMS    : 2.0.9328.0
+    XPARTY   : 2.0.9328.0
+    X3DAUD   : 2.0.9328.0
+    XGRAPHC  : 2.0.9328.0
+    XAUDIO2  : 2.0.9328.4
+    XAPOBA   : 2.0.9328.4
+    XMCORE   : 2.0.9328.0
+    XHV2     : 2.0.9328.0
+    D3D9LTCG : 2.0.9328.0
+  XEX_HEADER_TLS_INFO:
+          Slot Count: 64
+    Raw Data Address: 00000000
+           Data Size: 0
+       Raw Data Size: 0
+  XEX_HEADER_DEFAULT_STACK_SIZE: 262144
+  XEX_HEADER_SYSTEM_FLAGS: 00000604
+  XEX_HEADER_EXECUTION_INFO:
+       Media ID: 79595405
+       Title ID: 584109B7
+    Savegame ID: 584109B7
+    Disc Number / Total: 0 / 0
+  XEX_HEADER_GAME_RATINGS (TODO):
+  XEX_HEADER_LAN_KEY: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  XEX_HEADER_XBOX360_LOGO (TODO):
+Sections:
+    0 RODATA    1 pages    82000000 - 82010000 (65536 bytes)
+    1 RODATA    1 pages    82010000 - 82020000 (65536 bytes)
+    2 RODATA    1 pages    82020000 - 82030000 (65536 bytes)
+    3 RODATA    1 pages    82030000 - 82040000 (65536 bytes)
+    4 RODATA    1 pages    82040000 - 82050000 (65536 bytes)
+    5 RODATA    1 pages    82050000 - 82060000 (65536 bytes)
+    6 RODATA    1 pages    82060000 - 82070000 (65536 bytes)
+    7 RODATA    1 pages    82070000 - 82080000 (65536 bytes)
+    8 RODATA    1 pages    82080000 - 82090000 (65536 bytes)
+    9 RODATA    1 pages    82090000 - 820A0000 (65536 bytes)
+   10 CODE      1 pages    820A0000 - 820B0000 (65536 bytes)
+   11 CODE      1 pages    820B0000 - 820C0000 (65536 bytes)
+   12 CODE      1 pages    820C0000 - 820D0000 (65536 bytes)
+   13 CODE      1 pages    820D0000 - 820E0000 (65536 bytes)
+   14 CODE      1 pages    820E0000 - 820F0000 (65536 bytes)
+   15 CODE      1 pages    820F0000 - 82100000 (65536 bytes)
+   16 CODE      1 pages    82100000 - 82110000 (65536 bytes)
+   17 CODE      1 pages    82110000 - 82120000 (65536 bytes)
+   18 CODE      1 pages    82120000 - 82130000 (65536 bytes)
+   19 CODE      1 pages    82130000 - 82140000 (65536 bytes)
+   20 CODE      1 pages    82140000 - 82150000 (65536 bytes)
+   21 CODE      1 pages    82150000 - 82160000 (65536 bytes)
+   22 CODE      1 pages    82160000 - 82170000 (65536 bytes)
+   23 CODE      1 pages    82170000 - 82180000 (65536 bytes)
+   24 CODE      1 pages    82180000 - 82190000 (65536 bytes)
+   25 CODE      1 pages    82190000 - 821A0000 (65536 bytes)
+   26 CODE      1 pages    821A0000 - 821B0000 (65536 bytes)
+   27 CODE      1 pages    821B0000 - 821C0000 (65536 bytes)
+   28 CODE      1 pages    821C0000 - 821D0000 (65536 bytes)
+   29 CODE      1 pages    821D0000 - 821E0000 (65536 bytes)
+   30 CODE      1 pages    821E0000 - 821F0000 (65536 bytes)
+   31 CODE      1 pages    821F0000 - 82200000 (65536 bytes)
+   32 CODE      1 pages    82200000 - 82210000 (65536 bytes)
+   33 CODE      1 pages    82210000 - 82220000 (65536 bytes)
+   34 CODE      1 pages    82220000 - 82230000 (65536 bytes)
+   35 CODE      1 pages    82230000 - 82240000 (65536 bytes)
+   36 CODE      1 pages    82240000 - 82250000 (65536 bytes)
+   37 RWDATA    1 pages    82250000 - 82260000 (65536 bytes)
+   38 RWDATA    1 pages    82260000 - 82270000 (65536 bytes)
+   39 RWDATA    1 pages    82270000 - 82280000 (65536 bytes)
+   40 RWDATA    1 pages    82280000 - 82290000 (65536 bytes)
+   41 RWDATA    1 pages    82290000 - 822A0000 (65536 bytes)
+   42 RWDATA    1 pages    822A0000 - 822B0000 (65536 bytes)
+   43 RWDATA    1 pages    822B0000 - 822C0000 (65536 bytes)
+   44 RWDATA    1 pages    822C0000 - 822D0000 (65536 bytes)
+   45 RWDATA    1 pages    822D0000 - 822E0000 (65536 bytes)
+   46 RWDATA    1 pages    822E0000 - 822F0000 (65536 bytes)
+   47 RWDATA    1 pages    822F0000 - 82300000 (65536 bytes)
+   48 RWDATA    1 pages    82300000 - 82310000 (65536 bytes)
+   49 RWDATA    1 pages    82310000 - 82320000 (65536 bytes)
+   50 RWDATA    1 pages    82320000 - 82330000 (65536 bytes)
+   51 RWDATA    1 pages    82330000 - 82340000 (65536 bytes)
+   52 RWDATA    1 pages    82340000 - 82350000 (65536 bytes)
+   53 RWDATA    1 pages    82350000 - 82360000 (65536 bytes)
+   54 RWDATA    1 pages    82360000 - 82370000 (65536 bytes)
+   55 RWDATA    1 pages    82370000 - 82380000 (65536 bytes)
+   56 RWDATA    1 pages    82380000 - 82390000 (65536 bytes)
+   57 RWDATA    1 pages    82390000 - 823A0000 (65536 bytes)
+   58 RWDATA    1 pages    823A0000 - 823B0000 (65536 bytes)
+   59 RWDATA    1 pages    823B0000 - 823C0000 (65536 bytes)
+   60 RWDATA    1 pages    823C0000 - 823D0000 (65536 bytes)
+   61 RWDATA    1 pages    823D0000 - 823E0000 (65536 bytes)
+   62 RWDATA    1 pages    823E0000 - 823F0000 (65536 bytes)
+   63 RWDATA    1 pages    823F0000 - 82400000 (65536 bytes)
+   64 RWDATA    1 pages    82400000 - 82410000 (65536 bytes)
+   65 RWDATA    1 pages    82410000 - 82420000 (65536 bytes)
+   66 RWDATA    1 pages    82420000 - 82430000 (65536 bytes)
+   67 RWDATA    1 pages    82430000 - 82440000 (65536 bytes)
+   68 RWDATA    1 pages    82440000 - 82450000 (65536 bytes)
+   69 RWDATA    1 pages    82450000 - 82460000 (65536 bytes)
+   70 RWDATA    1 pages    82460000 - 82470000 (65536 bytes)
+   71 RWDATA    1 pages    82470000 - 82480000 (65536 bytes)
+   72 RWDATA    1 pages    82480000 - 82490000 (65536 bytes)
+   73 RWDATA    1 pages    82490000 - 824A0000 (65536 bytes)
+   74 RODATA    1 pages    824A0000 - 824B0000 (65536 bytes)
+   75 RODATA    1 pages    824B0000 - 824C0000 (65536 bytes)
+   76 RODATA    1 pages    824C0000 - 824D0000 (65536 bytes)
+Imports:
+ xam - 77 imports
+   Version: 0.0.9328.32
+   Min Version: 0.0.1861.32
+
+         Total:   77
+         Known:  100% (77 known, 0 unknown)
+   Implemented:   87% (67 implemented, 10 unimplemented)
+
+   F 82000400 82241914 28C ( 652)    XNotifyPositionUI
+   F 82000404 82241924 1A4 ( 420)    XamLoaderLaunchTitle
+   F 82000408 82241934 190 ( 400)    XamInputGetCapabilities
+   F 8200040C 82241944 191 ( 401)    XamInputGetState
+   F 82000410 82241954 192 ( 402)    XamInputSetState
+   F 82000414 82241964 2BC ( 700)    XamShowSigninUI
+   F 82000418 82241974 2BF ( 703) !! XamShowFriendsUI
+   F 8200041C 82241984 2D5 ( 725) !! XamShowGamerCardUIForXUID
+   F 82000420 82241994 2C5 ( 709) !! XamShowAchievementsUI
+   F 82000424 822419A4 2C7 ( 711) !! XamShowMarketplaceUI
+   F 82000428 822419B4 2CB ( 715)    XamShowDeviceSelectorUI
+   F 8200042C 822419C4 2DC ( 732)    XamShowMessageBoxUIEx
+   F 82000430 822419D4 3CD ( 973)    XGetLanguage
+   F 82000434 822419E4 3CB ( 971)    XGetAVPack
+   F 82000438 822419F4 1A9 ( 425)    XamLoaderTerminateTitle
+   F 8200043C 822424A4 30C ( 780)    XamVoiceCreate
+   F 82000440 82242494 30E ( 782)    XamVoiceSubmitPacket
+   F 82000444 82242484 30F ( 783)    XamVoiceClose
+   F 82000448 82242474 30D ( 781)    XamVoiceHeadsetPresent
+   F 8200044C 82242464 219 ( 537)    XamUserReadProfileSettings
+   F 82000450 82242454 1EA ( 490)    XamAlloc
+   F 82000454 82242444 1EC ( 492)    XamFree
+   F 82000458 82242434 1F4 ( 500)    XMsgInProcessCall
+   F 8200045C 82242424 316 ( 790)    XamSessionCreateHandle
+   F 82000460 82242414 051 (  81) !! NetDll_XNetReplaceKey
+   F 82000464 82242404 01B (  27)    NetDll_WSAGetLastError
+   F 82000468 822423F4 019 (  25)    NetDll_WSASendTo
+   F 8200046C 822423E4 015 (  21)    NetDll_WSARecvFrom
+   F 82000470 822423D4 014 (  20)    NetDll_recvfrom
+   F 82000474 822423C4 010 (  16) !! NetDll_WSAGetOverlappedResult
+   F 82000478 822423B4 00F (  15)    NetDll_select
+   F 8200047C 822423A4 00B (  11)    NetDll_bind
+   F 82000480 82242394 007 (   7)    NetDll_setsockopt
+   F 82000484 82242384 006 (   6)    NetDll_ioctlsocket
+   F 82000488 82242374 004 (   4)    NetDll_closesocket
+   F 8200048C 82242364 003 (   3)    NetDll_socket
+   F 82000490 82242354 002 (   2)    NetDll_WSACleanup
+   F 82000494 82242344 001 (   1)    NetDll_WSAStartup
+   F 82000498 82242194 280 ( 640)    XamGetExecutionId
+   F 8200049C 82242184 250 ( 592)    XamEnumerate
+   F 820004A0 82242174 3CC ( 972)    XGetGameRegion
+   F 820004A4 82242164 25E ( 606)    XamContentGetDeviceData
+   F 820004A8 82242154 265 ( 613)    XamContentGetDeviceState
+   F 820004AC 82242144 25C ( 604)    XamContentCreateEnumerator
+   F 820004B0 82242134 266 ( 614)    XamContentGetLicenseMask
+   F 820004B4 82242124 260 ( 608)    XamContentSetThumbnail
+   F 820004B8 82242114 25A ( 602)    XamContentClose
+   F 820004BC 82242104 259 ( 601)    XamContentCreateEx
+   F 820004C0 822420F4 28A ( 650)    XamNotifyCreateListener
+   F 820004C4 822420E4 227 ( 551)    XamUserGetSigninInfo
+   F 820004C8 822420D4 1F8 ( 504)    XMsgCancelIORequest
+   F 820004CC 822420C4 20A ( 522)    XamUserGetXUID
+   F 820004D0 822420B4 2F5 ( 757)    XamReadTileToTexture
+   F 820004D4 822420A4 2F7 ( 759)    XamUserCreateStatsEnumerator
+   F 820004D8 82242094 212 ( 530)    XamUserCheckPrivilege
+   F 820004DC 82242084 213 ( 531)    XamUserAreUsersFriends
+   F 820004E0 82242074 210 ( 528)    XamUserGetSigninState
+   F 820004E4 82242064 3D1 ( 977)    XGetVideoMode
+   F 820004E8 82242054 28B ( 651)    XNotifyGetNext
+   F 820004EC 82242044 317 ( 791)    XamSessionRefObjByHandle
+   F 820004F0 82242034 1F7 ( 503)    XMsgStartIORequest
+   F 820004F4 82242024 04E (  78)    NetDll_XNetGetOpt
+   F 820004F8 82242014 049 (  73)    NetDll_XNetGetTitleXnAddr
+   F 820004FC 82242004 048 (  72)    NetDll_XNetQosRelease
+   F 82000500 82241FF4 047 (  71)    NetDll_XNetQosServiceLookup
+   F 82000504 82241FE4 046 (  70) !! NetDll_XNetQosLookup
+   F 82000508 82241FD4 045 (  69)    NetDll_XNetQosListen
+   F 8200050C 82241FC4 042 (  66) !! NetDll_XNetGetConnectStatus
+   F 82000510 82241FB4 041 (  65) !! NetDll_XNetConnect
+   F 82000514 82241F34 033 (  51)    NetDll_XNetStartup
+   F 82000518 82241F44 282 ( 642)    XamGetSystemVersion
+   F 8200051C 82241F54 034 (  52)    NetDll_XNetCleanup
+   F 82000520 82241F64 035 (  53)    NetDll_XNetRandom
+   F 82000524 82241F74 037 (  55)    NetDll_XNetRegisterKey
+   F 82000528 82241F84 039 (  57)    NetDll_XNetXnAddrToInAddr
+   F 8200052C 82241F94 03C (  60)    NetDll_XNetInAddrToXnAddr
+   F 82000530 82241FA4 03F (  63) !! NetDll_XNetUnregisterInAddr
+
+ xboxkrnl - 133 imports
+   Version: 0.0.9328.32
+   Min Version: 0.0.1861.32
+
+         Total:  133
+         Known:  100% (133 known, 0 unknown)
+   Implemented:   97% (130 implemented, 3 unimplemented)
+
+   V 82000538          1C1 ( 449)    VdHSIOCalibrationLock
+   F 8200053C 82241F24 26A ( 618)    VdRetrainEDRAMWorker
+   F 82000540 82241F14 269 ( 617)    VdRetrainEDRAM
+   F 82000544 82241F04 05F (  95)    KeEnterCriticalRegion
+   F 82000548 82241EF4 07D ( 125)    KeLeaveCriticalRegion
+   F 8200054C 82241EE4 103 ( 259)    ObCreateSymbolicLink
+   F 82000550 82241ED4 104 ( 260)    ObDeleteSymbolicLink
+   F 82000554 82241EC4 1B1 ( 433)    VdCallGraphicsNotificationRoutines
+   V 82000558          1C0 ( 448)    VdGpuClockInMHz
+   F 8200055C 82241EB4 1C5 ( 453)    VdInitializeScalerCommandBuffer
+   F 82000560 82241EA4 14D ( 333)    _vsnprintf
+   F 82000564 82241E94 015 (  21)    ExRegisterTitleTerminateNotification
+   F 82000568 82241E84 1DC ( 476)    VdShutdownEngines
+   F 8200056C 82241E74 1C6 ( 454)    VdIsHSIOTrainingSucceeded
+   F 82000570 82241E64 1C2 ( 450)    VdInitializeEngines
+   F 82000574 82241E54 1D5 ( 469)    VdSetGraphicsInterruptCallback
+   F 82000578 82241E44 1C9 ( 457)    VdQueryVideoFlags
+   F 8200057C 82241E34 1BA ( 442)    VdGetCurrentDisplayInformation
+   F 82000580 82241E24 1CA ( 458)    VdQueryVideoMode
+   F 82000584 82241E14 1D3 ( 467)    VdSetDisplayMode
+   F 82000588 82241E04 1BD ( 445)    VdGetSystemCommandBuffer
+   F 8200058C 82241DF4 25B ( 603)    VdSwap
+   F 82000590 82241DE4 1C7 ( 455)    VdPersistDisplay
+   F 82000594 82241DD4 083 ( 131)    KeQueryPerformanceFrequency
+   F 82000598 82241DC4 052 (  82)    KeBugCheck
+   F 8200059C 82241DB4 0B0 ( 176)    KeWaitForSingleObject
+   F 820005A0 82241DA4 06C ( 108)    KeUnlockL2
+   F 820005A4 82241D94 06B ( 107)    KeLockL2
+   F 820005A8 82241D84 06F ( 111)    KeInitializeDpc
+   F 820005AC 82241D74 09D ( 157)    KeSetEvent
+   F 820005B0 82241D64 08F ( 143)    KeResetEvent
+   V 820005B4          266 ( 614)    KeCertMonitorData
+   F 820005B8 82241D54 1B9 ( 441)    VdGetCurrentDisplayGamma
+   F 820005BC 82241D44 04D (  77)    KeAcquireSpinLockAtRaisedIrql
+   F 820005C0 82241D34 1C3 ( 451)    VdInitializeRingBuffer
+   F 820005C4 82241D24 1B6 ( 438)    VdEnableRingBufferRPtrWriteBack
+   F 820005C8 82241D14 089 ( 137)    KeReleaseSpinLockFromRaisedIrql
+   F 820005CC 82241D04 0BE ( 190)    MmGetPhysicalAddress
+   F 820005D0 82241CF4 1DF ( 479)    KiApcNormalRoutineNop
+   F 820005D4 82241CE4 0B4 ( 180)    KfReleaseSpinLock
+   F 820005D8 82241CD4 1D9 ( 473)    VdSetSystemCommandBufferGpuIdentifierAddress
+   F 820005DC 82241CC4 0B1 ( 177)    KfAcquireSpinLock
+   F 820005E0 82241CB4 13B ( 315)    sprintf
+   V 820005E4          1BF ( 447)    VdGlobalXamDevice
+   V 820005E8          1BE ( 446)    VdGlobalDevice
+   F 820005EC 82241CA4 1B4 ( 436)    VdEnableDisableClockGating
+   F 820005F0 82241C94 0FD ( 253)    NtWaitForSingleObjectEx
+   V 820005F4          156 ( 342)    XboxHardwareInfo
+   F 820005F8 82241C84 0DA ( 218)    NtDuplicateObject
+   F 820005FC 822421A4 197 ( 407)    XexGetProcedureAddress
+   F 82000600 822421B4 195 ( 405)    XexGetModuleHandle
+   F 82000604 822421C4 00B (  11)    ExAllocatePoolTypeWithTag
+   F 82000608 822421D4 00F (  15)    ExFreePool
+   F 8200060C 822421E4 141 ( 321)    RtlTryEnterCriticalSection
+   F 82000610 822421F4 152 ( 338)    KeTlsAlloc
+   F 82000614 82242204 154 ( 340)    KeTlsGetValue
+   F 82000618 82242214 155 ( 341)    KeTlsSetValue
+   F 8200061C 82242224 153 ( 339)    KeTlsFree
+   F 82000620 82242234 12F ( 303)    RtlInitializeCriticalSectionAndSpinCount
+   F 82000624 82242244 147 ( 327) !! RtlUnwind
+   F 82000628 82242254 119 ( 281) !! RtlCaptureContext
+   F 8200062C 82242264 0FF ( 255)    NtWriteFile
+   F 82000630 82242274 133 ( 307)    RtlMultiByteToUnicodeN
+   F 82000634 82242284 1A1 ( 417)    XexUnloadImage
+   F 82000638 82242294 199 ( 409)    XexLoadImage
+   F 8200063C 822422A4 021 (  33)    FscSetCacheElementCount
+   F 82000640 822422B4 0D5 ( 213)    NtCreateSemaphore
+   F 82000644 822422C4 0F3 ( 243)    NtReleaseSemaphore
+   F 82000648 822422D4 0F6 ( 246)    NtSetEvent
+   F 8200064C 822422E4 0CE ( 206)    NtClearEvent
+   F 82000650 822422F4 019 (  25)    ExTerminateThread
+   F 82000654 82242304 0F5 ( 245)    NtResumeThread
+   F 82000658 82242314 0C6 ( 198)    MmQueryStatistics
+   F 8200065C 82242324 0DB ( 219)    NtFlushBuffersFile
+   F 82000660 82242334 00D (  13)    ExCreateThread
+   F 82000664 82241C74 0D2 ( 210)    NtCreateFile
+   F 82000668 82241C64 0F0 ( 240)    NtReadFile
+   F 8200066C 82241C54 0F1 ( 241)    NtReadFileScatter
+   F 82000670 82241C44 0E4 ( 228)    NtQueryDirectoryFile
+   F 82000674 82241C34 0EF ( 239)    NtQueryVolumeInformationFile
+   F 82000678 82241C24 0E8 ( 232)    NtQueryInformationFile
+   F 8200067C 82241C14 0E7 ( 231)    NtQueryFullAttributesFile
+   F 82000680 82241C04 136 ( 310)    RtlRaiseException
+   F 82000684 82241BF4 0EE ( 238)    NtQueryVirtualMemory
+   F 82000688 82241BE4 12E ( 302)    RtlInitializeCriticalSection
+   F 8200068C 82241BD4 11B ( 283)    RtlCompareMemoryUlong
+   F 82000690 82241BC4 0DC ( 220)    NtFreeVirtualMemory
+   F 82000694 82241BB4 066 ( 102)    KeGetCurrentProcessType
+   F 82000698 82241BA4 053 (  83)    KeBugCheckEx
+   F 8200069C 82241B94 126 ( 294)    RtlFillMemoryUlong
+   F 820006A0 82241B84 0CC ( 204)    NtAllocateVirtualMemory
+   F 820006A4 82241B74 028 (  40)    HalReturnToFirmware
+   V 820006A8          193 ( 403)    XexExecutableModuleHandle
+   F 820006AC 82241B64 12B ( 299)    RtlImageXexHeaderField
+   F 820006B0 82241B54 125 ( 293)    RtlEnterCriticalSection
+   F 820006B4 82241B44 130 ( 304)    RtlLeaveCriticalSection
+   V 820006B8          1AE ( 430)    ExLoadedCommandLine
+   V 820006BC          059 (  89)    KeDebugMonitorData
+   F 820006C0 82241B34 097 ( 151)    KeSetAffinityThread
+   F 820006C4 82241B24 081 ( 129)    KeQueryBasePriorityThread
+   V 820006C8          01B (  27)    ExThreadObjectType
+   F 820006CC 82241B14 110 ( 272)    ObReferenceObjectByHandle
+   F 820006D0 82241B04 099 ( 153)    KeSetBasePriorityThread
+   F 820006D4 82241AF4 105 ( 261)    ObDereferenceObject
+   F 820006D8 82241AE4 05A (  90)    KeDelayExecutionThread
+   F 820006DC 82241AD4 0F7 ( 247)    NtSetInformationFile
+   F 820006E0 82241AC4 0DF ( 223)    NtOpenFile
+   F 820006E4 82241AB4 0BD ( 189)    MmFreePhysicalMemory
+   F 820006E8 82241AA4 0BA ( 186)    MmAllocatePhysicalMemoryEx
+   F 820006EC 82241A94 1A5 ( 421) !! __C_specific_handler
+   F 820006F0 82241A84 003 (   3)    DbgPrint
+   F 820006F4 82241A74 194 ( 404)    XexCheckExecutablePrivilege
+   F 820006F8 82241A64 010 (  16)    ExGetXConfigSetting
+   F 820006FC 82241A54 0D1 ( 209)    NtCreateEvent
+   F 82000700 82241A44 0CF ( 207)    NtClose
+   F 82000704 82241A34 143 ( 323)    RtlUnicodeToMultiByteN
+   F 82000708 82241A24 135 ( 309)    RtlNtStatusToDosError
+   F 8200070C 82241A14 12C ( 300)    RtlInitAnsiString
+   V 82000710          158 ( 344)    XboxKrnlVersion
+   V 82000714          0AD ( 173)    KeTimeStampBundle
+   F 82000718 82241A04 0C4 ( 196)    MmQueryAddressProtect
+   F 8200071C 822424B4 1F8 ( 504)    XAudioGetVoiceCategoryVolume
+   F 82000720 822424C4 0C2 ( 194)    MmMapIoSpace
+   F 82000724 822424D4 224 ( 548)    XMACreateContext
+   F 82000728 822424E4 226 ( 550)    XMAReleaseContext
+   F 8200072C 822424F4 0AF ( 175)    KeWaitForMultipleObjects
+   F 82000730 82242504 1F5 ( 501)    XAudioSubmitRenderDriverFrame
+   F 82000734 82242514 1F4 ( 500)    XAudioUnregisterRenderDriverClient
+   F 82000738 82242524 1F3 ( 499)    XAudioRegisterRenderDriverClient
+   F 8200073C 82242534 1FF ( 511)    XAudioGetSpeakerConfig
+   F 82000740 82242544 0CD ( 205)    NtCancelTimer
+   F 82000744 82242554 0FA ( 250)    NtSetTimerEx
+   F 82000748 82242564 0D7 ( 215)    NtCreateTimer
+
+i> 00002410 Title name: 0 day Attack on Earth
+i> 00002410 -------------------- ACHIEVEMENTS --------------------
++----+-------------------------------+-----------------------------------------------------------------------+------------+
+| ID || Title                         || Description                                                           || Gamerscore |
++----+-------------------------------+-----------------------------------------------------------------------+------------+
+| 1  || Enlistment                    || Entered the Main Menu                                                 || 5          |
++----+-------------------------------+-----------------------------------------------------------------------+------------+
+| 2  || Crucible                      || Cleared the game on Normal in single player mode                      || 5          |
++----+-------------------------------+-----------------------------------------------------------------------+------------+
+| 3  || Onslaught                     || Cleared the game on Hard in single player mode                        || 5          |
++----+-------------------------------+-----------------------------------------------------------------------+------------+
+| 4  || Wings of Friendship           || Played a CO-OP Mode game                                              || 5          |
++----+-------------------------------+-----------------------------------------------------------------------+------------+
+| 5  || Sandwich Man                  || Killed 10 Sandwich enemies                                            || 10         |
++----+-------------------------------+-----------------------------------------------------------------------+------------+
+| 6  || Snake Killer                  || Killed 10 Snake enemies                                               || 10         |
++----+-------------------------------+-----------------------------------------------------------------------+------------+
+| 7  || Mosquito Killer               || Killed 10 Mosquito enemies                                            || 10         |
++----+-------------------------------+-----------------------------------------------------------------------+------------+
+| 8  || Valiant Warrior               || Killed 100 targets in CO-OP Mode                                      || 20         |
++----+-------------------------------+-----------------------------------------------------------------------+------------+
+| 9  || Like taking candy from a baby || Occupied all control points in CONTROL POINT MODE                     || 20         |
++----+-------------------------------+-----------------------------------------------------------------------+------------+
+| 10 || May Day King                  || Got shot down 256 times                                               || 30         |
++----+-------------------------------+-----------------------------------------------------------------------+------------+
+| 11 || Gold Hammer                   || Cleared the game on Normal difficulty or harder without losing a life || 30         |
++----+-------------------------------+-----------------------------------------------------------------------+------------+
+| 12 || Ruler of the Universe         || Earned every rank                                                     || 50         |
++----+-------------------------------+-----------------------------------------------------------------------+------------+
+i> 00002410 -------------------- PROPERTIES --------------------
++----------+-------------------+-----------+
+| ID       || Name              || Data Size |
++----------+-------------------+-----------+
+| 1000000A || Grade             || 4         |
++----------+-------------------+-----------+
+| 1000000B || <String text>     || 4         |
++----------+-------------------+-----------+
+| 10008001 || Rank              || 4         |
++----------+-------------------+-----------+
+| 1000800A ||                   || 4         |
++----------+-------------------+-----------+
+| 1000800B ||                   || 4         |
++----------+-------------------+-----------+
+| 1000800C ||                   || 4         |
++----------+-------------------+-----------+
+| 1000800D ||                   || 4         |
++----------+-------------------+-----------+
+| 10008011 ||                   || 4         |
++----------+-------------------+-----------+
+| 10008101 || Gamer Zone        || 4         |
++----------+-------------------+-----------+
+| 10008102 || Gamer Country     || 4         |
++----------+-------------------+-----------+
+| 10008103 || Language          || 4         |
++----------+-------------------+-----------+
+| 10008201 || Platform Type     || 4         |
++----------+-------------------+-----------+
+| 10008202 || Platform Lock     || 4         |
++----------+-------------------+-----------+
+| 20000001 || Score             || 8         |
++----------+-------------------+-----------+
+| 20000003 || Play Time         || 8         |
++----------+-------------------+-----------+
+| 20000004 || Item Count        || 8         |
++----------+-------------------+-----------+
+| 20000005 || Flag Count        || 8         |
++----------+-------------------+-----------+
+| 20000006 || Area Count        || 8         |
++----------+-------------------+-----------+
+| 20000007 || Kill Enemy Count  || 8         |
++----------+-------------------+-----------+
+| 20000008 || Kill Player Count || 8         |
++----------+-------------------+-----------+
+| 20000009 || Dead Count        || 8         |
++----------+-------------------+-----------+
+| 20008107 || Gamer PUID        || 8         |
++----------+-------------------+-----------+
+| 20008108 || Affiliate Value   || 8         |
++----------+-------------------+-----------+
+| 30008105 || Gamer Mu          || 8         |
++----------+-------------------+-----------+
+| 30008106 || Gamer Sigma       || 8         |
++----------+-------------------+-----------+
+| 40008002 || Gamer Name        || 2         |
++----------+-------------------+-----------+
+| 40008109 || Gamer Host Name   || 2         |
++----------+-------------------+-----------+
+| 50008104 || Gamer Rating      || 4         |
++----------+-------------------+-----------+
+i> 00002410 -------------------- CONTEXTS --------------------
++----------+---------------+---------------+-----------+
+| ID       || Name          || Default Value || Max Value |
++----------+---------------+---------------+-----------+
+| 00000000 || city          || 0             || 7         |
++----------+---------------+---------------+-----------+
+| 00000001 || <String text> || 0             || 1         |
++----------+---------------+---------------+-----------+
+| 00000003 || dlc1          || 0             || 1         |
++----------+---------------+---------------+-----------+
+| 00000004 || dlc2          || 0             || 1         |
++----------+---------------+---------------+-----------+
+| 00008001 ||               || 0             || 3         |
++----------+---------------+---------------+-----------+
+| 0000800A || Game Type     || 0             || 1         |
++----------+---------------+---------------+-----------+
+| 0000800B ||               || 0             || 3         |
++----------+---------------+---------------+-----------+
+i> 00002410 Added handle:01000020 for class xe::kernel::XObject
+i> 00002410 XThread01000020 (5) Stack: 70110000-70130000
+i> 00002410 KernelState: Launching module...
+i> 00002410 Added handle:F8000008 for class xe::kernel::XObject
+i> 00002410 XThreadF8000008 (6) Stack: 70150000-70190000
+K> 01000020 XThread::Execute thid 5 (handle=01000020, 'Kernel Dispatch (01000020)', native=000011E8, <host>)
+K> F8000008 XThread::Execute thid 6 (handle=F8000008, 'Main XThread (F8000008)', native=00003610)
+i> F8000008 Added handle:F800000C for class xe::kernel::XObject
+i> F8000008 XThreadF800000C (7) Stack: 701B0000-701C0000
+i> F8000008 Added handle:F8000010 for class xe::kernel::XObject
+i> F8000008 XThreadF8000010 (8) Stack: 701E0000-701F0000
+K> F800000C XThread::Execute thid 7 (handle=F800000C, 'XThread20E4 (F800000C)', native=000020E4)
+K> F8000010 XThread::Execute thid 8 (handle=F8000010, 'XThread3B0C (F8000010)', native=00003B0C)
+i> F800000C Added handle:F8000014 for class xe::kernel::XObject
+i> F8000010 Added handle:F8000018 for class xe::kernel::XObject
+i> F800000C Added handle:F800001C for class xe::kernel::XObject
+i> 01000010 Selecting rep movs vastcpy.
+i> F8000008 Added handle:F8000020 for class xe::kernel::XObject
+i> F8000008 XThreadF8000020 (9) Stack: 70210000-70250000
+i> F8000008 Added handle:F8000024 for class xe::kernel::XObject
+K> F8000020 XThread::Execute thid 9 (handle=F8000020, 'XThread2468 (F8000020)', native=00002468)
+i> F8000020 Added handle:F8000028 for class xe::kernel::XObject
+i> F8000020 Added handle:F800002C for class xe::kernel::XObject
+i> F8000020 Added handle:F8000030 for class xe::kernel::XObject
+i> 0100001C Added handle:F8000034 for class xe::kernel::XObject
+i> 0100001C Added handle:F8000038 for class xe::kernel::XObject
+F> F8000008 DiscZarchiveDevice::ResolvePath()
+i> F8000008 xeRtlNtStatusToDosError C000000F => 2
+i> F8000008 Added handle:F800003C for class xe::kernel::XObject
+i> F8000008 Added handle:F8000040 for class xe::kernel::XObject
+i> F8000008 Added handle:F8000044 for class xe::kernel::XObject
+i> F8000008 Added handle:F8000048 for class xe::kernel::XObject
+i> F8000008 XThreadF8000048 (A) Stack: 70270000-70280000
+K> F8000048 XThread::Execute thid 10 (handle=F8000048, 'XThread3434 (F8000048)', native=00003434)
+i> F8000048 Added handle:F800004C for class xe::kernel::XObject
+i> F8000008 Added handle:F8000050 for class xe::kernel::XObject
+i> F8000008 XThreadF8000050 (B) Stack: 702A0000-702E0000
+i> F8000008 Added handle:F8000054 for class xe::kernel::XObject
+K> F8000050 XThread::Execute thid 11 (handle=F8000050, 'XThread3588 (F8000050)', native=00003588)
+F> F8000008 DiscZarchiveDevice::ResolvePath(\MEDIA\DATA)
+i> F8000008 Added handle:F8000058 for class xe::kernel::XObject
+i> F8000008 Removed handle:F8000058 for class xe::kernel::XFile
+i> F8000008 Added handle:F8000058 for class xe::kernel::XObject
+i> F8000008 XThreadF8000058 (C) Stack: 70300000-70340000
+K> F8000058 XThread::Execute thid 12 (handle=F8000058, 'XThread2B30 (F8000058)', native=00002B30)
+i> F8000058 Added handle:F800005C for class xe::kernel::XObject
+F> F8000058 DiscZarchiveDevice::ResolvePath(\MEDIA\DATA)
+i> F8000058 Added handle:F8000060 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000060 for class xe::kernel::XFile
+F> F8000058 DiscZarchiveDevice::ResolvePath(\MEDIA\DATA)
+i> F8000058 Added handle:F8000060 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000060 for class xe::kernel::XFile
+i> F8000008 Removed handle:F8000058 for class xe::kernel::XThread
+i> F8000008 Added handle:F8000058 for class xe::kernel::XObject
+i> F8000008 XThreadF8000058 (D) Stack: 70300000-70340000
+K> F8000058 XThread::Execute thid 13 (handle=F8000058, 'XThread2C80 (F8000058)', native=00002C80)
+F> F8000058 DiscZarchiveDevice::ResolvePath(\MEDIA\DATA)
+i> F8000058 Added handle:F8000060 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000060 for class xe::kernel::XFile
+i> F8000008 Removed handle:F8000058 for class xe::kernel::XThread
+i> F8000008 Added handle:F8000058 for class xe::kernel::XObject
+i> F8000008 XThreadF8000058 (E) Stack: 70300000-70340000
+K> F8000058 XThread::Execute thid 14 (handle=F8000058, 'XThread4268 (F8000058)', native=00004268)
+F> F8000058 DiscZarchiveDevice::ResolvePath(\media\data\SOUND\BGM)
+i> F8000058 Added handle:F8000060 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000060 for class xe::kernel::XFile
+F> F8000058 DiscZarchiveDevice::ResolvePath(\media\data\SOUND\BGM)
+i> F8000058 Added handle:F8000060 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000060 for class xe::kernel::XFile
+F> F8000058 DiscZarchiveDevice::ResolvePath(\media\data\SOUND\BGM)
+i> F8000058 Added handle:F8000060 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000060 for class xe::kernel::XFile
+F> F8000058 DiscZarchiveDevice::ResolvePath(\media\data\SOUND\BGM)
+i> F8000058 Added handle:F8000060 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000060 for class xe::kernel::XFile
+i> F8000008 Added handle:F8000060 for class xe::kernel::XObject
+i> F8000008 XThreadF8000060 (F) Stack: 70360000-703A0000
+K> F8000060 XThread::Execute thid 15 (handle=F8000060, 'XThread11C8 (F8000060)', native=000011C8)
+F> F8000060 DiscZarchiveDevice::ResolvePath(\MEDIA\DATA)
+i> F8000060 Added handle:F8000064 for class xe::kernel::XObject
+i> F8000060 Removed handle:F8000064 for class xe::kernel::XFile
+F> F8000058 DiscZarchiveDevice::ResolvePath(\media\data\SOUND\BGM)
+i> F8000058 Added handle:F8000064 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000064 for class xe::kernel::XFile
+F> F8000058 DiscZarchiveDevice::ResolvePath(\media\data\SOUND\BGM)
+i> F8000058 Added handle:F8000064 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000064 for class xe::kernel::XFile
+i> F8000008 Removed handle:F8000060 for class xe::kernel::XThread
+F> F8000058 DiscZarchiveDevice::ResolvePath(\media\data\SOUND\BGM)
+i> F8000058 Added handle:F8000060 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000060 for class xe::kernel::XFile
+i> F8000008 Added handle:F8000060 for class xe::kernel::XObject
+i> F8000008 XThreadF8000060 (10) Stack: 70360000-703A0000
+K> F8000060 XThread::Execute thid 16 (handle=F8000060, 'XThread2FAC (F8000060)', native=00002FAC)
+i> F8000060 Added handle:F8000064 for class xe::kernel::XObject
+i> F8000060 Removed handle:F8000064 for class xe::kernel::XStaticEnumerator<struct xe::kernel::xam::XCONTENT_DATA>
+F> F8000060 HostPathDevice::ResolvePath()
+i> F8000060 Added handle:F8000064 for class xe::kernel::XObject
+i> F8000060 Removed handle:F8000064 for class xe::kernel::XFile
+i> F8000008 Added handle:F8000064 for class xe::kernel::XObject
+i> F8000008 Removed handle:F8000058 for class xe::kernel::XThread
+i> F8000008 Added handle:F8000058 for class xe::kernel::XObject
+i> F8000008 XThreadF8000058 (11) Stack: 70300000-70340000
+K> F8000058 XThread::Execute thid 17 (handle=F8000058, 'XThread05EC (F8000058)', native=000005EC)
+i> F8000058 Added handle:F8000068 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000068 for class xe::kernel::XStaticEnumerator<struct xe::kernel::xam::XCONTENT_DATA>
+i> F8000008 Removed handle:F8000058 for class xe::kernel::XThread
+i> F8000008 Added handle:F8000058 for class xe::kernel::XObject
+i> F8000008 XThreadF8000058 (12) Stack: 70300000-70340000
+i> F8000008 Added handle:F8000068 for class xe::kernel::XObject
+K> F8000058 XThread::Execute thid 18 (handle=F8000058, 'XThread25DC (F8000058)', native=000025DC)
+i> F8000008 Achievement unlocked: Enlistment
+i> F8000008 Removed handle:F8000068 for class xe::kernel::XEvent
+F> F8000058 DiscZarchiveDevice::ResolvePath(\media\data\SOUND\BGM)
+i> F8000058 Added handle:F8000068 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000068 for class xe::kernel::XFile
+F> F8000058 DiscZarchiveDevice::ResolvePath(\media\data\SOUND\BGM)
+i> F8000058 Added handle:F8000068 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000068 for class xe::kernel::XFile
+F> F8000058 DiscZarchiveDevice::ResolvePath(\media\data\SOUND\BGM)
+i> F8000058 Added handle:F8000068 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000068 for class xe::kernel::XFile
+i> F8000008 Added handle:F8000068 for class xe::kernel::XObject
+F> F8000058 DiscZarchiveDevice::ResolvePath(\media\data\SOUND\BGM)
+i> F8000058 Added handle:F800006C for class xe::kernel::XObject
+i> F8000058 Removed handle:F800006C for class xe::kernel::XFile
+i> F8000008 Added handle:F800006C for class xe::kernel::XObject
+F> F8000058 DiscZarchiveDevice::ResolvePath(\media\data\SOUND\BGM)
+i> F8000058 Added handle:F8000070 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000070 for class xe::kernel::XFile
+F> F8000058 DiscZarchiveDevice::ResolvePath(\media\data\SOUND\BGM)
+i> F8000058 Added handle:F8000070 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000070 for class xe::kernel::XFile
+F> F8000058 DiscZarchiveDevice::ResolvePath(\media\data\SOUND\BGM)
+i> F8000058 Added handle:F8000070 for class xe::kernel::XObject
+i> F8000058 Removed handle:F8000070 for class xe::kernel::XFile
