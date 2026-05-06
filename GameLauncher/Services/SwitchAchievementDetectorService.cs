@@ -25,11 +25,12 @@ public static class SwitchAchievementDetectorService
 {
     // ── Mario Kart 8 Deluxe ────────────────────────────────────────────────────
     //
-    // Achievement names come from the Switch-Achievements JSON.
-    // Cup course codes come from the game's Translate.txt reference file.
-    // Achievement names and course codes come directly from the Switch-Achievements JSON
-    // (https://github.com/Koriebonx98/Switch-Achievements-) and Translate.txt.
-    // Keys are the exact achievement Name values from the JSON so matching is reliable.
+    // IMPORTANT: Dictionary keys are the EXACT achievement Name strings from
+    // https://github.com/Koriebonx98/Switch-Achievements-/blob/main/Games/Mario%20Kart%208%20Deluxe.json
+    // Do NOT "fix" apparent typos — the names must match the JSON verbatim for
+    // achievement detection to work (e.g. "Special Oylimpics", "Paper, Sissors, Rock").
+    //
+    // Cup course codes come from Switch Ach/Translate.txt in this repository.
     // "Win 1st in X Cup" = all 4 courses completed with Rank == 1 and FinishReason == "Finish".
 
     private static readonly Dictionary<string, string[]> Mk8dCups =
