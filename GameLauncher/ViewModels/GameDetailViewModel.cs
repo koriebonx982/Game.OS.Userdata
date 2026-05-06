@@ -2527,12 +2527,17 @@ public partial class GameDetailViewModel : ViewModelBase
             using var doc = System.Text.Json.JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            // Achievements JSON can be a root array or { "achievements": [...] }
+            // Achievements JSON can be:
+            //   - a root array                       (most platforms)
+            //   - { "achievements": [...] }          (Xbox / PC database format)
+            //   - { "Items": [...] }                 (Switch-Achievements JSON format)
             System.Text.Json.JsonElement arr;
             if (root.ValueKind == System.Text.Json.JsonValueKind.Array)
                 arr = root;
             else if (root.TryGetProperty("achievements", out var sub) && sub.ValueKind == System.Text.Json.JsonValueKind.Array)
                 arr = sub;
+            else if (root.TryGetProperty("Items", out var items) && items.ValueKind == System.Text.Json.JsonValueKind.Array)
+                arr = items;
             else
                 return;
 
@@ -2541,7 +2546,8 @@ public partial class GameDetailViewModel : ViewModelBase
             {
                 string name          = TryGetStringProp(item, "name", "Name");
                 string desc          = TryGetStringProp(item, "description", "Description");
-                string icon          = TryGetStringProp(item, "iconUrl", "IconUrl");
+                // Switch-Achievements JSON uses "UrlUnlocked" rather than "iconUrl"
+                string icon          = TryGetStringProp(item, "iconUrl", "IconUrl", "UrlUnlocked");
                 string achievementId = TryGetStringProp(item, "achievementId", "AchievementId");
 
                 if (string.IsNullOrEmpty(name)) continue;

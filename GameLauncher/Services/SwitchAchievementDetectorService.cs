@@ -27,51 +27,53 @@ public static class SwitchAchievementDetectorService
     //
     // Achievement names come from the Switch-Achievements JSON.
     // Cup course codes come from the game's Translate.txt reference file.
-    // "Win 1st in X Cup" = all 4 courses in the cup completed with Rank == 1.
+    // Achievement names and course codes come directly from the Switch-Achievements JSON
+    // (https://github.com/Koriebonx98/Switch-Achievements-) and Translate.txt.
+    // Keys are the exact achievement Name values from the JSON so matching is reliable.
+    // "Win 1st in X Cup" = all 4 courses completed with Rank == 1 and FinishReason == "Finish".
 
     private static readonly Dictionary<string, string[]> Mk8dCups =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            // Original cups
-            ["Magic Mushroom's"]           = ["Gu_FirstCircuit",  "Gu_WaterPark",      "Gu_Cake",              "Gu_DossunIseki"],
-            ["Flower Power"]               = ["Gu_MarioCircuit",  "Gu_City",           "Gu_HorrorHouse",       "Gu_Expert"],
-            ["Star Light"]                 = ["Gu_Airport",       "Gu_Ocean",          "Gu_Techno",            "Gu_SnowMountain"],
-            ["Special Delivery"]           = ["Gu_Cloud",         "Gu_Desert",         "Gu_BowserCastle",      "Gu_RainbowRoad"],
-            // Retro Egg Cup
-            ["Egg Hunt"]                   = ["Dgc_YoshiCircuit", "Du_ExciteBike",     "Du_DragonRoad",        "Du_MuteCity"],
-            // Retro Cross Cup
-            ["Cross Country"]              = ["Dgc_BabyPark",     "Dagb_CheeseLand",   "Du_Woods",             "Du_Animal_Summer"],
-            // Retro Shell Cup
-            ["Shell Shock"]                = ["Gwii_MooMooMeadows","Gagb_MarioCircuit", "Gds_PukupukuBeach",   "G64_KinopioHighway"],
-            // Retro Banana Cup
-            ["Going Bananas"]              = ["Ggc_DryDryDesert", "Gsfc_DonutsPlain3", "G64_PeachCircuit",     "G3ds_DKJungle"],
-            // Retro Leaf Cup
-            ["Leaf It To Me"]              = ["Gds_WarioStadium", "Ggc_SherbetLand",   "G3ds_MusicPark",       "G64_YoshiValley"],
-            // Retro Lightning Cup
-            ["Lightning Fast"]             = ["Gds_TickTockClock","G3ds_PackunSlider", "Gwii_GrumbleVolcano",  "G64_RainbowRoad"],
-            // Booster Course Pass cups (wave 1)
-            ["Golden Dash Cup"]            = ["Cnsw_11",          "Cnsw_12",           "Cnsw_13",              "Cnsw_14"],
-            ["Lucky Cat Cup"]              = ["Cnsw_15",          "Cnsw_16",           "Cnsw_17",              "Cnsw_18"],
-            ["Turnip Cup"]                 = ["Cnsw_21",          "Cnsw_22",           "Cnsw_23",              "Cnsw_24"],
-            ["Propeller Cup"]              = ["Cnsw_25",          "Cnsw_26",           "Cnsw_27",              "Cnsw_28"],
-            // Booster Course Pass cups (wave 2)
-            ["Rock Cup"]                   = ["Cnsw_31",          "Cnsw_32",           "Cnsw_33",              "Cnsw_34"],
-            ["Moon Cup"]                   = ["Cnsw_35",          "Cnsw_36",           "Cnsw_37",              "Cnsw_38"],
-            // Booster Course Pass cups (wave 3)
-            ["Fruit Cup"]                  = ["Cnsw_41",          "Cnsw_42",           "Cnsw_43",              "Cnsw_44"],
-            ["Boomerang Cup"]              = ["Cnsw_45",          "Cnsw_46",           "Cnsw_47",              "Cnsw_48"],
-            // Booster Course Pass cups (wave 4)
-            ["Feather Cup"]                = ["Cnsw_51",          "Cnsw_52",           "Cnsw_53",              "Cnsw_54"],
-            ["Cherry Cup"]                 = ["Cnsw_55",          "Cnsw_56",           "Cnsw_57",              "Cnsw_58"],
-            // Booster Course Pass cups (wave 5)
-            ["Acorn Cup"]                  = ["Cnsw_61",          "Cnsw_62",           "Cnsw_63",              "Cnsw_64"],
-            ["Spiny Cup"]                  = ["Cnsw_65",          "Cnsw_66",           "Cnsw_67",              "Cnsw_68"],
+            // ── Original nitro cups ─────────────────────────────────────────────
+            ["Magic Mushroom's"]               = ["Gu_FirstCircuit",  "Gu_WaterPark",    "Gu_Cake",           "Gu_DossunIseki"],
+            ["Flower Power"]                   = ["Gu_MarioCircuit",  "Gu_City",         "Gu_HorrorHouse",    "Gu_Expert"],
+            ["You want A Gold Star?"]          = ["Gu_Airport",       "Gu_Ocean",        "Gu_Techno",         "Gu_SnowMountain"],
+            ["Special Oylimpics"]              = ["Gu_Cloud",         "Gu_Desert",       "Gu_BowserCastle",   "Gu_RainbowRoad"],
+            // ── DLC cups (Egg, Cross / Animal Crossing, Triforce, Bell) ─────────
+            ["Egg cell lent"]                  = ["Dgc_YoshiCircuit", "Du_ExciteBike",   "Du_DragonRoad",     "Du_MuteCity"],
+            ["Animal Crossing"]                = ["Dgc_BabyPark",     "Dagb_CheeseLand", "Du_Woods",          "Du_Animal_Summer"],
+            ["Arrow Head"]                     = ["Dwii_WariosMine",  "Dsfc_RainbowRoad","Du_IcePark",        "Du_Hyrule"],
+            ["Bell End"]                       = ["D3ds_NeoBowserCity","Dagb_RibbonRoad","Du_Metro",          "Du_BigBlue"],
+            // ── Retro cups ───────────────────────────────────────────────────────
+            ["Shell Shocked"]                  = ["Gwii_MooMooMeadows","Gagb_MarioCircuit","Gds_PukupukuBeach","G64_KinopioHighway"],
+            ["Banana Split"]                   = ["Ggc_DryDryDesert", "Gsfc_DonutsPlain3","G64_PeachCircuit", "G3ds_DKJungle"],
+            ["Leaf Me Alone"]                  = ["Gds_WarioStadium", "Ggc_SherbetLand", "G3ds_MusicPark",    "G64_YoshiValley"],
+            ["Lightning Mcqueen"]              = ["Gds_TickTockClock","G3ds_PackunSlider","Gwii_GrumbleVolcano","G64_RainbowRoad"],
+            // ── Booster Course Pass Wave 1 ───────────────────────────────────────
+            // Golden Dash Cup and Lucky Cat Cup have no achievement in the JSON
+            ["Ol Mcdonald"]                    = ["Cnsw_21",          "Cnsw_22",         "Cnsw_23",           "Cnsw_24"],
+            ["Flying High"]                    = ["Cnsw_25",          "Cnsw_26",         "Cnsw_27",           "Cnsw_28"],
+            // ── Booster Course Pass Wave 2 ───────────────────────────────────────
+            // Course codes from Translate.txt (non-sequential due to the game's internal ordering)
+            ["Paper, Sissors, Rock"]           = ["Cnsw_31",          "Cnsw_33",         "Cnsw_34",           "Cnsw_62"],
+            ["First Mii On The Moon"]          = ["Cnsw_35",          "Cnsw_32",         "Cnsw_37",           "Cnsw_38"],
+            // ── Booster Course Pass Wave 3 ───────────────────────────────────────
+            ["A Bit of a Fruity Taste"]        = ["Cnsw_41",          "Cnsw_47",         "Cnsw_42",           "Cnsw_44"],
+            ["What Goes Around, Comes Around"] = ["Cnsw_55",          "Cnsw_43",         "Cnsw_36",           "Cnsw_45"],
+            // ── Booster Course Pass Wave 4 ───────────────────────────────────────
+            ["Light As a Feather"]             = ["Cnsw_65",          "Cnsw_46",         "Cnsw_63",           "Cnsw_58"],
+            ["Tangfastic"]                     = ["Cnsw_48",          "Cnsw_53",         "Cnsw_52",           "Cnsw_61"],
+            // ── Booster Course Pass Wave 5 ───────────────────────────────────────
+            // Acorn Cup ("Pretty Nuts") and Spiny Cup ("Sonic, The Turtle") do not yet have
+            // all 4 course codes listed in Translate.txt — omitted until they are known.
         };
 
-    // Coin-threshold achievements: key = achievement name, value = required total coins.
+    // Coin-threshold achievements (Name from JSON → required cumulative coins this session).
     private static readonly Dictionary<string, int> Mk8dCoinThresholds =
         new(StringComparer.OrdinalIgnoreCase)
         {
+            ["100"]  = 100,
             ["500"]  = 500,
             ["1000"] = 1000,
         };
