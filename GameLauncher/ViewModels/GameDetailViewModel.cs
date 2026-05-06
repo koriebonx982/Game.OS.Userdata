@@ -1260,6 +1260,13 @@ public partial class GameDetailViewModel : ViewModelBase
     public Func<string, string, string, string, string?, System.Threading.Tasks.Task>? OnRequestAchievementUnlockAsync { get; set; }
 
     /// <summary>
+    /// Callback wired by MainViewModel so the library card denominator can be
+    /// updated as soon as the full achievement template is loaded.
+    /// Parameters: (platform, title, totalCount)
+    /// </summary>
+    public Action<string, string, int>? OnAchievementTotalLoaded { get; set; }
+
+    /// <summary>
     /// Brings the currently-running game window to the foreground.
     /// Tries the main window handle first; falls back to opening the game folder.
     /// This is a best-effort operation — it may not work on all platforms.
@@ -2564,6 +2571,26 @@ public partial class GameDetailViewModel : ViewModelBase
                 using var http = new System.Net.Http.HttpClient();
                 http.DefaultRequestHeaders.UserAgent.ParseAdd("GameOS-Launcher/2.0");
                 json = await http.GetStringAsync(url);
+
+                // Cache the downloaded JSON so the next session works offline
+                // (and this first load is faster on re-open within the same session).
+                if (!string.IsNullOrWhiteSpace(json) && CacheService != null)
+                {
+                    try
+                    {
+                        string? writePath = CacheService.GetAchievementsCachePath(Platform, titleId, Title);
+                        if (!string.IsNullOrEmpty(writePath))
+                        {
+                            var dir = System.IO.Path.GetDirectoryName(writePath);
+                            if (!string.IsNullOrEmpty(dir))
+                                System.IO.Directory.CreateDirectory(dir);
+                            await System.IO.File.WriteAllTextAsync(writePath, json)
+                                .ConfigureAwait(false);
+                            DevLogService.Log($"[AchievementsCache] Saved to disk: {writePath}");
+                        }
+                    }
+                    catch { /* best-effort — cache write failure must not block display */ }
+                }
             }
 
             if (string.IsNullOrWhiteSpace(json)) return;
@@ -2622,8 +2649,16 @@ public partial class GameDetailViewModel : ViewModelBase
 
             if (list.Count > 0)
             {
+                int total = list.Count;
+                string snapshotPlatform = Platform;
+                string snapshotTitle    = Title;
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                    PopulateAchievements(list));
+                {
+                    PopulateAchievements(list);
+                    // Notify MainViewModel so the library card denominator can be updated
+                    // (e.g. "3 / 98" instead of "3 / 3" when only unlocked were cached)
+                    OnAchievementTotalLoaded?.Invoke(snapshotPlatform, snapshotTitle, total);
+                });
             }
         }
         catch { /* best-effort */ }

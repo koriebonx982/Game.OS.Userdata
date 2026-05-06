@@ -45,6 +45,11 @@ namespace GameLauncher.Models
         [JsonIgnore] public string?  CoverGradient { get; set; }
         // UI-only – per-game achievements loaded from AchievementsUrl / passed at login
         [JsonIgnore] public List<Achievement>? GameAchievements { get; set; }
+        /// <summary>
+        /// Total number of achievements defined for this game (from the database/cache).
+        /// Populated once the full achievement template is loaded.  0 means unknown.
+        /// </summary>
+        [JsonIgnore] public int TotalAchievements { get; set; }
         [JsonIgnore] public string   RatingStars   =>
             Rating.HasValue ? new string('★', (int)System.Math.Round(Rating.Value / 2.0))
                               + new string('☆', 5 - (int)System.Math.Round(Rating.Value / 2.0)) : "—";
@@ -55,6 +60,9 @@ namespace GameLauncher.Models
                 : PlaytimeMinutes > 0 ? $"{PlaytimeMinutes}m" : "";
         /// <summary>
         /// Achievement count label shown on library cards (e.g. "🏆 12 / 50").
+        /// Uses <see cref="TotalAchievements"/> as the denominator when it is known
+        /// (non-zero); otherwise falls back to <see cref="GameAchievements"/>.Count
+        /// so the label is still shown while the full template is being loaded.
         /// Returns empty string when no achievements are loaded.
         /// </summary>
         [JsonIgnore] public string AchievementCountLabel
@@ -65,7 +73,8 @@ namespace GameLauncher.Models
                 int unlocked = 0;
                 foreach (var a in GameAchievements)
                     if (a.IsUnlocked) unlocked++;
-                return $"🏆 {unlocked} / {GameAchievements.Count}";
+                int total = TotalAchievements > 0 ? TotalAchievements : GameAchievements.Count;
+                return $"🏆 {unlocked} / {total}";
             }
         }
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -302,6 +303,27 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     .ConfigureAwait(false);
             }
             catch { /* best-effort — toast already shown, cloud sync is non-fatal */ }
+        };
+
+        // Wire achievement total notification: once the full achievement template is loaded
+        // for any game (detail view opened, network or cache), update the library card's
+        // denominator so "3 / 3" becomes "3 / 98".
+        DetailVm.OnAchievementTotalLoaded = (platform, title, total) =>
+        {
+            if (total <= 0) return;
+
+            // Update TotalAchievements on the matching cloud library game
+            var libEntry = _library.FirstOrDefault(g =>
+                string.Equals(g.Platform, platform, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(g.Title, title, StringComparison.OrdinalIgnoreCase));
+            if (libEntry != null && libEntry.TotalAchievements != total)
+            {
+                libEntry.TotalAchievements = total;
+                // Refresh the card's achievement label now that we have the correct denominator
+                var card = LibraryVm.FindMyGameCard(title, platform);
+                if (card?.SourceCloudGame != null)
+                    card.AchievementLabel = card.SourceCloudGame.AchievementCountLabel;
+            }
         };
 
 
@@ -1913,6 +1935,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     });
                     // Also re-run cover enrichment for any dashboard cards still missing covers
                     _ = EnrichDashboardCoversAsync();
+
+                    // Cache achievements.json for any games that just had their AchievementsUrl
+                    // set (they may have been skipped by BackgroundCacheLibraryAsync which ran
+                    // concurrently before the URL was known).
+                    var toCache = platformGames
+                        .Where(g => !string.IsNullOrEmpty(g.AchievementsUrl) &&
+                                    _metadataCache.GetCachedAchievementsPath(g.Platform, g.TitleId, g.Title) == null)
+                        .Select(g => (g.Platform, g.TitleId, g.Title, g.AchievementsUrl!))
+                        .ToList();
+                    if (toCache.Count > 0)
+                        _ = Task.Run(async () =>
+                        {
+                            foreach (var (p, tid, t, aUrl) in toCache)
+                            {
+                                try { await _metadataCache.CacheLocalGameAsync(p, tid, t, null, aUrl).ConfigureAwait(false); }
+                                catch { /* best-effort */ }
+                            }
+                        });
                 }
             }
             catch { /* best-effort — library is still usable without enrichment */ }
@@ -3027,6 +3067,34 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     IconUrl       = string.IsNullOrEmpty(a.Icon) ? null : a.Icon,
                 })
                 .ToList();
+
+            // 3a. Cache the schema locally so the detail view works offline and loads
+            //     instantly on subsequent opens (mirrors FetchAndDisplayAchievementsAsync).
+            if (!string.IsNullOrEmpty(achUrl))
+            {
+                try
+                {
+                    string? writePath = _metadataCache.GetAchievementsCachePath("PC", null, gameName);
+                    if (!string.IsNullOrEmpty(writePath) && !File.Exists(writePath))
+                    {
+                        var dbAchs = schema.Select(a => new
+                        {
+                            achievementId = a.ApiName,
+                            name          = string.IsNullOrWhiteSpace(a.DisplayName) ? a.ApiName : a.DisplayName,
+                            description   = a.Description,
+                            iconUrl       = string.IsNullOrEmpty(a.Icon) ? (string?)null : a.Icon,
+                        });
+                        var json = System.Text.Json.JsonSerializer.Serialize(dbAchs,
+                            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                        var dir = Path.GetDirectoryName(writePath);
+                        if (!string.IsNullOrEmpty(dir))
+                            Directory.CreateDirectory(dir);
+                        await File.WriteAllTextAsync(writePath, json).ConfigureAwait(false);
+                        DevLogService.Log($"[SteamAch] Cached achievements for '{gameName}' at {writePath}");
+                    }
+                }
+                catch { /* best-effort — cache write must not block the detail view */ }
+            }
 
             // Update the library entry and detail view on the UI thread
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
