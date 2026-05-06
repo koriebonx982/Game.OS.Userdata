@@ -34,7 +34,7 @@ Dgc_YoshiCircuit = Yoshi Circit
 Du_ExciteBike = Excitebike Arena
 Du_DragonRoad = Dragon Dritway
 Du_MuteCity = Mute City
-# Cross Cup:
+# Crossing Cup:
 Dgc_BabyPark = Baby Park
 Dagb_CheeseLand = Cheese Land 
 Du_Woods = Wild Woods

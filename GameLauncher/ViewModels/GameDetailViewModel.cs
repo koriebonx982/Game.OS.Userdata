@@ -1430,9 +1430,10 @@ public partial class GameDetailViewModel : ViewModelBase
         }
 
         // ── Real-time achievement detection ─────────────────────────────────────
-        var session     = new SwitchAchievementDetectorService.SessionState();
-        long fileOffset = 0;
-        string? logPath = null;
+        var session      = new SwitchAchievementDetectorService.SessionState();
+        var translations = SwitchTranslateService.Load();
+        long fileOffset  = 0;
+        string? logPath  = null;
 
         async System.Threading.Tasks.Task PollOnceAsync()
         {
@@ -1443,7 +1444,7 @@ public partial class GameDetailViewModel : ViewModelBase
             if (newResults.Count == 0 && newGpResults.Count == 0) return;
 
             var newUnlocks = SwitchAchievementDetectorService.DetectNewUnlocks(
-                gameTitle, newResults, newGpResults, session, alreadyCachedNames, Achievements);
+                gameTitle, newResults, newGpResults, session, alreadyCachedNames, Achievements, translations);
 
             foreach (string achName in newUnlocks)
             {

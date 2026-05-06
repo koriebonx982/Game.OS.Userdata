@@ -27,6 +27,9 @@
     <Content Include="gameos-backend.url">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="..\Switch Ach\Translate.txt" Link="Switch Ach\Translate.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
