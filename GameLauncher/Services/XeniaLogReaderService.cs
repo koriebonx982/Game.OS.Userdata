@@ -70,12 +70,26 @@ public static class XeniaLogReaderService
     }
 
     /// <summary>
-    /// Deletes all <c>*.log</c> files found in the Xenia log directory so the
-    /// next session starts with a clean log.
-    /// Silently skips files that are locked or otherwise undeletable.
+    /// Deletes all <c>*.log</c> files found in the Xenia log directory AND
+    /// directly in the Xenia executable's directory so the next session starts
+    /// with a clean log.  Silently skips files that are locked or otherwise
+    /// undeletable (e.g. the current session log held open by Xenia).
     /// </summary>
     public static void DeleteOldLogs(string xeniaExePath)
     {
+        if (string.IsNullOrEmpty(xeniaExePath)) return;
+
+        // Also delete logs written directly next to the exe (xenia.log, xenia_canary.log, …)
+        string xeniaDir = Path.GetDirectoryName(xeniaExePath) ?? string.Empty;
+        if (!string.IsNullOrEmpty(xeniaDir) && Directory.Exists(xeniaDir))
+        {
+            foreach (string file in Directory.EnumerateFiles(xeniaDir, "*.log"))
+            {
+                try { File.Delete(file); }
+                catch { /* file in use or access denied — skip */ }
+            }
+        }
+
         string? logDir = FindLogDirectory(xeniaExePath);
         if (logDir == null || !Directory.Exists(logDir)) return;
 
@@ -87,15 +101,40 @@ public static class XeniaLogReaderService
     }
 
     /// <summary>
-    /// Returns the path of the most-recently-written <c>*.log</c> file in the
-    /// Xenia log directory, or <see langword="null"/> when none is found.
+    /// Returns the path of the most-recently-written <c>*.log</c> file across
+    /// all known Xenia log locations:
+    /// <list type="number">
+    ///   <item>The Xenia executable's own directory (<c>xenia.log</c> / <c>xenia_canary.log</c>
+    ///         written by most portable Xenia builds).</item>
+    ///   <item><c>{xeniaDir}\Logs\</c> (older portable layout).</item>
+    ///   <item><c>%APPDATA%\Xenia\Logs\</c> (installed mode).</item>
+    /// </list>
+    /// Returns <see langword="null"/> when no log file is found.
     /// </summary>
     public static string? FindLatestLog(string xeniaExePath)
     {
-        string? logDir = FindLogDirectory(xeniaExePath);
-        if (logDir == null || !Directory.Exists(logDir)) return null;
+        if (string.IsNullOrEmpty(xeniaExePath)) return null;
 
-        return Directory.EnumerateFiles(logDir, "*.log")
+        string xeniaDir = Path.GetDirectoryName(xeniaExePath) ?? string.Empty;
+        var candidates = new List<string>();
+
+        // 1. Log files written directly next to the exe (most common Xenia behaviour)
+        if (!string.IsNullOrEmpty(xeniaDir) && Directory.Exists(xeniaDir))
+            candidates.AddRange(Directory.EnumerateFiles(xeniaDir, "*.log"));
+
+        // 2. Portable Logs\ sub-directory
+        string portableLogs = Path.Combine(xeniaDir, "Logs");
+        if (Directory.Exists(portableLogs))
+            candidates.AddRange(Directory.EnumerateFiles(portableLogs, "*.log"));
+
+        // 3. AppData Xenia\Logs\
+        string appDataLogs = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Xenia", "Logs");
+        if (Directory.Exists(appDataLogs))
+            candidates.AddRange(Directory.EnumerateFiles(appDataLogs, "*.log"));
+
+        return candidates
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .FirstOrDefault();
     }

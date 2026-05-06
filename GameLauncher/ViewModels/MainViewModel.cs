@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
@@ -276,7 +277,56 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             RefreshDashboardLocalGames();
         };
 
-        // When a tracked game session ends, refresh the dashboard one more time
+        // Wire Xenia (Xbox 360) achievement unlock: persist newly-unlocked achievements
+        // to the cloud so they don't re-fire toast notifications on the next session.
+        DetailVm.OnRequestAchievementUnlockAsync = async (platform, gameTitle, achievementId, achievementName, iconUrl) =>
+        {
+            try
+            {
+                await _client.LogAchievementUnlockAsync(
+                    platform, gameTitle,
+                    titleId: null,   // TitleId not available from Xenia log context
+                    achievementName, iconUrl)
+                    .ConfigureAwait(false);
+
+                var achievement = new Models.Achievement
+                {
+                    Platform      = platform,
+                    GameTitle     = gameTitle,
+                    AchievementId = achievementId,
+                    Name          = achievementName,
+                    IconUrl       = iconUrl,
+                    UnlockedAt    = DateTime.UtcNow.ToString("o"),
+                };
+                await _client.SaveAchievementsAsync(
+                    new System.Collections.Generic.List<Models.Achievement> { achievement })
+                    .ConfigureAwait(false);
+            }
+            catch { /* best-effort — toast already shown, cloud sync is non-fatal */ }
+        };
+
+        // Wire achievement total notification: once the full achievement template is loaded
+        // for any game (detail view opened, network or cache), update the library card's
+        // denominator so "3 / 3" becomes "3 / 98".
+        DetailVm.OnAchievementTotalLoaded = (platform, title, total) =>
+        {
+            if (total <= 0) return;
+
+            // Update TotalAchievements on the matching cloud library game
+            var libEntry = _library.FirstOrDefault(g =>
+                string.Equals(g.Platform, platform, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(g.Title, title, StringComparison.OrdinalIgnoreCase));
+            if (libEntry != null && libEntry.TotalAchievements != total)
+            {
+                libEntry.TotalAchievements = total;
+                // Refresh the card's achievement label now that we have the correct denominator
+                var card = LibraryVm.FindMyGameCard(title, platform);
+                if (card?.SourceCloudGame != null)
+                    card.AchievementLabel = card.SourceCloudGame.AchievementCountLabel;
+            }
+        };
+
+
         // so the stored playtime and status reflect the completed session.
         PlaytimeService.SessionCompleted += (platform, title) =>
         {
@@ -1248,10 +1298,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         DetailVm.LoadFromGame(game, localGame, repack, localRom);
         ShowDetail = true;
 
-        // Enrich achievements for non-PC library games whose AchievementsUrl may not
-        // have been stored when the game was added to the library.
-        if (!string.Equals(game.Platform, "PC", StringComparison.OrdinalIgnoreCase) &&
-            string.IsNullOrEmpty(game.AchievementsUrl))
+        // Always enrich achievements for non-PC library games: if AchievementsUrl is
+        // already set, the function checks !HasAchievements before re-fetching so it's
+        // a no-op when achievements already loaded.  This also catches the case where
+        // the stored URL is stale or the title has special symbols (™, ®) that differ
+        // from the catalog entry.
+        if (!string.Equals(game.Platform, "PC", StringComparison.OrdinalIgnoreCase))
             _ = EnrichGameAchievementsAsync(game);
 
         // For PC Steam games with no achievements in the database, fetch the schema
@@ -1554,19 +1606,45 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            var dbGames = await GameOsClient.FetchGamesDatabaseAsync(game.Platform);
-            var dbGame  = FindDatabaseGame(dbGames, game.Title, game.TitleId);
-            if (string.IsNullOrEmpty(dbGame?.AchievementsUrl)) return;
+            string strippedTitle = Models.PlatformHelper.StripSpecialSymbols(game.Title);
+
+            // 1. Instant fallback: check the in-memory store catalog first (no network needed).
+            //    This covers library games whose title has special symbols (e.g. "Mario Kart™ 8
+            //    Deluxe") but whose catalog entry is keyed on the plain name.
+            string? achievementsUrl = GameCatalog.Store
+                .FirstOrDefault(s =>
+                    string.Equals(s.Platform, game.Platform, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(
+                        Models.PlatformHelper.StripSpecialSymbols(s.Title),
+                        strippedTitle,
+                        StringComparison.OrdinalIgnoreCase))
+                ?.AchievementsUrl;
+
+            // 2. Network fallback: fetch the platform database if the catalog didn't have a URL.
+            if (string.IsNullOrEmpty(achievementsUrl))
+            {
+                var dbGames = await GameOsClient.FetchGamesDatabaseAsync(game.Platform);
+                var dbGame  = FindDatabaseGame(dbGames, game.Title, game.TitleId);
+                achievementsUrl = dbGame?.AchievementsUrl;
+            }
+
+            if (string.IsNullOrEmpty(achievementsUrl)) return;
 
             // Persist for future opens within this session
-            game.AchievementsUrl = dbGame.AchievementsUrl;
+            if (string.IsNullOrEmpty(game.AchievementsUrl))
+                game.AchievementsUrl = achievementsUrl;
 
-            // If the detail panel is still showing this game, trigger achievement loading
+            // If the detail panel is still showing this game, trigger achievement loading.
+            // Use StripSpecialSymbols so "Mario Kart™ 8 Deluxe" matches "Mario Kart 8 Deluxe".
+            string url = achievementsUrl;
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
                 if (!DetailVm.HasAchievements &&
-                    string.Equals(DetailVm.Title, game.Title, StringComparison.OrdinalIgnoreCase))
-                    _ = DetailVm.FetchAndDisplayAchievementsAsync(dbGame.AchievementsUrl!);
+                    string.Equals(
+                        Models.PlatformHelper.StripSpecialSymbols(DetailVm.Title),
+                        strippedTitle,
+                        StringComparison.OrdinalIgnoreCase))
+                    _ = DetailVm.FetchAndDisplayAchievementsAsync(url);
             });
         }
         catch { /* best-effort */ }
@@ -1857,6 +1935,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     });
                     // Also re-run cover enrichment for any dashboard cards still missing covers
                     _ = EnrichDashboardCoversAsync();
+
+                    // Cache achievements.json for any games that just had their AchievementsUrl
+                    // set (they may have been skipped by BackgroundCacheLibraryAsync which ran
+                    // concurrently before the URL was known).
+                    var toCache = platformGames
+                        .Where(g => !string.IsNullOrEmpty(g.AchievementsUrl) &&
+                                    _metadataCache.GetCachedAchievementsPath(g.Platform, g.TitleId, g.Title) == null)
+                        .Select(g => (g.Platform, g.TitleId, g.Title, g.AchievementsUrl!))
+                        .ToList();
+                    if (toCache.Count > 0)
+                        _ = Task.Run(async () =>
+                        {
+                            foreach (var (p, tid, t, aUrl) in toCache)
+                            {
+                                try { await _metadataCache.CacheLocalGameAsync(p, tid, t, null, aUrl).ConfigureAwait(false); }
+                                catch { /* best-effort */ }
+                            }
+                        });
                 }
             }
             catch { /* best-effort — library is still usable without enrichment */ }
@@ -2971,6 +3067,34 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     IconUrl       = string.IsNullOrEmpty(a.Icon) ? null : a.Icon,
                 })
                 .ToList();
+
+            // 3a. Cache the schema locally so the detail view works offline and loads
+            //     instantly on subsequent opens (mirrors FetchAndDisplayAchievementsAsync).
+            if (!string.IsNullOrEmpty(achUrl))
+            {
+                try
+                {
+                    string? writePath = _metadataCache.GetAchievementsCachePath("PC", null, gameName);
+                    if (!string.IsNullOrEmpty(writePath) && !File.Exists(writePath))
+                    {
+                        var dbAchs = schema.Select(a => new
+                        {
+                            achievementId = a.ApiName,
+                            name          = string.IsNullOrWhiteSpace(a.DisplayName) ? a.ApiName : a.DisplayName,
+                            description   = a.Description,
+                            iconUrl       = string.IsNullOrEmpty(a.Icon) ? (string?)null : a.Icon,
+                        });
+                        var json = System.Text.Json.JsonSerializer.Serialize(dbAchs,
+                            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                        var dir = Path.GetDirectoryName(writePath);
+                        if (!string.IsNullOrEmpty(dir))
+                            Directory.CreateDirectory(dir);
+                        await File.WriteAllTextAsync(writePath, json).ConfigureAwait(false);
+                        DevLogService.Log($"[SteamAch] Cached achievements for '{gameName}' at {writePath}");
+                    }
+                }
+                catch { /* best-effort — cache write must not block the detail view */ }
+            }
 
             // Update the library entry and detail view on the UI thread
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>

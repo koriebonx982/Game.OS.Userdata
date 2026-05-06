@@ -1113,6 +1113,13 @@ public partial class GameDetailViewModel : ViewModelBase
                             $"Launching '{Title}' via Ryujinx — old logs cleared.");
                     }
 
+                    // ── Xenia log reader: clear stale logs BEFORE launch so the new
+                    //    session starts with a clean file (mirrors the Switch pattern).
+                    bool readXeniaLog = string.Equals(Platform, "Xbox 360", StringComparison.OrdinalIgnoreCase)
+                        && emuSettings.EmulatorPath.Contains("xenia", StringComparison.OrdinalIgnoreCase);
+                    if (readXeniaLog)
+                        XeniaLogReaderService.DeleteOldLogs(emuSettings.EmulatorPath);
+
                     try
                     {
                         var psi = new System.Diagnostics.ProcessStartInfo
@@ -1143,13 +1150,8 @@ public partial class GameDetailViewModel : ViewModelBase
                         _ = WatchAndReadSwitchLogAsync(romProc, emuSettings.EmulatorPath, Title);
 
                     // ── Xenia log reader: read achievement unlocks after session ends ──
-                    bool readXeniaLog = string.Equals(Platform, "Xbox 360", StringComparison.OrdinalIgnoreCase)
-                        && emuSettings.EmulatorPath.Contains("xenia", StringComparison.OrdinalIgnoreCase);
                     if (readXeniaLog)
-                    {
-                        XeniaLogReaderService.DeleteOldLogs(emuSettings.EmulatorPath);
                         _ = WatchAndReadXeniaLogAsync(romProc, emuSettings.EmulatorPath, Title);
-                    }
 
                     return;
                 }
@@ -1248,6 +1250,21 @@ public partial class GameDetailViewModel : ViewModelBase
     /// the service (keeps the VM testable).
     /// </summary>
     public Action<System.Diagnostics.Process, string, string>? OnRequestPlaytimeTracking { get; set; }
+
+    /// <summary>
+    /// Callback wired by MainViewModel to persist a newly-unlocked achievement
+    /// (from the Xenia log) to the cloud so it survives across sessions and
+    /// won't re-fire a toast notification on the next emulator restart.
+    /// Parameters: (platform, gameTitle, achievementId, achievementName, iconUrl)
+    /// </summary>
+    public Func<string, string, string, string, string?, System.Threading.Tasks.Task>? OnRequestAchievementUnlockAsync { get; set; }
+
+    /// <summary>
+    /// Callback wired by MainViewModel so the library card denominator can be
+    /// updated as soon as the full achievement template is loaded.
+    /// Parameters: (platform, title, totalCount)
+    /// </summary>
+    public Action<string, string, int>? OnAchievementTotalLoaded { get; set; }
 
     /// <summary>
     /// Brings the currently-running game window to the foreground.
@@ -1579,6 +1596,10 @@ public partial class GameDetailViewModel : ViewModelBase
         System.Diagnostics.Process? gameProc, string xeniaExePath, string gameTitle)
     {
         // ── Pre-load IDs already in the achievements cache ───────────────────────
+        // Xenia re-replays ALL achievement unlocks on every emulator restart, so
+        // we track both the database AchievementId and the lowercased name
+        // (which Xenia uses as the key when no numeric ID appears in the log line)
+        // to suppress toast notifications for achievements already earned.
         string? cachePath = CacheService?.GetCachedAchievementsPath("Xbox 360", null, gameTitle);
         var processedIds = new System.Collections.Generic.HashSet<string>(
             StringComparer.OrdinalIgnoreCase);
@@ -1591,8 +1612,14 @@ public partial class GameDetailViewModel : ViewModelBase
                 var cached = System.Text.Json.JsonSerializer.Deserialize<List<Achievement>>(cachedJson);
                 if (cached != null)
                 {
-                    foreach (var a in cached.Where(a => a.IsUnlocked && !string.IsNullOrEmpty(a.AchievementId)))
-                        processedIds.Add(a.AchievementId);
+                    foreach (var a in cached.Where(a => a.IsUnlocked))
+                    {
+                        if (!string.IsNullOrEmpty(a.AchievementId))
+                            processedIds.Add(a.AchievementId);
+                        // Also add by name so Xenia's name-based IDs are matched
+                        if (!string.IsNullOrEmpty(a.Name))
+                            processedIds.Add(a.Name.ToLowerInvariant());
+                    }
                 }
             }
             catch { /* best-effort */ }
@@ -1603,15 +1630,40 @@ public partial class GameDetailViewModel : ViewModelBase
 
         void HandleUnlock(string id, string name)
         {
-            if (!processedIds.Add(id)) return; // already seen
+            string nameLower = name.ToLowerInvariant();
+            // Suppress toasts for achievements already seen this session (by ID or name).
+            // Check before adding so that when id == nameLower the first Add isn't falsely
+            // treated as "already seen" by the second Contains check.
+            if (processedIds.Contains(id) || processedIds.Contains(nameLower)) return;
+            processedIds.Add(id);
+            // Avoid a redundant HashSet insert when the ID is already the lowercased name.
+            if (id != nameLower) processedIds.Add(nameLower);
+
             Services.NotificationService.ShowAchievementUnlockedNotification(name, gameTitle);
             DevLogService.Log($"[XeniaAch] Unlocked: {name} (id={id})");
+
+            // Persist unlock to the cloud so it won't re-toast on the next session.
+            // Icon URL lookup requires the UI thread — resolve it inside the Post so
+            // the icon is available before the cloud call fires.
+            if (OnRequestAchievementUnlockAsync != null)
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    string? iconUrl = Achievements
+                        .FirstOrDefault(a =>
+                            string.Equals(a.AchievementId, id, StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(a.Name, name, StringComparison.OrdinalIgnoreCase))
+                        ?.IconUrl;
+                    _ = OnRequestAchievementUnlockAsync("Xbox 360", gameTitle, id, name, iconUrl);
+                });
+            }
 
             // Update in-memory achievement list
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
                 var existing = Achievements.FirstOrDefault(a =>
-                    string.Equals(a.AchievementId, id, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(a.AchievementId, id, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(a.Name, name, StringComparison.OrdinalIgnoreCase));
                 if (existing != null)
                 {
                     existing.UnlockedAt = DateTime.UtcNow.ToString("o");
@@ -2519,6 +2571,26 @@ public partial class GameDetailViewModel : ViewModelBase
                 using var http = new System.Net.Http.HttpClient();
                 http.DefaultRequestHeaders.UserAgent.ParseAdd("GameOS-Launcher/2.0");
                 json = await http.GetStringAsync(url);
+
+                // Cache the downloaded JSON so the next session works offline
+                // (and this first load is faster on re-open within the same session).
+                if (!string.IsNullOrWhiteSpace(json) && CacheService != null)
+                {
+                    try
+                    {
+                        string? writePath = CacheService.GetAchievementsCachePath(Platform, titleId, Title);
+                        if (!string.IsNullOrEmpty(writePath))
+                        {
+                            var dir = System.IO.Path.GetDirectoryName(writePath);
+                            if (!string.IsNullOrEmpty(dir))
+                                System.IO.Directory.CreateDirectory(dir);
+                            await System.IO.File.WriteAllTextAsync(writePath, json)
+                                .ConfigureAwait(false);
+                            DevLogService.Log($"[AchievementsCache] Saved to disk: {writePath}");
+                        }
+                    }
+                    catch { /* best-effort — cache write failure must not block display */ }
+                }
             }
 
             if (string.IsNullOrWhiteSpace(json)) return;
@@ -2577,8 +2649,16 @@ public partial class GameDetailViewModel : ViewModelBase
 
             if (list.Count > 0)
             {
+                int total = list.Count;
+                string snapshotPlatform = Platform;
+                string snapshotTitle    = Title;
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                    PopulateAchievements(list));
+                {
+                    PopulateAchievements(list);
+                    // Notify MainViewModel so the library card denominator can be updated
+                    // (e.g. "3 / 98" instead of "3 / 3" when only unlocked were cached)
+                    OnAchievementTotalLoaded?.Invoke(snapshotPlatform, snapshotTitle, total);
+                });
             }
         }
         catch { /* best-effort */ }

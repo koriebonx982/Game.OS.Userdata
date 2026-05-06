@@ -121,6 +121,20 @@ namespace GameLauncher.Services
         }
 
         /// <summary>
+        /// Returns the canonical local path for the achievements.json cache file.
+        /// Unlike <see cref="GetCachedAchievementsPath"/> this returns the path regardless
+        /// of whether the file currently exists — use it when you need to write the file.
+        /// Returns <see langword="null"/> when neither <paramref name="titleId"/> nor
+        /// <paramref name="title"/> can be resolved to a valid cache key.
+        /// </summary>
+        public string? GetAchievementsCachePath(string platform, string? titleId, string? title = null)
+        {
+            var key = ResolveKey(titleId, title);
+            if (string.IsNullOrEmpty(key)) return null;
+            return Path.Combine(GameFolder(platform, key), "achievements.json");
+        }
+
+        /// <summary>
         /// Returns the local path to a cached achievement icon, or null when not cached.
         /// </summary>
         public string? GetCachedAchievementIconPath(string platform, string titleId, string achievementId)
