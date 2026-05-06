@@ -1629,17 +1629,17 @@ public partial class GameDetailViewModel : ViewModelBase
             // treated as "already seen" by the second Contains check.
             if (processedIds.Contains(id) || processedIds.Contains(nameLower)) return;
             processedIds.Add(id);
-            processedIds.Add(nameLower);
+            // Avoid a redundant HashSet insert when the ID is already the lowercased name.
+            if (id != nameLower) processedIds.Add(nameLower);
 
             Services.NotificationService.ShowAchievementUnlockedNotification(name, gameTitle);
             DevLogService.Log($"[XeniaAch] Unlocked: {name} (id={id})");
 
             // Persist unlock to the cloud so it won't re-toast on the next session.
-            // Icon URL lookup requires the UI thread — do it inside a combined Post so
-            // the icon is resolved before the cloud call fires.
+            // Icon URL lookup requires the UI thread — resolve it inside the Post so
+            // the icon is available before the cloud call fires.
             if (OnRequestAchievementUnlockAsync != null)
             {
-                var saveCallback = OnRequestAchievementUnlockAsync;
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
                     string? iconUrl = Achievements
@@ -1647,7 +1647,7 @@ public partial class GameDetailViewModel : ViewModelBase
                             string.Equals(a.AchievementId, id, StringComparison.OrdinalIgnoreCase) ||
                             string.Equals(a.Name, name, StringComparison.OrdinalIgnoreCase))
                         ?.IconUrl;
-                    _ = saveCallback("Xbox 360", gameTitle, id, name, iconUrl);
+                    _ = OnRequestAchievementUnlockAsync("Xbox 360", gameTitle, id, name, iconUrl);
                 });
             }
 

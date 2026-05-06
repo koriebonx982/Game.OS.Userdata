@@ -283,7 +283,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             try
             {
                 await _client.LogAchievementUnlockAsync(
-                    platform, gameTitle, null, achievementName, iconUrl)
+                    platform, gameTitle,
+                    titleId: null,   // TitleId not available from Xenia log context
+                    achievementName, iconUrl)
                     .ConfigureAwait(false);
 
                 var achievement = new Models.Achievement
