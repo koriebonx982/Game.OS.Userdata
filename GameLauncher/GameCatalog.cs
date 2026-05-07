@@ -110,7 +110,7 @@ namespace GameLauncher
                 CoverUrl = "https://cdn2.steamgriddb.com/grid/9cd6d894098e748716960bfcf9dbe115.png",
                 TrailerUrl = "https://youtu.be/tKlRN2YpxRE",
                 Screenshots = new List<string>{ "https://cdn2.steamgriddb.com/hero/85e1b8bbda1bd1ec3465c9728f7d7d2e.png", "https://cdn2.steamgriddb.com/hero/c384385739d41027edba51f4fbf65e96.png" },
-                AchievementsUrl = "https://raw.githubusercontent.com/Koriebonx98/Switch-Achievements-/main/Games/Mario%20Kart%208%20Deluxe.json",
+                AchievementsUrl = "https://raw.githubusercontent.com/Koriebonx98/Game.OS.Userdata/main/Switch%20Ach/Games/Mario%20Kart%208%20Deluxe.json",
                 CoverColor = "#c00000", CoverGradient = "#c00000,#ff6b00" },
             // ── Upcoming & popular PC titles ───────────────────────────────────────────
             new StoreGame { Title = "GTA VI",                    Platform = "PC",     Genre = "Open World",   Price = "£69.99", Rating = 9.5, IsFeatured = true,  ReleaseYear = "2026",
