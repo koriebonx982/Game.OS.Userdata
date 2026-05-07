@@ -218,7 +218,7 @@ public static class SwitchAchievementDetectorService
 
     /// <summary>
     /// Returns <see langword="true"/> when <paramref name="description"/> matches:
-    /// "get 1st as &lt;Driver&gt; on &lt;Course&gt;" (case-insensitive),
+    /// "get 1st as {Driver} on {Course}" (case-insensitive),
     /// with optional double quotes around the course name.
     /// </summary>
     private static bool IsFirstAsDriverOnCourseDescription(
