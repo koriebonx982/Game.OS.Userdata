@@ -1107,16 +1107,22 @@ public partial class GameDetailViewModel : ViewModelBase
                     string args = emuSettings.Arguments.Replace("{rom}", $"\"{safeRomPath}\"");
                     System.Diagnostics.Process? romProc = null;
 
-                    // ── Switch log reader: clean up stale Ryujinx logs before launch ──
-                    bool readSwitchLog = IsSwitch
-                        && AppSettingsService.Load().ReadSwitchLog
-                        && emuSettings.EmulatorPath.ToLowerInvariant().Contains("ryujinx");
+                    // ── Switch / Ryujinx achievement reader ──────────────────────────
+                    // Always tail the current Ryujinx log for achievement detection.
+                    // Keep ReadSwitchLog as an optional toggle only for post-session
+                    // full-log snippet recording.
+                    bool isSwitchRyujinx = IsSwitch
+                        && emuSettings.EmulatorPath.Contains("ryujinx", StringComparison.OrdinalIgnoreCase);
+                    bool readSwitchLog = isSwitchRyujinx && AppSettingsService.Load().ReadSwitchLog;
 
-                    if (readSwitchLog)
+                    if (isSwitchRyujinx)
                     {
                         SwitchLogReaderService.DeleteOldLogs(emuSettings.EmulatorPath);
-                        SwitchLogReaderService.AppendToLauncherLog(
-                            $"Launching '{Title}' via Ryujinx — old logs cleared.");
+                        if (readSwitchLog)
+                        {
+                            SwitchLogReaderService.AppendToLauncherLog(
+                                $"Launching '{Title}' via Ryujinx — old logs cleared.");
+                        }
                     }
 
                     // ── Xenia log reader: clear stale logs BEFORE launch so the new
@@ -1152,8 +1158,8 @@ public partial class GameDetailViewModel : ViewModelBase
                         _ = WatchAndRunPostLaunchAsync(romProc, saved.PostLaunch);
 
                     // ── Switch log reader: read Ryujinx log after session ends ──────
-                    if (readSwitchLog)
-                        _ = WatchAndReadSwitchLogAsync(romProc, emuSettings.EmulatorPath, Title);
+                    if (isSwitchRyujinx)
+                        _ = WatchAndReadSwitchLogAsync(romProc, emuSettings.EmulatorPath, Title, readSwitchLog);
 
                     // ── Xenia log reader: read achievement unlocks after session ends ──
                     if (readXeniaLog)
@@ -1413,7 +1419,7 @@ public partial class GameDetailViewModel : ViewModelBase
     /// game exits, also completes the normal log-snippet recording.
     /// </summary>
     private async System.Threading.Tasks.Task WatchAndReadSwitchLogAsync(
-        System.Diagnostics.Process? gameProc, string ryujinxExePath, string gameTitle)
+        System.Diagnostics.Process? gameProc, string ryujinxExePath, string gameTitle, bool writeSessionLogSnippet)
     {
         // ── Build the set of already-unlocked achievement names from the cache ──
         string? cachePath = CacheService?.GetCachedAchievementsPath("Switch", null, gameTitle);
@@ -1500,6 +1506,9 @@ public partial class GameDetailViewModel : ViewModelBase
         // Final poll to catch any events written just before/after exit
         try { await PollOnceAsync(); }
         catch { /* best-effort */ }
+
+        // Optional post-session full-log recording (ReadSwitchLog setting).
+        if (!writeSessionLogSnippet) return;
 
         // ── Log-snippet recording (original behaviour) ──────────────────────────
         string? latestLog = logPath ?? SwitchLogReaderService.FindLatestLog(ryujinxExePath);
