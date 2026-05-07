@@ -2575,25 +2575,20 @@ public partial class GameDetailViewModel : ViewModelBase
         {
             string json;
 
-            // Prefer the locally-cached achievements.json so the detail view works
-            // offline and loads instantly without a network round-trip.
             // Resolve the best cache key: ROM titleId → database titleId → title
             string? titleId = _currentLocalRom?.TitleId ?? _databaseTitleId;
             string? cachedPath = CacheService?.GetCachedAchievementsPath(Platform, titleId, Title);
 
-            if (!string.IsNullOrEmpty(cachedPath) && System.IO.File.Exists(cachedPath))
-            {
-                DevLogService.Log($"[AchievementsCache] Loading from disk: {cachedPath}");
-                json = await System.IO.File.ReadAllTextAsync(cachedPath).ConfigureAwait(false);
-            }
-            else
+            // Always try the network first so newly added achievements appear immediately.
+            // Fall back to the locally-cached file only when the network is unavailable,
+            // so the detail view still works offline.
+            try
             {
                 using var http = new System.Net.Http.HttpClient();
                 http.DefaultRequestHeaders.UserAgent.ParseAdd("GameOS-Launcher/2.0");
-                json = await http.GetStringAsync(url);
+                json = await http.GetStringAsync(url).ConfigureAwait(false);
 
-                // Cache the downloaded JSON so the next session works offline
-                // (and this first load is faster on re-open within the same session).
+                // Persist the fresh data so subsequent offline sessions use the latest list.
                 if (!string.IsNullOrWhiteSpace(json) && CacheService != null)
                 {
                     try
@@ -2606,10 +2601,27 @@ public partial class GameDetailViewModel : ViewModelBase
                                 System.IO.Directory.CreateDirectory(dir);
                             await System.IO.File.WriteAllTextAsync(writePath, json)
                                 .ConfigureAwait(false);
-                            DevLogService.Log($"[AchievementsCache] Saved to disk: {writePath}");
+                            DevLogService.Log($"[AchievementsCache] Updated cache: {writePath}");
                         }
                     }
                     catch { /* best-effort — cache write failure must not block display */ }
+                }
+            }
+            catch (Exception ex) when (ex is System.Net.Http.HttpRequestException ||
+                                       ex is System.Threading.Tasks.TaskCanceledException ||
+                                       ex is System.IO.IOException)
+            {
+                // Network unavailable — fall back to the locally-cached file.
+                DevLogService.Log($"[AchievementsCache] Network fetch failed ({ex.GetType().Name}): {ex.Message}");
+                if (!string.IsNullOrEmpty(cachedPath) && System.IO.File.Exists(cachedPath))
+                {
+                    DevLogService.Log($"[AchievementsCache] Offline fallback: {cachedPath}");
+                    json = await System.IO.File.ReadAllTextAsync(cachedPath).ConfigureAwait(false);
+                }
+                else
+                {
+                    DevLogService.Log($"[AchievementsCache] No cache available for {Platform}/{titleId ?? Title}");
+                    return;
                 }
             }
 
