@@ -453,6 +453,13 @@ class Program
         if (!switchAchPassed) passed = false;
         Console.WriteLine();
 
+        // ── SWITCH LOG PARSING (actual Ryujinx log format) ────────────────────
+        Console.WriteLine("📋 Switch Log Parsing (ReadRaceResultsFromNewContent):");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool switchLogParsePassed = TestSwitchLogParsing();
+        if (!switchLogParsePassed) passed = false;
+        Console.WriteLine();
+
         // ── SUMMARY ───────────────────────────────────────────────────────────
         Console.WriteLine("═══════════════════════════════════════════════════════════════");
         if (passed)
@@ -1575,9 +1582,158 @@ class Program
     }
 
     /// <summary>
-    /// Verifies Switch achievement detection for a race-specific Mario Kart 8 Deluxe
-    /// achievement description that depends on Translate.txt values.
+    /// Exercises <see cref="SwitchLogReaderService.ReadRaceResultsFromNewContent"/> against
+    /// a mock Ryujinx log file written in the exact multi-line format the emulator produces.
+    /// Verifies that the race result (Course, Driver, Rank, FinishReason) is extracted, and
+    /// then that the achievement detector correctly unlocks the "Test" achievement.
     /// </summary>
+    private static bool TestSwitchLogParsing()
+    {
+        bool passed = true;
+        string? logPath = null;
+        try
+        {
+            // Exact Ryujinx log format as observed in production (multi-line PlayReport block):
+            // - trigger line ends with "ProcessPlayReport: " (message is on continuation lines)
+            // - "Room: match" and "Report: {" are on separate continuation lines
+            // - JSON body follows on further continuation lines
+            // - block ends when the next timestamp line begins
+            string logContent =
+                "00:00:00.100 |I| KernelThread Boot: started\n" +
+                "00:10:42.000 |I| HLE.OsThread.22 ServicePrepo ProcessPlayReport: \n" +
+                "PlayReport log:\n" +
+                " Kind: Normal\n" +
+                " Pid: 127\n" +
+                " ApplicationVersion: 0\n" +
+                " UserId: 00000000000000010000000000000000\n" +
+                " Room: ui\n" +
+                " Report: {\n" +
+                "    \"SequenceTime\": 20260508112703\n" +
+                "}\n" +
+                "00:13:32.115 |I| HLE.OsThread.22 ServicePrepo ProcessPlayReport: \n" +
+                "PlayReport log:\n" +
+                " Kind: Normal\n" +
+                " Pid: 127\n" +
+                " ApplicationVersion: 0\n" +
+                " UserId: 00000000000000010000000000000000\n" +
+                " Room: match\n" +
+                " Report: {\n" +
+                "    \"BeginTime\": 20260508112753,\n" +
+                "    \"Nation\": \"-\",\n" +
+                "    \"RaceNo\": 0,\n" +
+                "    \"Mode\": \"Offline\",\n" +
+                "    \"Rule\": \"VS\",\n" +
+                "    \"Engine\": \"200cc\",\n" +
+                "    \"Course\": \"Gu_FirstCircuit\",\n" +
+                "    \"Driver\": \"Mario\",\n" +
+                "    \"Body\": \"K_Std\",\n" +
+                "    \"Tire\": \"Std\",\n" +
+                "    \"Wing\": \"Std\",\n" +
+                "    \"RankHistory1\": {\n" +
+                "        \"TypeCode\": 0,\n" +
+                "        \"Value\": \"0x000000000111112C\"\n" +
+                "    },\n" +
+                "    \"RankHistory2\": {\n" +
+                "        \"TypeCode\": 0,\n" +
+                "        \"Value\": \"0x0000000000000000\"\n" +
+                "    },\n" +
+                "    \"FinishReason\": \"Finish\",\n" +
+                "    \"CoinNum\": 10,\n" +
+                "    \"Rank\": 1,\n" +
+                "    \"EndRate\": 0\n" +
+                "}\n" +
+                "00:13:32.200 |S| HLE.OsThread.47 ServiceAm LockExit: Stubbed.\n";
+
+            logPath = Path.GetTempFileName();
+            File.WriteAllText(logPath, logContent, System.Text.Encoding.UTF8);
+
+            long fileOffset = 0;
+            var results = SwitchLogReaderService.ReadRaceResultsFromNewContent(
+                logPath, ref fileOffset, out var gpResults);
+
+            // Verify the "ui" block is NOT returned as a match result
+            if (results.Count == 0)
+            {
+                Console.WriteLine("  ❌  No race results extracted from log — parsing failed");
+                passed = false;
+            }
+            else if (results.Count > 1)
+            {
+                Console.WriteLine($"  ❌  Expected 1 race result, got {results.Count}");
+                passed = false;
+            }
+            else
+            {
+                var r = results[0];
+                bool ok = true;
+
+                if (!string.Equals(r.Course, "Gu_FirstCircuit", StringComparison.Ordinal))
+                { Console.WriteLine($"  ❌  Course: expected 'Gu_FirstCircuit', got '{r.Course}'"); ok = false; }
+                if (!string.Equals(r.Driver, "Mario", StringComparison.Ordinal))
+                { Console.WriteLine($"  ❌  Driver: expected 'Mario', got '{r.Driver}'"); ok = false; }
+                if (r.Rank != 1)
+                { Console.WriteLine($"  ❌  Rank: expected 1, got {r.Rank}"); ok = false; }
+                if (!string.Equals(r.FinishReason, "Finish", StringComparison.Ordinal))
+                { Console.WriteLine($"  ❌  FinishReason: expected 'Finish', got '{r.FinishReason}'"); ok = false; }
+                if (r.CoinNum != 10)
+                { Console.WriteLine($"  ❌  CoinNum: expected 10, got {r.CoinNum}"); ok = false; }
+
+                if (ok)
+                    Console.WriteLine($"  ✅  Race result parsed: Course={r.Course} Driver={r.Driver} Rank={r.Rank} FinishReason={r.FinishReason} CoinNum={r.CoinNum}");
+                else
+                    passed = false;
+            }
+
+            if (gpResults.Count != 0)
+            {
+                Console.WriteLine($"  ❌  Expected 0 GP results, got {gpResults.Count}");
+                passed = false;
+            }
+            else
+            {
+                Console.WriteLine("  ✅  No GP results (as expected — no gp_result block in log)");
+            }
+
+            // End-to-end: run the full detection pipeline on the parsed results
+            if (results.Count == 1)
+            {
+                string repoRoot2 = FindRepoRoot();
+                string runtimeTranslateDir2 = Path.Combine(AppContext.BaseDirectory, "Switch Ach");
+                string sourceTranslatePath2 = Path.Combine(repoRoot2, "Switch Ach", "Translate.txt");
+                Directory.CreateDirectory(runtimeTranslateDir2);
+                File.Copy(sourceTranslatePath2, Path.Combine(runtimeTranslateDir2, "Translate.txt"), overwrite: true);
+
+                var translations2 = SwitchTranslateService.Load();
+                var session2 = new SwitchAchievementDetectorService.SessionState();
+                var achievements2 = new List<Achievement>
+                {
+                    new() { Name = "Test", Description = "get 1st as Mario on \"Mario Kart Stadium\"" }
+                };
+
+                var unlocks2 = SwitchAchievementDetectorService.DetectNewUnlocks(
+                    "Mario Kart 8 Deluxe", results, gpResults, session2, null, achievements2, translations2);
+
+                if (unlocks2.Contains("Test", StringComparer.OrdinalIgnoreCase))
+                    Console.WriteLine("  ✅  End-to-end: \"Test\" achievement unlocked from parsed log");
+                else
+                {
+                    Console.WriteLine("  ❌  End-to-end: \"Test\" achievement NOT unlocked from parsed log");
+                    passed = false;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ❌  Switch log parsing test threw: {ex.Message}");
+            passed = false;
+        }
+        finally
+        {
+            if (logPath != null) try { File.Delete(logPath); } catch { }
+        }
+        return passed;
+    }
+
     private static bool TestSwitchMk8RaceAchievementDetection()
     {
         bool passed = true;
@@ -1630,6 +1786,28 @@ class Program
             else
             {
                 Console.WriteLine("  ❌  \"Test\" was not unlocked for rank 1 Mario on Gu_FirstCircuit");
+                passed = false;
+            }
+
+            // Also verify that the title with ™ symbol is handled correctly
+            // ("Mario Kart™ 8 Deluxe" is how the title appears in the user's library)
+            var session2 = new SwitchAchievementDetectorService.SessionState();
+            var unlocksTm = SwitchAchievementDetectorService.DetectNewUnlocks(
+                gameTitle: "Mario Kart™ 8 Deluxe",
+                newResults: results,
+                newGpResults: [],
+                session: session2,
+                alreadyUnlockedNames: null,
+                achievementsList: achievements,
+                translations: translations);
+
+            if (unlocksTm.Contains("Test", StringComparer.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("  ✅  \"Test\" unlocked with title \"Mario Kart™ 8 Deluxe\" (™ normalised)");
+            }
+            else
+            {
+                Console.WriteLine("  ❌  \"Test\" was NOT unlocked when title contains ™ — IsMarioKart8Deluxe failed");
                 passed = false;
             }
         }

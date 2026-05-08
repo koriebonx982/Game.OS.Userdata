@@ -92,9 +92,17 @@ public static class SwitchAchievementDetectorService
 
     // ── Mario Kart 8 Deluxe ────────────────────────────────────────────────────
 
-    private static bool IsMarioKart8Deluxe(string gameTitle) =>
-        gameTitle.Contains("mario kart 8", StringComparison.OrdinalIgnoreCase) ||
-        gameTitle.Contains("mariokart8",   StringComparison.OrdinalIgnoreCase);
+    private static bool IsMarioKart8Deluxe(string gameTitle)
+    {
+        // Strip trademark/copyright symbols that may appear in stored game titles
+        // (e.g. "Mario Kart™ 8 Deluxe" → "Mario Kart 8 Deluxe") before comparison.
+        string normalized = gameTitle
+            .Replace("™", "")
+            .Replace("®", "")
+            .Replace("©", "");
+        return normalized.Contains("mario kart 8", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("mariokart8",   StringComparison.OrdinalIgnoreCase);
+    }
 
     // Matches achievement descriptions of the form "N Coins Total" (e.g. "100 Coins Total").
     private static readonly Regex _coinTotalRegex =
