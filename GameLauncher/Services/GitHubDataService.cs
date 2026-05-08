@@ -760,9 +760,9 @@ namespace GameLauncher.Services
             string platform,
             string gameTitle)
         {
-            string normalisedPlatform = NormalizePlatform(platform);
+            string normalizedPlatform = NormalizePlatform(platform);
             var match = games?.FirstOrDefault(g =>
-                string.Equals(NormalizePlatform(g.Platform ?? string.Empty), normalisedPlatform, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(NormalizePlatform(g.Platform ?? string.Empty), normalizedPlatform, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(g.Title, gameTitle, StringComparison.OrdinalIgnoreCase) &&
                 IsSafeAchievementPathSegment(g.TitleId));
 
