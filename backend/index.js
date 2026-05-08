@@ -2103,6 +2103,7 @@ app.post('/api/me/achievements', authenticateToken, async (req, res) => {
             const platformKey = sanitisePathSegment(platform, 'unknown-platform');
             const titleKey = await resolveAchievementTitleKey(usernameLower, platform, gameTitle, titleId);
             const canonicalPath = `accounts/${usernameLower}/Achievements/${platformKey}/${titleKey}/achievements.json`;
+            // Intentionally misspelled for backward compatibility with older clients.
             const legacyPath = `accounts/${usernameLower}/Achivements/${platformKey}/${titleKey}/achievements.json`;
             const canonicalFile = await getFile(canonicalPath);
             const legacyFile = await getFile(legacyPath);
