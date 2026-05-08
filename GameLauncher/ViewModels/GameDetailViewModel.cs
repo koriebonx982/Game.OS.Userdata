@@ -1497,11 +1497,20 @@ public partial class GameDetailViewModel : ViewModelBase
                 {
                     var existing = Achievements.FirstOrDefault(a =>
                         string.Equals(a.Name, achName, StringComparison.OrdinalIgnoreCase));
+                    string resolvedAchievementId = achName;
+                    string? iconUrl = null;
                     if (existing != null)
                     {
+                        if (!string.IsNullOrWhiteSpace(existing.AchievementId))
+                            resolvedAchievementId = existing.AchievementId;
+                        iconUrl = existing.IconUrl;
                         existing.UnlockedAt = DateTime.UtcNow.ToString("o");
                         RefreshVisibleAchievements();
                     }
+
+                    if (OnRequestAchievementUnlockAsync != null)
+                        _ = OnRequestAchievementUnlockAsync(
+                            "Switch", gameTitle, resolvedAchievementId, achName, iconUrl);
                 });
             }
         }

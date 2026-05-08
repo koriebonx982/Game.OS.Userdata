@@ -525,6 +525,31 @@ function sanitiseUsername(username) {
     return /^[a-zA-Z0-9._-]+$/.test(username);
 }
 
+function sanitisePathSegment(value, fallback = 'unknown') {
+    const raw = String(value || '').trim();
+    const cleaned = raw.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
+    return cleaned || fallback;
+}
+
+async function resolveAchievementTitleKey(usernameLower, platform, gameTitle, titleId) {
+    const rawTitleId = String(titleId || '').trim();
+    if (/^[a-zA-Z0-9_-]+$/.test(rawTitleId)) return rawTitleId;
+
+    try {
+        const gamesFile = await getFile(`accounts/${usernameLower}/games.json`);
+        const games = Array.isArray(gamesFile?.content) ? gamesFile.content : [];
+        const match = games.find(g =>
+            String(g.platform || '').toLowerCase() === String(platform || '').toLowerCase() &&
+            String(g.title || '').toLowerCase() === String(gameTitle || '').toLowerCase() &&
+            /^[a-zA-Z0-9_-]+$/.test(String(g.titleId || '').trim()));
+        if (match) return String(match.titleId).trim();
+    } catch (err) {
+        console.warn('resolveAchievementTitleKey lookup failed:', err.message);
+    }
+
+    return sanitisePathSegment(gameTitle, 'unknown-title');
+}
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 // Health check – the frontend polls this to detect the backend
@@ -2037,7 +2062,7 @@ app.get('/api/me/achievements', authenticateToken, async (req, res) => {
 app.post('/api/me/achievements', authenticateToken, async (req, res) => {
     try {
         const { usernameLower } = req.tokenUser;
-        const { platform, gameTitle, achievementId, name, description, unlockedAt } = req.body;
+        const { platform, gameTitle, titleId, achievementId, name, description, unlockedAt } = req.body;
         if (!platform || !gameTitle || !achievementId || !name) {
             return res.status(400).json({ success: false, message: 'platform, gameTitle, achievementId, and name are required.' });
         }
@@ -2068,6 +2093,37 @@ app.post('/api/me/achievements', authenticateToken, async (req, res) => {
         }
 
         await putFile(path, list, `Achievement: ${name} in ${gameTitle} (${platform})`, file ? file.sha : undefined);
+
+        // Mirror per-game achievements for cross-device clients that read by platform/titleId path.
+        // Path format:
+        //   accounts/{username}/Achivements/{PlatformName}/{TitleIdOrTitle}/achievements.json
+        // (folder name intentionally uses "Achivements" to match existing client expectations).
+        try {
+            const platformKey = sanitisePathSegment(platform, 'unknown-platform');
+            const titleKey = await resolveAchievementTitleKey(usernameLower, platform, gameTitle, titleId);
+            const byGamePath = `accounts/${usernameLower}/Achivements/${platformKey}/${titleKey}/achievements.json`;
+            const byGameFile = await getFile(byGamePath);
+            const byGameList = byGameFile ? [...byGameFile.content] : [];
+
+            const existingByGame = byGameList.findIndex(
+                a => String(a.achievementId) === String(achievementId)
+            );
+            if (existingByGame !== -1) {
+                byGameList[existingByGame] = { ...byGameList[existingByGame], ...entry };
+            } else {
+                byGameList.push(entry);
+            }
+
+            await putFile(
+                byGamePath,
+                byGameList,
+                `Achievement mirror: ${name} in ${gameTitle} (${platform})`,
+                byGameFile ? byGameFile.sha : undefined
+            );
+        } catch (mirrorErr) {
+            console.warn('POST /api/me/achievements mirror write failed:', mirrorErr.message);
+        }
+
         res.json({ success: true, message: 'Achievement recorded.', achievement: entry });
     } catch (err) {
         console.error('POST /api/me/achievements error:', err);

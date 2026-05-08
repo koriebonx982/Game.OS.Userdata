@@ -283,24 +283,104 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             try
             {
+                bool MatchesAchievement(Models.Achievement a) =>
+                    string.Equals(a.Platform, platform, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(a.GameTitle, gameTitle, StringComparison.OrdinalIgnoreCase) &&
+                    (
+                        (!string.IsNullOrEmpty(a.AchievementId) &&
+                         !string.IsNullOrEmpty(achievementId) &&
+                         string.Equals(a.AchievementId, achievementId, StringComparison.OrdinalIgnoreCase)) ||
+                        string.Equals(a.Name, achievementName, StringComparison.OrdinalIgnoreCase)
+                    );
+
+                var existing = _achievements.FirstOrDefault(MatchesAchievement);
+                if (existing != null && !string.IsNullOrEmpty(existing.UnlockedAt))
+                    return;
+
+                string unlockedAt = DateTime.UtcNow.ToString("o");
+                string resolvedAchievementId = !string.IsNullOrWhiteSpace(achievementId)
+                    ? achievementId
+                    : achievementName;
+
+                if (existing != null)
+                {
+                    existing.AchievementId = resolvedAchievementId;
+                    existing.Name          = achievementName;
+                    existing.IconUrl       = iconUrl;
+                    existing.UnlockedAt    = unlockedAt;
+                }
+                else
+                {
+                    _achievements.Add(new Models.Achievement
+                    {
+                        Platform      = platform,
+                        GameTitle     = gameTitle,
+                        AchievementId = resolvedAchievementId,
+                        Name          = achievementName,
+                        IconUrl       = iconUrl,
+                        UnlockedAt    = unlockedAt,
+                    });
+                }
+
+                var libEntry = _library.FirstOrDefault(g =>
+                    string.Equals(g.Platform, platform, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(g.Title, gameTitle, StringComparison.OrdinalIgnoreCase));
+                if (libEntry != null)
+                {
+                    libEntry.GameAchievements ??= new List<Achievement>();
+                    var libAch = libEntry.GameAchievements.FirstOrDefault(a =>
+                        (!string.IsNullOrEmpty(a.AchievementId) &&
+                         string.Equals(a.AchievementId, resolvedAchievementId, StringComparison.OrdinalIgnoreCase)) ||
+                        string.Equals(a.Name, achievementName, StringComparison.OrdinalIgnoreCase));
+                    if (libAch != null)
+                    {
+                        libAch.AchievementId = resolvedAchievementId;
+                        libAch.Name          = achievementName;
+                        libAch.IconUrl       = iconUrl;
+                        libAch.UnlockedAt    = unlockedAt;
+                    }
+                    else
+                    {
+                        libEntry.GameAchievements.Add(new Models.Achievement
+                        {
+                            Platform      = platform,
+                            GameTitle     = gameTitle,
+                            AchievementId = resolvedAchievementId,
+                            Name          = achievementName,
+                            IconUrl       = iconUrl,
+                            UnlockedAt    = unlockedAt,
+                        });
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(_profile?.Username))
+                    _offlineCache.Save(_profile.Username, _profile, _library, _achievements);
+
+                string? titleId = _library.FirstOrDefault(g =>
+                    string.Equals(g.Platform, platform, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(g.Title, gameTitle, StringComparison.OrdinalIgnoreCase))
+                    ?.TitleId;
+
                 await _client.LogAchievementUnlockAsync(
-                    platform, gameTitle,
-                    titleId: null,   // TitleId not available from Xenia log context
+                    platform, gameTitle, titleId,
                     achievementName, iconUrl)
                     .ConfigureAwait(false);
 
-                var achievement = new Models.Achievement
-                {
-                    Platform      = platform,
-                    GameTitle     = gameTitle,
-                    AchievementId = achievementId,
-                    Name          = achievementName,
-                    IconUrl       = iconUrl,
-                    UnlockedAt    = DateTime.UtcNow.ToString("o"),
-                };
                 await _client.SaveAchievementsAsync(
-                    new System.Collections.Generic.List<Models.Achievement> { achievement })
+                    new System.Collections.Generic.List<Models.Achievement>
+                    {
+                        new Models.Achievement
+                        {
+                            Platform      = platform,
+                            GameTitle     = gameTitle,
+                            AchievementId = resolvedAchievementId,
+                            Name          = achievementName,
+                            IconUrl       = iconUrl,
+                            UnlockedAt    = unlockedAt,
+                        }
+                    })
                     .ConfigureAwait(false);
+                _ = _client.WriteSyncSignalAsync();
             }
             catch { /* best-effort — toast already shown, cloud sync is non-fatal */ }
         };
@@ -3006,8 +3086,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             {
                 await _client.SaveAchievementsAsync(newlyUnlockedAchievements).ConfigureAwait(false);
                 DevLogService.Log($"[SteamAchievements] Saved {newlyUnlockedAchievements.Count} new unlocks to cloud.");
+                _ = _client.WriteSyncSignalAsync();
             }
             catch { /* best-effort — sync must not block the UI */ }
+
+            if (!string.IsNullOrEmpty(_profile?.Username))
+                _offlineCache.Save(_profile.Username, _profile, _library, _achievements);
         }
 
         // Update in-memory game achievement lists so the library cards show the right count
