@@ -114,6 +114,19 @@ namespace GameLauncher.Services
             catch { }
         }
 
+        /// <summary>
+        /// Shows a generic developer/debug toast notification.
+        /// </summary>
+        public static void ShowDeveloperNotification(string title, string body)
+        {
+            if (!OperatingSystem.IsWindows()) return;
+            try
+            {
+                ShowWindowsToast(title, body);
+            }
+            catch { }
+        }
+
         // ── Windows Toast via PowerShell ──────────────────────────────────────
 
         /// <summary>

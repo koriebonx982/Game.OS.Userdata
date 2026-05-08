@@ -481,6 +481,12 @@ namespace GameLauncher.Models
         /// </summary>
         [JsonPropertyName("enableAchievementAutoSync")] public bool EnableAchievementAutoSync { get; set; } = true;
 
+        /// <summary>
+        /// When <see langword="true"/>, shows debug toast notifications for Ryujinx
+        /// log detection and read status while Switch achievement polling is running.
+        /// </summary>
+        [JsonPropertyName("notifyRyujinxLogStatus")] public bool NotifyRyujinxLogStatus { get; set; } = false;
+
         // ── Placeholder future feature ───────────────────────────────────────
 
         /// <summary>
@@ -901,4 +907,3 @@ namespace GameLauncher.Models
             (!string.IsNullOrEmpty(Emulator) ? $" · {Emulator}" : "");
     }
 }
-

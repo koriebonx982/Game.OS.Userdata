@@ -1173,6 +1173,23 @@
                                               Margin="16,0,0,0"/>
                             </Grid>
 
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <!-- Ryujinx log status toasts -->
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Ryujinx log status toasts"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Show developer notifications such as 'Ryujinx log found' and 'Reading log' during Switch achievement polling."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding NotifyRyujinxLogStatus}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
                         </StackPanel>
                     </Border>
 

@@ -1422,6 +1422,16 @@ public partial class GameDetailViewModel : ViewModelBase
     private async System.Threading.Tasks.Task WatchAndReadSwitchLogAsync(
         System.Diagnostics.Process? gameProc, string ryujinxExePath, string gameTitle, bool writeSessionLogSnippet)
     {
+        bool notifyRyujinxLogStatus = AppSettingsService.Load().NotifyRyujinxLogStatus;
+        bool notifiedLogFound       = false;
+        bool notifiedReadingLog     = false;
+
+        void ShowRyujinxLogStatusNotification(string body)
+        {
+            if (!notifyRyujinxLogStatus) return;
+            Services.NotificationService.ShowDeveloperNotification("Ryujinx log watcher", body);
+        }
+
         // ── Build the set of already-unlocked achievement names from the cache ──
         string? cachePath = CacheService?.GetCachedAchievementsPath("Switch", null, gameTitle);
         var alreadyCachedNames = new System.Collections.Generic.HashSet<string>(
@@ -1450,8 +1460,26 @@ public partial class GameDetailViewModel : ViewModelBase
 
         async System.Threading.Tasks.Task PollOnceAsync()
         {
-            logPath ??= SwitchLogReaderService.FindLatestLog(ryujinxExePath);
+            if (string.IsNullOrEmpty(logPath))
+            {
+                string? latestLogPath = SwitchLogReaderService.FindLatestLog(ryujinxExePath);
+                if (!string.IsNullOrEmpty(latestLogPath))
+                {
+                    logPath = latestLogPath;
+                    if (!notifiedLogFound)
+                    {
+                        ShowRyujinxLogStatusNotification($"Ryujinx log found for {gameTitle}");
+                        notifiedLogFound = true;
+                    }
+                }
+            }
+
             if (string.IsNullOrEmpty(logPath)) return;
+            if (!notifiedReadingLog)
+            {
+                ShowRyujinxLogStatusNotification("Reading Ryujinx log...");
+                notifiedReadingLog = true;
+            }
 
             var newResults = SwitchLogReaderService.ReadRaceResultsFromNewContent(logPath, ref fileOffset, out var newGpResults);
             if (newResults.Count == 0 && newGpResults.Count == 0) return;

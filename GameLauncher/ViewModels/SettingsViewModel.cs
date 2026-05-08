@@ -53,6 +53,8 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private bool _enableSteamSync = true;
     /// <summary>Automatically record and sync achievement unlocks from emulator logs.</summary>
     [ObservableProperty] private bool _enableAchievementAutoSync = true;
+    /// <summary>Show debug toast notifications for Ryujinx log detection/read status.</summary>
+    [ObservableProperty] private bool _notifyRyujinxLogStatus = false;
 
     // ── Scanner diagnostic logging toggles ─────────────────────────────────
     /// <summary>Log Games-folder scan summary per drive.</summary>
@@ -300,6 +302,7 @@ public partial class SettingsViewModel : ViewModelBase
         ExophasePassword       = appSettings.ExophasePassword;
         EnableSteamSync        = appSettings.EnableSteamSync;
         EnableAchievementAutoSync = appSettings.EnableAchievementAutoSync;
+        NotifyRyujinxLogStatus    = appSettings.NotifyRyujinxLogStatus;
         LogGamesScanner           = appSettings.LogGamesScanner;
         LogGamesScannerAdvanced   = appSettings.LogGamesScannerAdvanced;
         LogRomsScanner            = appSettings.LogRomsScanner;
@@ -481,6 +484,7 @@ public partial class SettingsViewModel : ViewModelBase
             ExophasePassword      = ExophasePassword,
             EnableSteamSync       = EnableSteamSync,
             EnableAchievementAutoSync = EnableAchievementAutoSync,
+            NotifyRyujinxLogStatus    = NotifyRyujinxLogStatus,
             LogGamesScanner           = LogGamesScanner,
             LogGamesScannerAdvanced   = LogGamesScannerAdvanced,
             LogRomsScanner            = LogRomsScanner,
