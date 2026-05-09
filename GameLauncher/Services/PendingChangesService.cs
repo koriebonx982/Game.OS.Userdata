@@ -74,6 +74,45 @@ namespace GameLauncher.Services
         }
 
         /// <summary>
+        /// Enqueues an achievement unlock to sync when connectivity returns.
+        /// </summary>
+        public void EnqueueAchievementUnlock(
+            string username,
+            string platform,
+            string gameTitle,
+            string? titleId,
+            string achievementId,
+            string achievementName,
+            string? description,
+            string? iconUrl,
+            string unlockedAt)
+        {
+            if (string.IsNullOrWhiteSpace(username) ||
+                string.IsNullOrWhiteSpace(platform) ||
+                string.IsNullOrWhiteSpace(gameTitle) ||
+                string.IsNullOrWhiteSpace(achievementId) ||
+                string.IsNullOrWhiteSpace(achievementName))
+                return;
+
+            Enqueue(username, new PendingChange
+            {
+                Kind = PendingChangeKind.SaveAchievement,
+                Platform = platform,
+                Title = gameTitle,
+                TitleId = titleId,
+                AchievementId = achievementId,
+                AchievementName = achievementName,
+                AchievementDescription = description,
+                AchievementIconUrl = iconUrl,
+                UnlockedAt = unlockedAt,
+                Timestamp = DateTime.UtcNow.ToString("o"),
+            });
+
+            System.Diagnostics.Debug.WriteLine(
+                $"[PendingChanges] Queued SaveAchievement '{achievementName}' in '{gameTitle}' for '{username}'.");
+        }
+
+        /// <summary>
         /// Returns all pending changes for <paramref name="username"/>, ordered oldest-first.
         /// Returns an empty list when there is no queue file.
         /// </summary>
@@ -160,6 +199,7 @@ namespace GameLauncher.Services
     {
         AddGame,
         RemoveGame,
+        SaveAchievement,
     }
 
     /// <summary>One queued mutation, serialized to <c>pending-changes.json</c>.</summary>
@@ -173,5 +213,11 @@ namespace GameLauncher.Services
         [JsonPropertyName("platform")]  public string?           Platform  { get; set; }
         /// <summary>Title for <see cref="PendingChangeKind.RemoveGame"/>.</summary>
         [JsonPropertyName("title")]     public string?           Title     { get; set; }
+        [JsonPropertyName("titleId")]   public string?           TitleId   { get; set; }
+        [JsonPropertyName("achievementId")] public string? AchievementId { get; set; }
+        [JsonPropertyName("achievementName")] public string? AchievementName { get; set; }
+        [JsonPropertyName("achievementDescription")] public string? AchievementDescription { get; set; }
+        [JsonPropertyName("achievementIconUrl")] public string? AchievementIconUrl { get; set; }
+        [JsonPropertyName("unlockedAt")] public string? UnlockedAt { get; set; }
     }
 }

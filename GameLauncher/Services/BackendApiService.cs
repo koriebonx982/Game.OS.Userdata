@@ -627,7 +627,7 @@ namespace GameLauncher.Services
         /// POST /api/me/achievements.  Non-fatal — failures are swallowed.
         /// </summary>
         public async Task SaveAchievementAsync(
-            string platform, string gameTitle, string achievementId, string name,
+            string platform, string gameTitle, string? titleId, string achievementId, string name,
             string? description = null, string? unlockedAt = null,
             CancellationToken ct = default)
         {
@@ -638,6 +638,7 @@ namespace GameLauncher.Services
                 {
                     platform,
                     gameTitle,
+                    titleId,
                     achievementId,
                     name,
                     description,

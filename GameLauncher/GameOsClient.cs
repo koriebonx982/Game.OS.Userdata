@@ -294,7 +294,7 @@ namespace GameLauncher
                     if (string.IsNullOrEmpty(a.AchievementId) || string.IsNullOrEmpty(a.UnlockedAt))
                         continue;
                     await _backend.SaveAchievementAsync(
-                        a.Platform, a.GameTitle, a.AchievementId, a.Name,
+                        a.Platform, a.GameTitle, null, a.AchievementId, a.Name,
                         a.Description, a.UnlockedAt, ct).ConfigureAwait(false);
                     // Small delay between requests to avoid hitting backend rate limits
                     await Task.Delay(150, ct).ConfigureAwait(false);
@@ -305,6 +305,46 @@ namespace GameLauncher
             if (_github != null)
                 await _github.SaveAchievementsAsync(_username, newAchievements, ct)
                               .ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Persists a single unlocked achievement to the cloud profile.
+        /// In backend mode this includes <paramref name="titleId"/> so per-game mirrors
+        /// can be written to the TitleId path for ROM platforms.
+        /// </summary>
+        public async Task SaveAchievementAsync(
+            string platform, string gameTitle, string? titleId,
+            string achievementId, string name,
+            string? description = null, string? unlockedAt = null,
+            CancellationToken ct = default)
+        {
+            if (_username == null || string.IsNullOrEmpty(achievementId)) return;
+
+            if (_backend != null)
+            {
+                await _backend.SaveAchievementAsync(
+                    platform, gameTitle, titleId, achievementId, name,
+                    description, unlockedAt, ct).ConfigureAwait(false);
+                return;
+            }
+
+            if (_github != null)
+            {
+                await _github.SaveAchievementsAsync(_username, new List<Achievement>
+                {
+                    new()
+                    {
+                        Platform      = platform,
+                        GameTitle     = gameTitle,
+                        AchievementId = achievementId,
+                        Name          = name,
+                        Description   = description ?? "",
+                        UnlockedAt    = string.IsNullOrEmpty(unlockedAt)
+                            ? DateTime.UtcNow.ToString("O")
+                            : unlockedAt,
+                    }
+                }, ct).ConfigureAwait(false);
+            }
         }
 
         /// <summary>

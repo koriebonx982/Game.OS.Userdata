@@ -281,6 +281,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // to the cloud so they don't re-fire toast notifications on the next session.
         DetailVm.OnRequestAchievementUnlockAsync = async (platform, gameTitle, achievementId, achievementName, iconUrl) =>
         {
+            string queuedUnlockedAt = DateTime.UtcNow.ToString("o");
+            string? queuedTitleId = _library.FirstOrDefault(g =>
+                string.Equals(g.Platform, platform, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(g.Title, gameTitle, StringComparison.OrdinalIgnoreCase))
+                ?.TitleId;
+            string queuedAchievementId = string.IsNullOrWhiteSpace(achievementId) ? achievementName : achievementId;
+
             try
             {
                 bool MatchesAchievement(Models.Achievement a) =>
@@ -297,14 +304,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 if (existing != null && !string.IsNullOrEmpty(existing.UnlockedAt))
                     return;
 
-                string unlockedAt = DateTime.UtcNow.ToString("o");
-                string resolvedAchievementId = !string.IsNullOrWhiteSpace(achievementId)
-                    ? achievementId
-                    : achievementName;
+                string unlockedAt = queuedUnlockedAt;
 
                 if (existing != null)
                 {
-                    existing.AchievementId = resolvedAchievementId;
+                    existing.AchievementId = queuedAchievementId;
                     existing.Name          = achievementName;
                     existing.IconUrl       = iconUrl;
                     existing.UnlockedAt    = unlockedAt;
@@ -315,7 +319,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     {
                         Platform      = platform,
                         GameTitle     = gameTitle,
-                        AchievementId = resolvedAchievementId,
+                        AchievementId = queuedAchievementId,
                         Name          = achievementName,
                         IconUrl       = iconUrl,
                         UnlockedAt    = unlockedAt,
@@ -330,11 +334,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     libEntry.GameAchievements ??= new List<Achievement>();
                     var libAch = libEntry.GameAchievements.FirstOrDefault(a =>
                         (!string.IsNullOrEmpty(a.AchievementId) &&
-                         string.Equals(a.AchievementId, resolvedAchievementId, StringComparison.OrdinalIgnoreCase)) ||
+                         string.Equals(a.AchievementId, queuedAchievementId, StringComparison.OrdinalIgnoreCase)) ||
                         string.Equals(a.Name, achievementName, StringComparison.OrdinalIgnoreCase));
                     if (libAch != null)
                     {
-                        libAch.AchievementId = resolvedAchievementId;
+                        libAch.AchievementId = queuedAchievementId;
                         libAch.Name          = achievementName;
                         libAch.IconUrl       = iconUrl;
                         libAch.UnlockedAt    = unlockedAt;
@@ -345,7 +349,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                         {
                             Platform      = platform,
                             GameTitle     = gameTitle,
-                            AchievementId = resolvedAchievementId,
+                            AchievementId = queuedAchievementId,
                             Name          = achievementName,
                             IconUrl       = iconUrl,
                             UnlockedAt    = unlockedAt,
@@ -356,33 +360,60 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 if (!string.IsNullOrEmpty(_profile?.Username))
                     _offlineCache.Save(_profile.Username, _profile, _library, _achievements);
 
-                string? titleId = _library.FirstOrDefault(g =>
-                    string.Equals(g.Platform, platform, StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(g.Title, gameTitle, StringComparison.OrdinalIgnoreCase))
-                    ?.TitleId;
+                string? titleId = queuedTitleId;
+
+                bool online = await _client.CheckHealthAsync().ConfigureAwait(false);
+                if (!online)
+                {
+                    if (!string.IsNullOrEmpty(_profile?.Username))
+                    {
+                        _pendingChanges.EnqueueAchievementUnlock(
+                            _profile.Username,
+                            platform,
+                            gameTitle,
+                            queuedTitleId,
+                            queuedAchievementId,
+                            achievementName,
+                            null,
+                            iconUrl,
+                            queuedUnlockedAt);
+                    }
+                    return;
+                }
 
                 await _client.LogAchievementUnlockAsync(
                     platform, gameTitle, titleId,
                     achievementName, iconUrl)
                     .ConfigureAwait(false);
 
-                await _client.SaveAchievementsAsync(
-                    new System.Collections.Generic.List<Models.Achievement>
-                    {
-                        new Models.Achievement
-                        {
-                            Platform      = platform,
-                            GameTitle     = gameTitle,
-                            AchievementId = resolvedAchievementId,
-                            Name          = achievementName,
-                            IconUrl       = iconUrl,
-                            UnlockedAt    = unlockedAt,
-                        }
-                    })
+                await _client.SaveAchievementAsync(
+                    platform,
+                    gameTitle,
+                    queuedTitleId,
+                    queuedAchievementId,
+                    achievementName,
+                    null,
+                    queuedUnlockedAt)
                     .ConfigureAwait(false);
                 _ = _client.WriteSyncSignalAsync();
             }
-            catch { /* best-effort — toast already shown, cloud sync is non-fatal */ }
+            catch
+            {
+                if (!string.IsNullOrEmpty(_profile?.Username))
+                {
+                    _pendingChanges.EnqueueAchievementUnlock(
+                        _profile.Username,
+                        platform,
+                        gameTitle,
+                        queuedTitleId,
+                        queuedAchievementId,
+                        achievementName,
+                        null,
+                        iconUrl,
+                        queuedUnlockedAt);
+                }
+                /* best-effort — toast already shown, cloud sync is non-fatal */
+            }
         };
 
         // Wire achievement total notification: once the full achievement template is loaded
@@ -1304,6 +1335,30 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                         await _client.RemoveGameAsync(change.Platform, change.Title);
                         System.Diagnostics.Debug.WriteLine(
                             $"[PendingChanges] Synced RemoveGame '{change.Title}'.");
+                        break;
+
+                    case Services.PendingChangeKind.SaveAchievement
+                        when change.Platform != null &&
+                             change.Title != null &&
+                             change.AchievementId != null &&
+                             change.AchievementName != null:
+                        await _client.LogAchievementUnlockAsync(
+                            change.Platform,
+                            change.Title,
+                            change.TitleId,
+                            change.AchievementName,
+                            change.AchievementIconUrl);
+                        await _client.SaveAchievementAsync(
+                            change.Platform,
+                            change.Title,
+                            change.TitleId,
+                            change.AchievementId,
+                            change.AchievementName,
+                            change.AchievementDescription,
+                            change.UnlockedAt);
+                        _ = _client.WriteSyncSignalAsync();
+                        System.Diagnostics.Debug.WriteLine(
+                            $"[PendingChanges] Synced SaveAchievement '{change.AchievementName}' in '{change.Title}'.");
                         break;
                 }
             }

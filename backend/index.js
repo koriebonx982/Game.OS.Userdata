@@ -531,6 +531,36 @@ function sanitisePathSegment(value, fallback = 'unknown') {
     return cleaned || fallback;
 }
 
+function normalizePlatformName(platform) {
+    const value = String(platform || '').trim().toLowerCase();
+    switch (value) {
+        case 'microsoft - xbox 360':
+        case 'xbox360':
+        case 'xbox 360':
+            return 'Xbox 360';
+        case 'nintendo - switch':
+        case 'switch':
+            return 'Switch';
+        case 'sony - playstation 3':
+        case 'ps3':
+            return 'PS3';
+        case 'sony - playstation 4':
+        case 'ps4':
+            return 'PS4';
+        case 'sony - playstation 5':
+        case 'ps5':
+            return 'PS5';
+        case 'microsoft - xbox one':
+        case 'xbox one':
+        case 'xbone':
+            return 'Xbox One';
+        case 'pc':
+            return 'PC';
+        default:
+            return String(platform || '').trim();
+    }
+}
+
 async function resolveAchievementTitleKey(usernameLower, platform, gameTitle, titleId) {
     const rawTitleId = String(titleId || '').trim();
     if (/^[a-zA-Z0-9_-]+$/.test(rawTitleId)) return rawTitleId;
@@ -538,8 +568,9 @@ async function resolveAchievementTitleKey(usernameLower, platform, gameTitle, ti
     try {
         const gamesFile = await getFile(`accounts/${usernameLower}/games.json`);
         const games = Array.isArray(gamesFile?.content) ? gamesFile.content : [];
+        const normalizedPlatform = normalizePlatformName(platform);
         const match = games.find(g =>
-            String(g.platform || '').toLowerCase() === String(platform || '').toLowerCase() &&
+            normalizePlatformName(g.platform) === normalizedPlatform &&
             String(g.title || '').toLowerCase() === String(gameTitle || '').toLowerCase() &&
             /^[a-zA-Z0-9_-]+$/.test(String(g.titleId || '').trim()));
         if (match) return String(match.titleId).trim();
@@ -2066,19 +2097,20 @@ app.post('/api/me/achievements', authenticateToken, async (req, res) => {
         if (!platform || !gameTitle || !achievementId || !name) {
             return res.status(400).json({ success: false, message: 'platform, gameTitle, achievementId, and name are required.' });
         }
+        const normalizedPlatform = normalizePlatformName(platform);
 
         const path = `accounts/${usernameLower}/achievements.json`;
         const file = await getFile(path);
         const list = file ? [...file.content] : [];
 
         const existing = list.findIndex(
-            a => a.platform === platform &&
+            a => normalizePlatformName(a.platform) === normalizedPlatform &&
                  (a.gameTitle || '').toLowerCase() === gameTitle.toLowerCase() &&
                  String(a.achievementId) === String(achievementId)
         );
 
         const entry = {
-            platform,
+            platform: normalizedPlatform,
             gameTitle,
             achievementId: String(achievementId),
             name,
@@ -2098,8 +2130,8 @@ app.post('/api/me/achievements', authenticateToken, async (req, res) => {
         // Path format: accounts/{username}/Achievements/{PlatformName}/{TitleIdOrTitle}/achievements.json
         // The legacy misspelled path (Achivements) is read as a one-way migration source but never written.
         try {
-            const platformKey = sanitisePathSegment(platform, 'unknown-platform');
-            const titleKey = await resolveAchievementTitleKey(usernameLower, platform, gameTitle, titleId);
+            const platformKey = sanitisePathSegment(normalizedPlatform, 'unknown-platform');
+            const titleKey = await resolveAchievementTitleKey(usernameLower, normalizedPlatform, gameTitle, titleId);
             const canonicalPath = `accounts/${usernameLower}/Achievements/${platformKey}/${titleKey}/achievements.json`;
             const legacyPath = `accounts/${usernameLower}/Achivements/${platformKey}/${titleKey}/achievements.json`;
             const canonicalFile = await getFile(canonicalPath);
