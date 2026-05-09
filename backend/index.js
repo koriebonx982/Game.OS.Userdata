@@ -2194,7 +2194,7 @@ app.put('/api/me/achievements/game-template', authenticateToken, async (req, res
         const { usernameLower } = req.tokenUser;
         const { platform, gameTitle, titleKey, titleId, achievements } = req.body;
         if (!platform || !gameTitle || !titleKey || !Array.isArray(achievements) || achievements.length === 0) {
-            return res.status(400).json({ success: false, message: 'platform, gameTitle, titleKey, and achievements array are required.' });
+            return res.status(400).json({ success: false, message: 'platform, gameTitle, titleKey, and achievements array are required (titleId optional).' });
         }
         const normalizedPlatform = normalizePlatformName(platform);
         const platformKey = sanitisePathSegment(normalizedPlatform, 'unknown-platform');
@@ -2203,11 +2203,12 @@ app.put('/api/me/achievements/game-template', authenticateToken, async (req, res
         const isTitleFallbackKey =
             requestedKey.toLowerCase() === safeGameTitle.toLowerCase() ||
             String(titleKey).trim().toLowerCase() === String(gameTitle).trim().toLowerCase();
+        const preferredKeyInput = isTitleFallbackKey ? titleId : (titleId || requestedKey);
         const resolvedRawKey = await resolveAchievementTitleKey(
             usernameLower,
             normalizedPlatform,
             gameTitle,
-            isTitleFallbackKey ? titleId : (titleId || requestedKey)
+            preferredKeyInput
         );
         const safeKey = sanitisePathSegment(resolvedRawKey, 'unknown-title');
         const path = `accounts/${usernameLower}/Achievements/${platformKey}/${safeKey}/achievements.json`;
