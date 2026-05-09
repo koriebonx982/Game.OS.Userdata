@@ -2192,43 +2192,68 @@ app.post('/api/me/achievements', authenticateToken, async (req, res) => {
 app.put('/api/me/achievements/game-template', authenticateToken, async (req, res) => {
     try {
         const { usernameLower } = req.tokenUser;
-        const { platform, gameTitle, titleKey, achievements } = req.body;
+        const { platform, gameTitle, titleKey, titleId, achievements } = req.body;
         if (!platform || !gameTitle || !titleKey || !Array.isArray(achievements) || achievements.length === 0) {
-            return res.status(400).json({ success: false, message: 'platform, gameTitle, titleKey, and achievements array are required.' });
+            return res.status(400).json({ success: false, message: 'platform, gameTitle, titleKey, and achievements array are required (titleId optional).' });
         }
         const normalizedPlatform = normalizePlatformName(platform);
         const platformKey = sanitisePathSegment(normalizedPlatform, 'unknown-platform');
-        const safeKey = sanitisePathSegment(String(titleKey).trim(), 'unknown-title');
+        const requestedKey = sanitisePathSegment(String(titleKey).trim(), 'unknown-title');
+        const safeGameTitle = sanitisePathSegment(String(gameTitle).trim(), 'unknown-title');
+        const isTitleFallbackKey =
+            requestedKey.toLowerCase() === safeGameTitle.toLowerCase() ||
+            String(titleKey).trim().toLowerCase() === String(gameTitle).trim().toLowerCase();
+        const preferredKeyInput = isTitleFallbackKey ? titleId : (titleId || requestedKey);
+        const resolvedRawKey = await resolveAchievementTitleKey(
+            usernameLower,
+            normalizedPlatform,
+            gameTitle,
+            preferredKeyInput
+        );
+        const safeKey = sanitisePathSegment(resolvedRawKey, 'unknown-title');
         const path = `accounts/${usernameLower}/Achievements/${platformKey}/${safeKey}/achievements.json`;
+        const aliasPath = requestedKey !== safeKey
+            ? `accounts/${usernameLower}/Achievements/${platformKey}/${requestedKey}/achievements.json`
+            : null;
 
         const file = await getFile(path);
-        const existing = Array.isArray(file?.content) ? file.content : [];
+        const aliasFile = aliasPath ? await getFile(aliasPath) : null;
 
-        // Merge: incoming template entries are written but existing unlockedAt is preserved
-        // so cloud-tracked unlocks are never overwritten with an empty value.
-        const merged = [...existing];
-        for (const a of achievements) {
-            const achId = String(a.achievementId || '');
-            if (!achId) continue;
+        // Merge canonical file + alias file + incoming template entries.
+        // Existing unlockedAt values are preserved over empty incoming values.
+        const merged = [];
+        const upsertAchievement = (incoming) => {
+            const rawAchievementId = incoming?.achievementId;
+            if (rawAchievementId === null || rawAchievementId === undefined || rawAchievementId === '') return;
+            const achId = String(rawAchievementId);
             const idx = merged.findIndex(e => String(e.achievementId || '') === achId);
-            const incoming = {
+            const normalizedIncoming = { ...incoming, achievementId: achId };
+            if (idx !== -1) {
+                const existingUnlockedAt = typeof merged[idx].unlockedAt === 'string' ? merged[idx].unlockedAt : '';
+                const incomingUnlockedAt = typeof normalizedIncoming.unlockedAt === 'string' ? normalizedIncoming.unlockedAt : '';
+                const keepUnlockedAt = existingUnlockedAt !== '' ? existingUnlockedAt : incomingUnlockedAt;
+                merged[idx] = { ...merged[idx], ...normalizedIncoming, unlockedAt: keepUnlockedAt };
+            } else {
+                merged.push(normalizedIncoming);
+            }
+        };
+
+        if (Array.isArray(file?.content)) {
+            for (const existing of file.content) upsertAchievement(existing);
+        }
+        if (Array.isArray(aliasFile?.content)) {
+            for (const existing of aliasFile.content) upsertAchievement(existing);
+        }
+
+        for (const a of achievements) {
+            upsertAchievement({
                 platform: normalizedPlatform,
                 gameTitle,
-                achievementId: achId,
+                achievementId: a.achievementId,
                 name: a.name || '',
                 description: a.description || '',
                 unlockedAt: a.unlockedAt || '',
-            };
-            if (idx !== -1) {
-                // Preserve an existing non-empty unlockedAt (already earned) over an
-                // empty one from the incoming template (locked state).
-                const existingUnlockedAt = typeof merged[idx].unlockedAt === 'string' ? merged[idx].unlockedAt : '';
-                const incomingUnlockedAt = typeof incoming.unlockedAt === 'string' ? incoming.unlockedAt : '';
-                const keepUnlockedAt = existingUnlockedAt !== '' ? existingUnlockedAt : incomingUnlockedAt;
-                merged[idx] = { ...merged[idx], ...incoming, unlockedAt: keepUnlockedAt };
-            } else {
-                merged.push(incoming);
-            }
+            });
         }
 
         await putFile(path, merged, `Sync achievements: ${gameTitle} (${platform})`, file ? file.sha : undefined);
