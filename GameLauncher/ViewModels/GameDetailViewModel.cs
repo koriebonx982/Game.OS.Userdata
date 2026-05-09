@@ -2771,8 +2771,16 @@ public partial class GameDetailViewModel : ViewModelBase
                 {
                     string snapshotTitleKey = titleId ?? Title;
                     var snapshotList = list.AsReadOnly();
-                    _ = System.Threading.Tasks.Task.Run(() => OnFullAchievementListReadyAsync(
-                        snapshotPlatform, snapshotTitleKey, snapshotTitle, snapshotList));
+                    _ = System.Threading.Tasks.Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await OnFullAchievementListReadyAsync(
+                                snapshotPlatform, snapshotTitleKey, snapshotTitle, snapshotList)
+                                .ConfigureAwait(false);
+                        }
+                        catch { /* best-effort — cloud write failure must not crash the app */ }
+                    });
                 }
             }
         }

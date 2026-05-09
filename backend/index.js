@@ -2205,8 +2205,11 @@ app.put('/api/me/achievements/game-template', authenticateToken, async (req, res
                 unlockedAt: a.unlockedAt || '',
             };
             if (idx !== -1) {
-                // Preserve existing unlockedAt when the incoming entry is locked (empty)
-                const keepUnlockedAt = merged[idx].unlockedAt || incoming.unlockedAt;
+                // Preserve an existing non-empty unlockedAt (already earned) over an
+                // empty one from the incoming template (locked state).
+                const existingUnlockedAt = typeof merged[idx].unlockedAt === 'string' ? merged[idx].unlockedAt : '';
+                const incomingUnlockedAt = typeof incoming.unlockedAt === 'string' ? incoming.unlockedAt : '';
+                const keepUnlockedAt = existingUnlockedAt !== '' ? existingUnlockedAt : incomingUnlockedAt;
                 merged[idx] = { ...merged[idx], ...incoming, unlockedAt: keepUnlockedAt };
             } else {
                 merged.push(incoming);
