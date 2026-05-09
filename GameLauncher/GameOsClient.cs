@@ -307,6 +307,49 @@ namespace GameLauncher
                               .ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Reads the complete achievement list (locked <b>and</b> unlocked) for a specific
+        /// game from the per-game folder in the user's private cloud repo.
+        /// Path: <c>accounts/{username}/Achievements/{platform}/{titleKey}/achievements.json</c>
+        /// Returns <c>null</c> when the file does not exist, when running in backend mode,
+        /// or on any network error.
+        /// </summary>
+        public async Task<List<Achievement>?> GetGameAchievementsAsync(
+            string platform, string titleKey, CancellationToken ct = default)
+        {
+            if (_username == null || _github == null) return null;
+            try
+            {
+                var (achievements, _) = await _github.GetGameAchievementsAsync(
+                    _username, platform, titleKey, ct).ConfigureAwait(false);
+                return achievements;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Writes the complete achievement list (locked <b>and</b> unlocked) for a specific
+        /// game to the per-game folder in the user's private cloud repo.
+        /// Path: <c>accounts/{username}/Achievements/{platform}/{titleKey}/achievements.json</c>
+        /// Available in GitHub-direct mode only.  In backend mode this is a no-op (the
+        /// backend handles per-game folder writes when achievements are saved).
+        /// Non-fatal — failures are swallowed.
+        /// </summary>
+        public async Task SaveFullGameAchievementsAsync(
+            string platform, string titleKey, string gameTitle,
+            IReadOnlyList<Achievement> allAchievements, CancellationToken ct = default)
+        {
+            if (_username == null || allAchievements.Count == 0) return;
+            // GitHub-direct mode only — backend manages its own per-game writes.
+            if (_github != null)
+                await _github.SaveFullGameAchievementsAsync(
+                    _username, platform, titleKey, gameTitle, allAchievements, ct)
+                    .ConfigureAwait(false);
+        }
+
         // ── Friends ───────────────────────────────────────────────────────────
         public async Task<List<string>> GetFriendsAsync(CancellationToken ct = default)
         {

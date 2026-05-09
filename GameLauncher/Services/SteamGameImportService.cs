@@ -177,6 +177,47 @@ public static class SteamGameImportService
     }
 
     /// <summary>
+    /// Fetches ALL achievements (both locked and unlocked) for a Steam game from
+    /// <c>ISteamUserStats/GetPlayerAchievements</c> including human-readable names
+    /// and descriptions returned by the endpoint when the language is set to English.
+    /// Unlike <see cref="FetchPlayerAchievementsAsync"/>, locked achievements are
+    /// included so the caller can build a complete per-game achievement file.
+    /// Returns an empty list when the game has no community stats, when the profile
+    /// is private, or on any network/parsing error.
+    /// </summary>
+    public static async Task<List<SteamPlayerAchievement>> FetchAllPlayerAchievementsAsync(
+        string apiKey, string steamUserId, int appId)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey) || string.IsNullOrWhiteSpace(steamUserId))
+            return new List<SteamPlayerAchievement>();
+
+        try
+        {
+            string url =
+                $"https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v0001/" +
+                $"?appid={appId}" +
+                $"&key={Uri.EscapeDataString(apiKey)}" +
+                $"&steamid={Uri.EscapeDataString(steamUserId)}" +
+                $"&l=en";
+
+            string body = await _http.GetStringAsync(url).ConfigureAwait(false);
+            var root = JsonSerializer.Deserialize<SteamGetPlayerAchievementsResponse>(body,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            var playerStats = root?.PlayerStats;
+            if (playerStats?.Success != true || playerStats.Achievements == null)
+                return new List<SteamPlayerAchievement>();
+
+            // Return ALL achievements (locked and unlocked)
+            return playerStats.Achievements;
+        }
+        catch
+        {
+            return new List<SteamPlayerAchievement>();
+        }
+    }
+
+    /// <summary>
     /// Fetches the full achievement schema (ALL achievements, both locked and unlocked)
     /// for a Steam game via <c>ISteamUserStats/GetSchemaForGame</c>.
     /// Returns an empty list when the game has no stats, when the API key is invalid,

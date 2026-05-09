@@ -594,6 +594,93 @@ namespace GameLauncher.Services
             }
         }
 
+        /// <summary>
+        /// Reads the per-game achievement file from the user's private cloud repo.
+        /// Path: <c>accounts/{username}/Achievements/{platform}/{titleKey}/achievements.json</c>
+        /// Returns <c>(null, null)</c> when the file does not yet exist.
+        /// </summary>
+        public async Task<(List<Achievement>? achievements, string? sha)> GetGameAchievementsAsync(
+            string username, string platform, string titleKey, CancellationToken ct = default)
+        {
+            string platformKey = SanitizeAchievementPathSegment(NormalizePlatform(platform), "unknown-platform");
+            string titleKeyClean = SanitizeAchievementPathSegment(titleKey, "unknown-title");
+            string path = $"accounts/{username.ToLowerInvariant()}/Achievements/{platformKey}/{titleKeyClean}/achievements.json";
+            try
+            {
+                return await ReadFileAsync<List<Achievement>>(path, ct).ConfigureAwait(false);
+            }
+            catch
+            {
+                return (null, null);
+            }
+        }
+
+        /// <summary>
+        /// Writes the complete achievement list (locked <b>and</b> unlocked) for a specific
+        /// game to the per-game folder in the user's private cloud repo.
+        /// Path: <c>accounts/{username}/Achievements/{platform}/{titleKey}/achievements.json</c>
+        /// <para>
+        /// This differs from <see cref="SaveAchievementsAsync"/> which only writes to the
+        /// flat <c>achievements.json</c> and only stores unlocked achievements.  This method
+        /// stores <em>all</em> achievements so the cloud profile shows the full list with
+        /// locked/unlocked presentation identical to the detail view.
+        /// </para>
+        /// Retries up to 3 times on SHA-conflict.  Non-fatal — failures are swallowed.
+        /// </summary>
+        public async Task SaveFullGameAchievementsAsync(
+            string username, string platform, string titleKey, string gameTitle,
+            IReadOnlyList<Achievement> allAchievements, CancellationToken ct = default)
+        {
+            if (allAchievements.Count == 0) return;
+
+            string usernameLower = username.ToLowerInvariant();
+            string platformKey = SanitizeAchievementPathSegment(NormalizePlatform(platform), "unknown-platform");
+            string titleKeyClean = SanitizeAchievementPathSegment(titleKey, "unknown-title");
+            string canonicalPath = $"accounts/{usernameLower}/Achievements/{platformKey}/{titleKeyClean}/achievements.json";
+            string legacyPath    = $"accounts/{usernameLower}/Achivements/{platformKey}/{titleKeyClean}/achievements.json";
+
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                try
+                {
+                    var (existing, sha) = await ReadFileAsync<List<Achievement>>(canonicalPath, ct)
+                        .ConfigureAwait(false);
+                    var merged = existing ?? new List<Achievement>();
+
+                    // Merge ALL achievements (locked + unlocked).
+                    // Locked achievements have an empty UnlockedAt — that is intentional.
+                    bool changed = MergeAchievements(merged, allAchievements, matchByGameScope: false);
+
+                    if (changed || sha == null)
+                    {
+                        await WriteFileAsync(canonicalPath, merged,
+                            $"Sync achievements: {gameTitle} ({platform})", sha, ct)
+                            .ConfigureAwait(false);
+
+                        // Keep the legacy-spelling path in sync for older clients.
+                        var (_, legacySha) = await ReadFileAsync<List<Achievement>>(legacyPath, ct)
+                            .ConfigureAwait(false);
+                        await WriteFileAsync(legacyPath, merged,
+                            $"Sync achievements: {gameTitle} ({platform})", legacySha, ct)
+                            .ConfigureAwait(false);
+                    }
+                    return;
+                }
+                catch (GameOsException ex) when (ex.StatusCode == 409 && attempt < 2)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[GitHubDataService] SaveFullGameAchievements SHA conflict (attempt {attempt + 1}): {ex.Message}");
+                    await Task.Delay(300 * (attempt + 1), ct).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[GitHubDataService] SaveFullGameAchievements failed for {canonicalPath}: {ex.Message}");
+                    return;
+                }
+            }
+        }
+
         private async Task SyncAchievementMirrorsAsync(
             string usernameLower,
             IReadOnlyList<Achievement> achievements,

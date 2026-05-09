@@ -713,6 +713,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Start background metadata caching for cloud library games and local games
             _ = BackgroundCacheLibraryAsync(library);
             _ = BackgroundCacheLocalGamesAsync();
+
+            // Sync per-game achievement data from the cloud for devices that don't have
+            // a Steam API key or haven't yet populated the local per-game cache.
+            // Runs in background so it does not delay the login screen transition.
+            _ = BackgroundSyncPerGameAchievementsFromCloudAsync();
         }
         else
         {
@@ -2613,6 +2618,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // was offline are immediately visible after reconnecting.
             _ = ApplyCloudPlaytimeAsync(games);
 
+            // Re-sync per-game achievement data from cloud in case the device came back
+            // online after another device added new achievements.
+            _ = BackgroundSyncPerGameAchievementsFromCloudAsync();
+
             // Enrich library in the background
             _ = EnrichLibraryFromDatabaseAsync(games);
 
@@ -3026,11 +3035,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             try
             {
-                var unlocked = await Services.SteamGameImportService
-                    .FetchPlayerAchievementsAsync(apiKey, steamUserId, sg.AppId)
+                // Fetch ALL achievements (locked + unlocked) so the per-game cloud folder
+                // contains the complete list, not just earned ones.
+                // The Steam API returns human-readable names and descriptions when l=en.
+                var allAch = await Services.SteamGameImportService
+                    .FetchAllPlayerAchievementsAsync(apiKey, steamUserId, sg.AppId)
                     .ConfigureAwait(false);
 
-                if (unlocked.Count == 0) continue;
+                if (allAch.Count == 0) continue;
 
                 // Find the titleId for this game in the library
                 string? titleId = _library.FirstOrDefault(g =>
@@ -3038,13 +3050,82 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     string.Equals(g.Title, sg.Name, StringComparison.OrdinalIgnoreCase))
                     ?.TitleId;
 
-                foreach (var ach in unlocked)
+                // ── Per-game cloud folder (all achievements, locked + unlocked) ──────
+                // Use the numeric Steam AppId as the folder key so the path matches the
+                // expected format: Achievements/PC/{AppId}/achievements.json
+                string titleKey = sg.AppId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                // Detect first run for this game: check local per-game cache.
+                // If the cache file doesn't exist the per-game cloud folder has not yet
+                // been initialised on this device and must be written.
+                string localPerGamePath = GetLocalPerGameAchievementsPath(
+                    _profile?.Username ?? "", "PC", titleKey);
+                bool localExists = File.Exists(localPerGamePath);
+
+                int steamUnlocked = allAch.Count(a => a.Achieved == 1);
+                // Count how many unlocked achievements we already know about for this game.
+                int localUnlockedCount = localExists ? CountLocalUnlockedAchievements(localPerGamePath) : 0;
+                bool hasNewUnlocks = steamUnlocked > localUnlockedCount;
+
+                if (!localExists || hasNewUnlocks)
                 {
+                    // Build Achievement models for every achievement (locked + unlocked).
+                    var fullList = allAch
+                        .Select(a => new Models.Achievement
+                        {
+                            Platform      = "PC",
+                            GameTitle     = sg.Name,
+                            AchievementId = a.ApiName,
+                            Name          = !string.IsNullOrWhiteSpace(a.Name) ? a.Name : a.ApiName,
+                            Description   = a.Description,
+                            // Empty string for locked, ISO 8601 date for unlocked.
+                            UnlockedAt    = a.Achieved == 1
+                                ? (a.UnlockTime > 0
+                                    ? DateTimeOffset.FromUnixTimeSeconds(a.UnlockTime).UtcDateTime.ToString("O")
+                                    : DateTime.UtcNow.ToString("O"))
+                                : "",
+                        })
+                        .ToList();
+
+                    // Write full list to the per-game cloud folder.
+                    // Fire-and-forget to avoid blocking the sync loop.
+                    // Even when 0 achievements are unlocked, we write the complete locked
+                    // template so other devices can display the full achievement list
+                    // (with all entries shown as locked) without needing the Steam API.
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _client.SaveFullGameAchievementsAsync(
+                                "PC", titleKey, sg.Name, fullList)
+                                .ConfigureAwait(false);
+                            DevLogService.Log(
+                                $"[SteamAchievements] Wrote {fullList.Count} achievements " +
+                                $"({fullList.Count(x => !string.IsNullOrEmpty(x.UnlockedAt))} unlocked) " +
+                                $"for '{sg.Name}' to cloud.");
+                        }
+                        catch (Exception ex)
+                        {
+                            DevLogService.Log(
+                                $"[SteamAchievements] Cloud write failed for '{sg.Name}': {ex.Message}");
+                        }
+                    });
+
+                    // Cache locally so subsequent runs can detect first-run quickly
+                    // and compare unlock counts without a cloud round-trip.
+                    WriteLocalPerGameAchievements(localPerGamePath, fullList);
+                }
+
+                // ── Global achievements.json (unlocked only, existing logic) ─────────
+                foreach (var ach in allAch)
+                {
+                    if (ach.Achieved != 1) continue;
+
                     string key = $"pc|{sg.Name.ToLowerInvariant()}|{ach.ApiName.ToLowerInvariant()}";
                     if (known.Contains(key)) continue;
 
-                    string unlockedAt = ach.UnlockedAt != DateTime.MinValue
-                        ? ach.UnlockedAt.ToString("O")
+                    string unlockedAt = ach.UnlockTime > 0
+                        ? DateTimeOffset.FromUnixTimeSeconds(ach.UnlockTime).UtcDateTime.ToString("O")
                         : DateTime.UtcNow.ToString("O");
 
                     var achievement = new Models.Achievement
@@ -3109,6 +3190,70 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         });
 
         DevLogService.Log($"[SteamAchievements] Synced achievements for {processed} Steam games.");
+    }
+
+    // ── Per-game local achievement cache helpers ───────────────────────────────
+
+    /// <summary>
+    /// Returns the path to the local per-game achievement cache file for a specific
+    /// user / platform / game combination.
+    /// The cache mirrors the structure of the private cloud repo:
+    /// <c>%AppData%\GameOS\{username}\Achievements\{platform}\{titleKey}\achievements.json</c>
+    /// The file is used to:
+    /// <list type="bullet">
+    ///   <item>Detect first-run (file absent → cloud folder not yet initialised on this device).</item>
+    ///   <item>Count locally-known unlocks to skip cloud writes when nothing has changed.</item>
+    ///   <item>Provide an offline fallback for the full per-game achievement list.</item>
+    /// </list>
+    /// </summary>
+    private static string GetLocalPerGameAchievementsPath(string username, string platform, string titleKey)
+    {
+        string safeUser     = StorageHelpers.SanitiseName(username);
+        string safePlatform = StorageHelpers.SanitiseName(platform);
+        string safeTitleKey = StorageHelpers.SanitiseName(titleKey);
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "GameOS", safeUser, "Achievements", safePlatform, safeTitleKey, "achievements.json");
+    }
+
+    /// <summary>
+    /// Counts the number of achievements in the local per-game cache that have a
+    /// non-empty <c>UnlockedAt</c> timestamp (i.e. that the player has earned).
+    /// Returns 0 if the file cannot be read.
+    /// </summary>
+    private static int CountLocalUnlockedAchievements(string path)
+    {
+        try
+        {
+            string json = File.ReadAllText(path);
+            var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var list = System.Text.Json.JsonSerializer.Deserialize<List<Models.Achievement>>(json, opts);
+            return list?.Count(a => !string.IsNullOrEmpty(a.UnlockedAt)) ?? 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Writes the full per-game achievement list to the local cache file.
+    /// Creates any missing parent directories.  Failures are silently swallowed
+    /// so a cache write error never blocks the sync loop.
+    /// </summary>
+    private static void WriteLocalPerGameAchievements(string path, List<Models.Achievement> achievements)
+    {
+        try
+        {
+            string? dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+            string json = System.Text.Json.JsonSerializer.Serialize(
+                achievements,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(path, json);
+        }
+        catch { /* best-effort */ }
     }
 
     /// <summary>
@@ -3248,6 +3393,93 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
         }
         catch (Exception ex) { DevLogService.Log($"[SteamAch] TryContributeSteamGameAchievementsAsync failed for appId={appId}: {ex.Message}"); }
+    }
+
+    /// <summary>
+    /// Background task: for each Steam game in the library whose local per-game
+    /// achievement cache does not yet exist, tries to download the full achievement list
+    /// (locked + unlocked) from the Game OS cloud per-game folder.
+    /// <para>
+    /// This is the cross-device sync path for achievements: when Device A (with a Steam API key)
+    /// has written the per-game achievement folder to the private cloud repo, Device B (without
+    /// a Steam API key) can restore the complete achievement list — including locked entries —
+    /// from the cloud without any Steam credentials.
+    /// </para>
+    /// Failures are silently swallowed; the task is entirely best-effort.
+    /// </summary>
+    private async Task BackgroundSyncPerGameAchievementsFromCloudAsync()
+    {
+        if (_profile == null) return;
+
+        // Process at most this many games per session to balance the initial sync speed
+        // against GitHub API rate limits (5,000 authenticated requests/hour).
+        const int MaxBackgroundSyncGames = 50;
+
+        // Focus on Steam games that don't yet have a local per-game cache.
+        // Process most-played games first so the detail views users are likely to
+        // open next are populated before the later games in the queue.
+        var steamGames = _library
+            .Where(g => g.SteamAppId.HasValue && g.SteamAppId.Value > 0)
+            .OrderByDescending(g => g.PlaytimeMinutes)
+            .Take(MaxBackgroundSyncGames)
+            .ToList();
+
+        if (steamGames.Count == 0) return;
+
+        DevLogService.Log(
+            $"[AchievementSync] Background cloud sync: checking {steamGames.Count} Steam games…");
+
+        int loaded = 0;
+
+        foreach (var game in steamGames)
+        {
+            try
+            {
+                string titleKey = game.SteamAppId!.Value.ToString(
+                    System.Globalization.CultureInfo.InvariantCulture);
+                string localPath = GetLocalPerGameAchievementsPath(
+                    _profile.Username, "PC", titleKey);
+
+                // Skip games that already have a local per-game cache.
+                // SyncSteamAchievementsAsync keeps those up-to-date via the Steam API.
+                if (File.Exists(localPath)) continue;
+
+                // Try to download the per-game achievement file from the cloud.
+                var cloudAchs = await _client.GetGameAchievementsAsync("PC", titleKey)
+                    .ConfigureAwait(false);
+
+                if (cloudAchs == null || cloudAchs.Count == 0) continue;
+
+                // Write to local cache so the file exists on the next session and this
+                // code skips the cloud round-trip.
+                WriteLocalPerGameAchievements(localPath, cloudAchs);
+                loaded++;
+
+                // Update the in-memory game record so the detail view shows the full list
+                // (locked + unlocked) without needing another network fetch.
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    game.GameAchievements = cloudAchs;
+                });
+
+                DevLogService.Log(
+                    $"[AchievementSync] Loaded {cloudAchs.Count} achievements " +
+                    $"({cloudAchs.Count(a => !string.IsNullOrEmpty(a.UnlockedAt))} unlocked) " +
+                    $"from cloud for '{game.Title}'.");
+
+                // Brief pause between cloud reads to avoid rate-limiting the GitHub API.
+                await Task.Delay(150).ConfigureAwait(false);
+            }
+            catch { /* best-effort per game */ }
+        }
+
+        if (loaded > 0)
+        {
+            DevLogService.Log(
+                $"[AchievementSync] Synced per-game achievements from cloud for {loaded} game(s).");
+            // Refresh the library view so card denominators reflect the full counts.
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => LibraryVm.Load(_library));
+        }
     }
 
     /// <summary>
