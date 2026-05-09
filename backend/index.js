@@ -2222,7 +2222,10 @@ app.put('/api/me/achievements/game-template', authenticateToken, async (req, res
         // Existing unlockedAt values are preserved over empty incoming values.
         const merged = [];
         const upsertAchievement = (incoming) => {
-            const achId = String(incoming?.achievementId || '');
+            const rawAchievementId = incoming?.achievementId;
+            const achId = rawAchievementId === null || rawAchievementId === undefined
+                ? ''
+                : String(rawAchievementId);
             if (!achId) return;
             const idx = merged.findIndex(e => String(e.achievementId || '') === achId);
             const normalizedIncoming = { ...incoming, achievementId: achId };
