@@ -913,13 +913,9 @@ class Program
         });
 
         const string canonicalPath = "accounts/testuser/Achievements/Switch/0100152000022000/achievements.json";
-        const string legacyPath = "accounts/testuser/Achivements/Switch/0100152000022000/achievements.json";
 
         bool canonicalExists = files.ContainsKey(canonicalPath);
         Pass(canonicalExists, $"Canonical mirror created at titleId path: {canonicalPath}");
-
-        bool legacyExists = files.ContainsKey(legacyPath);
-        Pass(legacyExists, $"Legacy mirror created at titleId path: {legacyPath}");
 
         var rootAchievements = DeserializeAchievements(files, "accounts/testuser/achievements.json");
         bool rootCountOk = rootAchievements.Count == 2;
@@ -933,7 +929,7 @@ class Program
             string.Equals(a.AchievementId, "mk8-second", StringComparison.OrdinalIgnoreCase));
         Pass(secondAchievementPresent, "Canonical mirror contains the new achievement ID");
 
-        return canonicalExists && legacyExists && rootCountOk && canonicalCountOk && secondAchievementPresent;
+        return canonicalExists && rootCountOk && canonicalCountOk && secondAchievementPresent;
     }
 
     static List<Achievement> DeserializeAchievements(Dictionary<string, string> files, string path)

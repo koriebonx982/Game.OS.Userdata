@@ -637,7 +637,6 @@ namespace GameLauncher.Services
             string platformKey = SanitizeAchievementPathSegment(NormalizePlatform(platform), "unknown-platform");
             string titleKeyClean = SanitizeAchievementPathSegment(titleKey, "unknown-title");
             string canonicalPath = $"accounts/{usernameLower}/Achievements/{platformKey}/{titleKeyClean}/achievements.json";
-            string legacyPath    = $"accounts/{usernameLower}/Achivements/{platformKey}/{titleKeyClean}/achievements.json";
 
             for (int attempt = 0; attempt < 3; attempt++)
             {
@@ -655,13 +654,6 @@ namespace GameLauncher.Services
                     {
                         await WriteFileAsync(canonicalPath, merged,
                             $"Sync achievements: {gameTitle} ({platform})", sha, ct)
-                            .ConfigureAwait(false);
-
-                        // Keep the legacy-spelling path in sync for older clients.
-                        var (_, legacySha) = await ReadFileAsync<List<Achievement>>(legacyPath, ct)
-                            .ConfigureAwait(false);
-                        await WriteFileAsync(legacyPath, merged,
-                            $"Sync achievements: {gameTitle} ({platform})", legacySha, ct)
                             .ConfigureAwait(false);
                     }
                     return;
@@ -710,14 +702,17 @@ namespace GameLauncher.Services
                         {
                             var (canonicalAchievements, canonicalSha) =
                                 await ReadFileAsync<List<Achievement>>(target.CanonicalPath, ct).ConfigureAwait(false);
-                            var (legacyAchievements, legacySha) =
-                                await ReadFileAsync<List<Achievement>>(target.LegacyPath, ct).ConfigureAwait(false);
 
-                            var merged = canonicalAchievements != null
-                                ? new List<Achievement>(canonicalAchievements)
-                                : legacyAchievements != null
-                                    ? new List<Achievement>(legacyAchievements)
-                                    : new List<Achievement>();
+                            // Fall back to legacy path only when canonical has no data yet (one-way migration).
+                            List<Achievement>? seed = canonicalAchievements;
+                            if (seed == null)
+                            {
+                                var (legacyAchievements, _) =
+                                    await ReadFileAsync<List<Achievement>>(target.LegacyPath, ct).ConfigureAwait(false);
+                                seed = legacyAchievements;
+                            }
+
+                            var merged = seed != null ? new List<Achievement>(seed) : new List<Achievement>();
 
                             bool changed = MergeAchievements(merged, target.Achievements, matchByGameScope: false);
 
@@ -728,16 +723,6 @@ namespace GameLauncher.Services
                                     merged,
                                     $"Achievement mirror: {target.GameTitle} ({target.Platform})",
                                     canonicalSha,
-                                    ct).ConfigureAwait(false);
-                            }
-
-                            if (changed || legacySha == null)
-                            {
-                                await WriteFileAsync(
-                                    target.LegacyPath,
-                                    merged,
-                                    $"Achievement mirror (legacy path): {target.GameTitle} ({target.Platform})",
-                                    legacySha,
                                     ct).ConfigureAwait(false);
                             }
 
@@ -771,7 +756,7 @@ namespace GameLauncher.Services
                 string titleKey = ResolveAchievementTitleKey(games, platform, achievement.GameTitle);
                 string canonicalPath =
                     $"accounts/{usernameLower}/Achievements/{platformKey}/{titleKey}/achievements.json";
-                // Keep the legacy misspelling for backward compatibility with older clients.
+                // The legacy misspelled path is tracked only as a migration read source.
                 string legacyPath =
                     $"accounts/{usernameLower}/Achivements/{platformKey}/{titleKey}/achievements.json";
 
@@ -889,6 +874,7 @@ namespace GameLauncher.Services
             }
 
             public string CanonicalPath { get; }
+            /// <summary>Read-only migration source. Never written; used only when canonical path has no data yet.</summary>
             public string LegacyPath { get; }
             public string GameTitle { get; }
             public string Platform { get; }

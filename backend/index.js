@@ -2095,18 +2095,15 @@ app.post('/api/me/achievements', authenticateToken, async (req, res) => {
         await putFile(path, list, `Achievement: ${name} in ${gameTitle} (${platform})`, file ? file.sha : undefined);
 
         // Mirror per-game achievements for cross-device clients that read by platform/titleId path.
-        // Path formats:
-        //   accounts/{username}/Achievements/{PlatformName}/{TitleIdOrTitle}/achievements.json
-        //   accounts/{username}/Achivements/{PlatformName}/{TitleIdOrTitle}/achievements.json
-        // Keep both folder spellings for compatibility with older clients.
+        // Path format: accounts/{username}/Achievements/{PlatformName}/{TitleIdOrTitle}/achievements.json
+        // The legacy misspelled path (Achivements) is read as a one-way migration source but never written.
         try {
             const platformKey = sanitisePathSegment(platform, 'unknown-platform');
             const titleKey = await resolveAchievementTitleKey(usernameLower, platform, gameTitle, titleId);
             const canonicalPath = `accounts/${usernameLower}/Achievements/${platformKey}/${titleKey}/achievements.json`;
-            // Intentionally misspelled for backward compatibility with older clients.
             const legacyPath = `accounts/${usernameLower}/Achivements/${platformKey}/${titleKey}/achievements.json`;
             const canonicalFile = await getFile(canonicalPath);
-            const legacyFile = await getFile(legacyPath);
+            const legacyFile = canonicalFile ? null : await getFile(legacyPath);
             const sourceList = Array.isArray(canonicalFile?.content)
                 ? canonicalFile.content
                 : (Array.isArray(legacyFile?.content) ? legacyFile.content : []);
@@ -2126,12 +2123,6 @@ app.post('/api/me/achievements', authenticateToken, async (req, res) => {
                 byGameList,
                 `Achievement mirror: ${name} in ${gameTitle} (${platform})`,
                 canonicalFile ? canonicalFile.sha : undefined
-            );
-            await putFile(
-                legacyPath,
-                byGameList,
-                `Achievement mirror (legacy path): ${name} in ${gameTitle} (${platform})`,
-                legacyFile ? legacyFile.sha : undefined
             );
         } catch (mirrorErr) {
             console.warn('POST /api/me/achievements mirror write failed:', mirrorErr.message);
