@@ -865,6 +865,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                             sg.PlaytimeMinutes, _library);
                 }
 
+                if (steamGames.Count > 0)
+                    _ = SyncSteamOwnedGamesToCloudAsync(steamGames);
+
                 // Sync Steam achievements for all games with community stats.
                 // Fetches unlocked achievements and uploads them to the cloud so
                 // the detail view shows which achievements the user has earned.
@@ -1086,6 +1089,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     // On every app start, scrape Steam achievements for all library games
                     // that have a SteamAppId so achievements are always up-to-date and
                     // sync across devices via the cloud.  Runs regardless of cache staleness.
+                    if (steamGames.Count > 0)
+                    {
+                        _ = SyncSteamOwnedGamesToCloudAsync(steamGames);
+                    }
+
                     if (settings.EnableAchievementAutoSync && steamGames.Count > 0)
                     {
                         // Prioritise games the user has played (playtime > 0) then others
@@ -2876,8 +2884,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 // every time the periodic sync refreshes the library list).
                 PlaytimeService.ApplyStoredPlaytime(games);
 
-                // Re-apply Steam cached games so they are never lost when the cloud library
-                // is refreshed (Steam-only titles are not stored in the cloud games.json).
+                // Re-apply Steam cached games as a fallback so titles are never lost while
+                // background cloud sync catches up on freshly imported Steam libraries.
                 ReapplySteamCachedGames(games);
 
                 _library = games;
@@ -2959,8 +2967,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>
     /// Re-applies Steam-cached games (from SteamGames.json) into the given list.
-    /// Called after every library replacement so Steam-only titles (not in the cloud
-    /// games.json) are never silently dropped when the periodic sync replaces
+    /// Called after every library replacement so Steam titles are never silently dropped
+    /// while waiting for cloud <c>games.json</c> to reflect the latest Steam import.
+    /// The periodic sync replaces
     /// <c>_library</c> with a fresh cloud fetch.  Uses the maximum of the already-stored
     /// playtime and the cached Steam playtime to avoid double-counting.
     /// </summary>
@@ -3089,10 +3098,61 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
+    /// Ensures the user's full Steam owned-game list is mirrored to cloud
+    /// <c>games.json</c> so all devices share the same Steam library baseline.
+    /// Existing entries are skipped; only missing titles are added.
+    /// </summary>
+    private async Task SyncSteamOwnedGamesToCloudAsync(List<Services.SteamOwnedGame> steamGames)
+    {
+        if (steamGames.Count == 0) return;
+        try
+        {
+            bool online = await _client.CheckHealthAsync().ConfigureAwait(false);
+            if (!online) return;
+
+            var cloudGames = await _client.GetGamesAsync().ConfigureAwait(false);
+            var cloudPcTitles = new HashSet<string>(
+                cloudGames
+                    .Where(g => string.Equals(g.Platform, "PC", StringComparison.OrdinalIgnoreCase))
+                    .Select(g => g.Title),
+                StringComparer.OrdinalIgnoreCase);
+
+            int added = 0;
+            foreach (var sg in steamGames)
+            {
+                if (string.IsNullOrWhiteSpace(sg.Name)) continue;
+                if (cloudPcTitles.Contains(sg.Name)) continue;
+
+                try
+                {
+                    await _client.AddGameAsync(new Models.Game
+                    {
+                        Platform        = "PC",
+                        Title           = sg.Name,
+                        TitleId         = $"steam:{sg.AppId}",
+                        CoverUrl        = sg.CoverUrl,
+                        SteamAppId      = sg.AppId,
+                        PlaytimeMinutes = Math.Max(0, sg.PlaytimeMinutes),
+                    }).ConfigureAwait(false);
+                    cloudPcTitles.Add(sg.Name);
+                    added++;
+                }
+                catch { /* best-effort per title */ }
+            }
+
+            if (added > 0)
+            {
+                DevLogService.Log($"[Steam Sync] Added {added} Steam game(s) to cloud games.json.");
+                _ = _client.WriteSyncSignalAsync();
+            }
+        }
+        catch { /* best-effort — cloud sync must not block Steam import */ }
+    }
+
+    /// <summary>
     /// Fetches unlocked Steam achievements for the given list of games and syncs them
     /// to the Game OS cloud achievement store.  Only achievements not already present
     /// in <c>_achievements</c> are uploaded to avoid duplicate entries.
-    /// Limited to 40 games per call to keep the sync time reasonable.
     /// </summary>
     private async Task SyncSteamAchievementsAsync(
         string apiKey, string steamUserId, List<Services.SteamOwnedGame> games)
@@ -3106,14 +3166,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 .Select(a => $"pc|{a.GameTitle?.ToLowerInvariant()}|{a.AchievementId?.ToLowerInvariant()}"),
             StringComparer.Ordinal);
 
-        // Limit concurrent requests — process up to 40 games per sync
-        const int MaxGames = 40;
         int processed = 0;
         var newlyUnlockedAchievements = new List<Models.Achievement>();
 
         foreach (var sg in games)
         {
-            if (processed >= MaxGames) break;
             processed++;
 
             try

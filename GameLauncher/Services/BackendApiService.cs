@@ -237,7 +237,15 @@ namespace GameLauncher.Services
         public async Task AddGameAsync(Game game, CancellationToken ct = default)
         {
             EnsureAuthenticated();
-            var body = new { platform = game.Platform, title = game.Title, titleId = game.TitleId };
+            var body = new
+            {
+                platform = game.Platform,
+                title = game.Title,
+                titleId = game.TitleId,
+                coverUrl = game.CoverUrl,
+                steamAppId = game.SteamAppId,
+                playtimeMinutes = game.PlaytimeMinutes
+            };
             using var resp = await _http.PostAsJsonAsync("/api/me/games", body, ct);
 
             if (!resp.IsSuccessStatusCode)

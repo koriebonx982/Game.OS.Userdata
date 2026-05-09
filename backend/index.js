@@ -1867,7 +1867,7 @@ app.get('/api/me/games', authenticateToken, async (req, res) => {
 app.post('/api/me/games', authenticateToken, async (req, res) => {
     try {
         const { usernameLower } = req.tokenUser;
-        const { platform, title, titleId } = req.body;
+        const { platform, title, titleId, coverUrl, steamAppId, playtimeMinutes } = req.body;
         if (!platform || !title) {
             return res.status(400).json({ success: false, message: 'platform and title are required.' });
         }
@@ -1883,10 +1883,25 @@ app.post('/api/me/games', authenticateToken, async (req, res) => {
             return res.status(400).json({ success: false, message: 'Game already in library.' });
         }
 
+        let parsedSteamAppId = null;
+        if (steamAppId !== undefined && steamAppId !== null && steamAppId !== '') {
+            const n = parseInt(steamAppId, 10);
+            if (!isNaN(n) && n > 0) parsedSteamAppId = n;
+        }
+
+        let parsedPlaytimeMinutes = 0;
+        if (playtimeMinutes !== undefined && playtimeMinutes !== null && playtimeMinutes !== '') {
+            const n = parseInt(playtimeMinutes, 10);
+            if (!isNaN(n) && n >= 0) parsedPlaytimeMinutes = n;
+        }
+
         library.push({
             platform,
             title,
             titleId: titleId || null,
+            coverUrl: typeof coverUrl === 'string' ? coverUrl.trim() || null : null,
+            steamAppId: parsedSteamAppId,
+            playtimeMinutes: parsedPlaytimeMinutes,
             addedAt: new Date().toISOString()
         });
 
