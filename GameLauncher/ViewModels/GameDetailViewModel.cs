@@ -2650,6 +2650,20 @@ public partial class GameDetailViewModel : ViewModelBase
     {
         try
         {
+            // Normalize GitHub blob URLs to raw content URLs so the achievements JSON
+            // can be fetched directly.
+            // e.g. https://github.com/Koriebonx98/Games.Database/blob/main/Data/.../Achievement.json
+            //    → https://raw.githubusercontent.com/Koriebonx98/Games.Database/main/Data/.../Achievement.json
+            if (url.StartsWith("https://github.com/", StringComparison.OrdinalIgnoreCase) &&
+                url.Contains("/blob/", StringComparison.OrdinalIgnoreCase))
+            {
+                url = url
+                    .Replace("https://github.com/",
+                             "https://raw.githubusercontent.com/",
+                             StringComparison.OrdinalIgnoreCase)
+                    .Replace("/blob/", "/", StringComparison.OrdinalIgnoreCase);
+            }
+
             string json;
 
             // Resolve the best cache key: ROM titleId → database titleId → title

@@ -773,6 +773,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _ = BackgroundCacheLibraryAsync(library);
             _ = BackgroundCacheLocalGamesAsync();
 
+            // Seed any bundled Switch achievement JSON files to the Games.Database if they
+            // are not already there (best-effort; runs silently in the background).
+            _ = Task.Run(() => TrySeedSwitchGameAchievementsAsync());
+
             // Sync per-game achievement data from the cloud for devices that don't have
             // a Steam API key or haven't yet populated the local per-game cache.
             // Runs in background so it does not delay the login screen transition.
@@ -3542,9 +3546,72 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// Background task: for each Steam game in the library whose local per-game
-    /// achievement cache does not yet exist, tries to download the full achievement list
-    /// (locked + unlocked) from the Game OS cloud per-game folder.
+    /// Best-effort task: seeds Switch game achievement JSON files to the public
+    /// Games.Database for any game that has a local definition in
+    /// <c>Switch Ach/Games/</c> but whose Games.Database entry does not yet have an
+    /// <c>Achievement.json</c> file.
+    ///
+    /// <para>Called after every successful online login.  On the first run on a machine
+    /// with a valid GitHub token it uploads the bundled JSON; on subsequent runs it
+    /// detects the file already exists and exits immediately.</para>
+    /// </summary>
+    private async Task TrySeedSwitchGameAchievementsAsync()
+    {
+        // Map: (titleId, localJsonFileName)
+        // Add new entries here whenever a new Switch game achievement file is created
+        // in the Switch Ach/Games/ folder.
+        var seedList = new[]
+        {
+            ("010028600EBDA000", "Super Mario 3D World & Bowser's Fury.json"),
+        };
+
+        string switchAchDir = System.IO.Path.Combine(AppContext.BaseDirectory, "Switch Ach", "Games");
+
+        try
+        {
+            using var svc = new Services.GitHubDataService();
+
+            foreach (var (titleId, filename) in seedList)
+            {
+                try
+                {
+                    string localPath = System.IO.Path.Combine(switchAchDir, filename);
+                    if (!System.IO.File.Exists(localPath)) continue;
+
+                    // Games.Database path: Data/Nintendo - Switch/Games/{titleId}/Achievement.json
+                    string dbFilePath = $"Data/Nintendo - Switch/Games/{titleId}/Achievement.json";
+
+                    // Only upload when the file is absent — do not overwrite intentional edits.
+                    var (existing, _) = await svc.ReadGamesDatabaseFileAsync<object>(dbFilePath)
+                        .ConfigureAwait(false);
+                    if (existing != null) continue;
+
+                    string localJson = await System.IO.File.ReadAllTextAsync(localPath)
+                        .ConfigureAwait(false);
+
+                    // Deserialize via JsonDocument so the object graph roundtrips correctly
+                    // without losing fields (avoids the Dictionary<string,object> flattening).
+                    using var doc = System.Text.Json.JsonDocument.Parse(localJson);
+                    var contentElement = doc.RootElement.Clone();
+
+                    await svc.WriteGamesDatabaseFileAsync(
+                        dbFilePath,
+                        contentElement,
+                        $"Seed Switch achievements for {titleId}").ConfigureAwait(false);
+
+                    DevLogService.Log($"[SwitchSeed] Uploaded Achievement.json for {titleId} to Games.Database.");
+                }
+                catch (Exception ex)
+                {
+                    DevLogService.Log($"[SwitchSeed] Skipped {titleId}: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            DevLogService.Log($"[SwitchSeed] TrySeedSwitchGameAchievementsAsync failed: {ex.Message}");
+        }
+    }
     /// <para>
     /// This is the cross-device sync path for achievements: when Device A (with a Steam API key)
     /// has written the per-game achievement folder to the private cloud repo, Device B (without
