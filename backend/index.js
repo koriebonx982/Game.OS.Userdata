@@ -2224,9 +2224,16 @@ app.put('/api/me/achievements/game-template', authenticateToken, async (req, res
         const merged = [];
         const upsertAchievement = (incoming) => {
             const rawAchievementId = incoming?.achievementId;
-            if (rawAchievementId === null || rawAchievementId === undefined || rawAchievementId === '') return;
-            const achId = String(rawAchievementId);
-            const idx = merged.findIndex(e => String(e.achievementId || '') === achId);
+            const achId = rawAchievementId === null || rawAchievementId === undefined || rawAchievementId === ''
+                ? String(incoming?.name || '')
+                : String(rawAchievementId);
+            if (!achId) return;
+            const incomingName = String(incoming?.name || '');
+            const idx = merged.findIndex(e =>
+                String(e.achievementId || '') === achId ||
+                (String(e.achievementId || '') === '' &&
+                 incomingName !== '' &&
+                 String(e.name || '').toLowerCase() === incomingName.toLowerCase()));
             const normalizedIncoming = { ...incoming, achievementId: achId };
             if (idx !== -1) {
                 const existingUnlockedAt = typeof merged[idx].unlockedAt === 'string' ? merged[idx].unlockedAt : '';

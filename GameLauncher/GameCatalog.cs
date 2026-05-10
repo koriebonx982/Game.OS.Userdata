@@ -116,7 +116,7 @@ namespace GameLauncher
                 Description = "Run, jump and climb across 12 diverse worlds in Super Mario 3D World, then explore the open-world Bowser's Fury island.",
                 CoverUrl = "https://cdn2.steamgriddb.com/grid/4c4f21de5d0a5b3bb92cbf174e05e0c1.png",
                 TrailerUrl = "https://youtu.be/AHjWdFfmrE4",
-                AchievementsUrl = "https://raw.githubusercontent.com/Koriebonx98/Games.Database/main/Data/Nintendo%20-%20Switch/Games/010028600EBDA000/Achievement.json",
+                AchievementsUrl = "https://raw.githubusercontent.com/Koriebonx98/Game.OS.Userdata/main/Switch%20Ach/Games/Super%20Mario%203D%20World%20%26%20Bowser%27s%20Fury.json",
                 CoverColor = "#1a7a1a", CoverGradient = "#1a7a1a,#4caf50" },
             // ── Upcoming & popular PC titles ───────────────────────────────────────────
             new StoreGame { Title = "GTA VI",                    Platform = "PC",     Genre = "Open World",   Price = "£69.99", Rating = 9.5, IsFeatured = true,  ReleaseYear = "2026",

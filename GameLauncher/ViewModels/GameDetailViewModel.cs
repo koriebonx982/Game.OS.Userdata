@@ -2664,6 +2664,15 @@ public partial class GameDetailViewModel : ViewModelBase
                     .Replace("/blob/", "/", StringComparison.OrdinalIgnoreCase);
             }
 
+            if (string.Equals(Platform, "Switch", StringComparison.OrdinalIgnoreCase))
+            {
+                string? switchTitleId = _currentLocalRom?.TitleId ?? _databaseTitleId;
+                string? validatedUrl = ResolveSwitchAchievementsUrl(url, switchTitleId, Title);
+                if (string.IsNullOrEmpty(validatedUrl))
+                    return;
+                url = validatedUrl;
+            }
+
             string json;
 
             // Resolve the best cache key: ROM titleId → database titleId → title
@@ -2743,7 +2752,13 @@ public partial class GameDetailViewModel : ViewModelBase
                 string desc          = TryGetStringProp(item, "description", "Description");
                 // Switch-Achievements JSON uses "UrlUnlocked" rather than "iconUrl"
                 string icon          = TryGetStringProp(item, "iconUrl", "IconUrl", "UrlUnlocked");
-                string achievementId = TryGetStringProp(item, "achievementId", "AchievementId");
+                string achievementId = TryGetStringProp(
+                    item,
+                    "achievementId", "AchievementId",
+                    "apiName", "ApiName",
+                    "id", "Id");
+                if (string.IsNullOrWhiteSpace(achievementId))
+                    achievementId = name;
 
                 if (string.IsNullOrEmpty(name)) continue;
                 list.Add(new Achievement
@@ -2806,6 +2821,35 @@ public partial class GameDetailViewModel : ViewModelBase
             }
         }
         catch { /* best-effort */ }
+    }
+
+    private static string? ResolveSwitchAchievementsUrl(string url, string? titleId, string title)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+
+        string? catalogUrl = GameCatalog.Store
+            .FirstOrDefault(game =>
+                string.Equals(game.Platform, "Switch", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(
+                    Models.PlatformHelper.StripSpecialSymbols(game.Title),
+                    Models.PlatformHelper.StripSpecialSymbols(title),
+                    StringComparison.OrdinalIgnoreCase))
+            ?.AchievementsUrl;
+
+        var match = System.Text.RegularExpressions.Regex.Match(
+            url,
+            @"/Games/([0-9A-Fa-f]{16})/Achievement\.json(?:$|\?)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        if (!match.Success)
+            return string.IsNullOrWhiteSpace(catalogUrl) ? url : catalogUrl;
+
+        if (string.IsNullOrWhiteSpace(titleId))
+            return catalogUrl;
+
+        return string.Equals(match.Groups[1].Value, titleId, StringComparison.OrdinalIgnoreCase)
+            ? url
+            : catalogUrl;
     }
 
     // ─────────────────────────────────────────────────────────────────────────

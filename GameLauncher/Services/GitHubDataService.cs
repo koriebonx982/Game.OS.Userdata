@@ -786,10 +786,10 @@ namespace GameLauncher.Services
             foreach (var achievement in incoming)
             {
                 int existingIndex = destination.FindIndex(existing =>
-                    string.Equals(existing.AchievementId, achievement.AchievementId, StringComparison.OrdinalIgnoreCase) &&
+                    AchievementsMatch(existing, achievement) &&
                     (!matchByGameScope ||
                      (string.Equals(existing.Platform, achievement.Platform, StringComparison.OrdinalIgnoreCase) &&
-                      string.Equals(existing.GameTitle, achievement.GameTitle, StringComparison.OrdinalIgnoreCase))));
+                       string.Equals(existing.GameTitle, achievement.GameTitle, StringComparison.OrdinalIgnoreCase))));
 
                 if (existingIndex == -1)
                 {
@@ -816,6 +816,22 @@ namespace GameLauncher.Services
             }
 
             return changed;
+        }
+
+        private static bool AchievementsMatch(Achievement existing, Achievement incoming)
+        {
+            if (!string.IsNullOrWhiteSpace(existing.AchievementId) &&
+                !string.IsNullOrWhiteSpace(incoming.AchievementId))
+            {
+                return string.Equals(
+                    existing.AchievementId,
+                    incoming.AchievementId,
+                    StringComparison.OrdinalIgnoreCase);
+            }
+
+            return !string.IsNullOrWhiteSpace(existing.Name) &&
+                   !string.IsNullOrWhiteSpace(incoming.Name) &&
+                   string.Equals(existing.Name, incoming.Name, StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool AchievementEquals(Achievement left, Achievement right)
