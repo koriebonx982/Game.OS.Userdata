@@ -472,18 +472,6 @@ namespace GameLauncher.Models
         /// </summary>
         [JsonPropertyName("exophaseProfileId")] public string ExophaseProfileId { get; set; } = "";
 
-        /// <summary>
-        /// Exophase username for achievement scraping.
-        /// Stored locally only, never synced.
-        /// </summary>
-        [JsonPropertyName("exophaseUsername")] public string ExophaseUsername { get; set; } = "";
-
-        /// <summary>
-        /// Exophase password — stored locally only, never uploaded to the cloud.
-        /// Used alongside <see cref="ExophaseUsername"/> to authenticate scrape requests.
-        /// </summary>
-        [JsonPropertyName("exophasePassword")] public string ExophasePassword { get; set; } = "";
-
         // ── Developer / Feature flags ────────────────────────────────────────
 
         /// <summary>

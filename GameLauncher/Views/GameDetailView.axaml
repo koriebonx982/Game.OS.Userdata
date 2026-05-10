@@ -1276,11 +1276,22 @@
                         VerticalAlignment="Stretch"
                         Url="{Binding TrailerEmbedUrl}"/>
 
-            <!-- Status bar -->
-            <Border Grid.Row="2" Background="#0d1117" Padding="16,8">
-                <TextBlock Text="{Binding TrailerUrl}"
-                           FontSize="11" Foreground="#8b949e"
-                           TextTrimming="CharacterEllipsis"/>
+            <!-- Status bar with fallback "Watch in Browser" button -->
+            <Border Grid.Row="2" Background="#0d1117" Padding="12,8">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0"
+                               Text="{Binding TrailerUrl}"
+                               FontSize="11" Foreground="#8b949e"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Classes="btn-secondary"
+                            Content="🌐  Open in Browser"
+                            Command="{Binding OpenTrailerInBrowserCommand}"
+                            FontSize="11"
+                            Padding="10,6"
+                            Margin="8,0,0,0"/>
+                </Grid>
             </Border>
 
         </Grid>

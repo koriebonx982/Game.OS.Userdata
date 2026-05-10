@@ -656,52 +656,21 @@
                             <TextBlock Text="🏆  Exophase Integration"
                                        FontSize="14" FontWeight="Bold" Foreground="White"/>
                             <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#8b949e">
-                                Link your Exophase account to automatically track achievements across Steam, Xbox,
-                                Epic, PlayStation, and more. Game.OS will scrape your Exophase profile on game launch
-                                and refresh every 1 minute to pick up newly unlocked achievements.
-                                Credentials are stored locally only and are never uploaded to the cloud.
+                                Link your Exophase profile so Game.OS can track achievement unlocks. On game
+                                launch the achievement list is scraped from Exophase and refreshed every 1 minute.
+                                Your Profile ID is stored locally only and is never uploaded to the cloud.
                             </TextBlock>
-                             <Grid ColumnDefinitions="*,*" HorizontalAlignment="Stretch">
-                                 <StackPanel Grid.Column="0" Spacing="6" Margin="0,0,8,0">
-                                     <TextBlock Text="Exophase Profile ID"
-                                                FontSize="12" Foreground="#8b949e"/>
-                                     <TextBox Classes="form-input"
-                                              Text="{Binding ExophaseProfileId}"
-                                              Watermark="#2896888"
-                                              FontSize="12"/>
-                                     <TextBlock Text="Use the unique #ID shown in an Exophase game URL so Game.OS can target your per-user achievement view (for example: #2896888)."
-                                                FontSize="10" Foreground="#484f58"
-                                                TextWrapping="Wrap"/>
-                                 </StackPanel>
-                                 <StackPanel Grid.Column="1" Spacing="6" Margin="8,0,0,0">
-                                     <TextBlock Text="Exophase Username"
-                                                FontSize="12" Foreground="#8b949e"/>
-                                     <TextBox Classes="form-input"
-                                              Text="{Binding ExophaseUsername}"
-                                              Watermark="Your Exophase username…"
-                                              FontSize="12"/>
-                                 </StackPanel>
-                             </Grid>
-                             <Grid ColumnDefinitions="*,*" HorizontalAlignment="Stretch">
-                                 <StackPanel Grid.Column="0" Spacing="6" Margin="0,0,8,0">
-                                     <TextBlock Text="Exophase Password"
-                                                FontSize="12" Foreground="#8b949e"/>
-                                     <TextBox Classes="form-input"
-                                              Text="{Binding ExophasePassword}"
-                                              Watermark="Your Exophase password…"
-                                              PasswordChar="•"
-                                              FontSize="12"/>
-                                 </StackPanel>
-                                 <StackPanel Grid.Column="1" Spacing="6" Margin="8,0,0,0">
-                                     <TextBlock Text="Polling Behaviour"
-                                                FontSize="12" Foreground="#8b949e"/>
-                                     <TextBlock Text="When a game has an Exophase URL, Game.OS checks for new unlocks every 1 minute during the active session."
-                                                FontSize="12" Foreground="#e6edf3"
-                                                TextWrapping="Wrap"/>
-                                 </StackPanel>
-                             </Grid>
-                             <TextBlock Text="Stored locally only — never sent to Game.OS servers."
-                                        FontSize="10" Foreground="#484f58"/>
+                             <StackPanel Spacing="6">
+                                 <TextBlock Text="Exophase Profile ID"
+                                            FontSize="12" Foreground="#8b949e"/>
+                                 <TextBox Classes="form-input"
+                                          Text="{Binding ExophaseProfileId}"
+                                          Watermark="#2896888"
+                                          FontSize="12"/>
+                                 <TextBlock Text="The unique #ID shown in your Exophase game URL (e.g. #2896888). Required for per-user achievement tracking."
+                                            FontSize="10" Foreground="#484f58"
+                                            TextWrapping="Wrap"/>
+                             </StackPanel>
                              <Button Classes="btn-primary"
                                      Content="💾  Save Settings"
                                     Command="{Binding SaveCommand}"
@@ -739,9 +708,9 @@
 
                             <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
                                 <StackPanel Grid.Column="0" Spacing="2">
-                                    <TextBlock Text="Compatibility overlay mode"
+                                    <TextBlock Text="Compatibility overlay mode (legacy)"
                                                FontSize="13" Foreground="#e6edf3"/>
-                                    <TextBlock Text="Shows the quick menu as a temporary top-most full-screen fallback, then minimizes back after dismissal. Useful for problematic fullscreen games."
+                                    <TextBlock Text="Retained for reference. The quick menu now uses a dedicated overlay window automatically — no configuration required."
                                                FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
                                 </StackPanel>
                                 <ToggleSwitch Grid.Column="1"

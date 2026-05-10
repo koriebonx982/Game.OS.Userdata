@@ -8,6 +8,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace GameLauncher.Views;
@@ -22,6 +23,9 @@ public partial class IntroWindow : Window
     private MediaPlayer? _mediaPlayer;
     private Media? _media;
     private bool _finished;
+
+    // Safety timer: if VLC doesn't start playback within 8 seconds, skip intro.
+    private CancellationTokenSource? _timeoutCts;
 
     public IntroWindow()
     {
@@ -50,6 +54,21 @@ public partial class IntroWindow : Window
         }
 
         DevLogService.Log($"[IntroWindow] Video file confirmed at '{path}'. Initialising VLC…");
+
+        // Start a safety timeout so a failed VLC init never leaves the user stuck
+        // on a blank intro window. 8 seconds is well above typical VLC startup time.
+        _timeoutCts = new CancellationTokenSource();
+        var timeoutToken = _timeoutCts.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(8000, timeoutToken).ConfigureAwait(false);
+                DevLogService.Log("[IntroWindow] VLC startup timeout reached — forcing FinishIntro.");
+                Dispatcher.UIThread.Post(FinishIntro);
+            }
+            catch (OperationCanceledException) { /* playback started in time */ }
+        }, timeoutToken);
 
         try
         {
@@ -126,6 +145,12 @@ public partial class IntroWindow : Window
                     DevLogService.Log("[IntroWindow] Play() returned false — finishing intro immediately.");
                     FinishIntro();
                 }
+                else
+                {
+                    // Cancel the timeout — playback started successfully.
+                    try { _timeoutCts?.Cancel(); }
+                    catch (ObjectDisposedException) { }
+                }
             }, DispatcherPriority.Background);
         }
         catch (Exception ex)
@@ -169,6 +194,12 @@ public partial class IntroWindow : Window
         if (_finished) return;
         _finished = true;
 
+        // Cancel the safety timeout if it hasn't fired yet.
+        try { _timeoutCts?.Cancel(); }
+        catch (ObjectDisposedException) { }
+        _timeoutCts?.Dispose();
+        _timeoutCts = null;
+
         DevLogService.Log("[IntroWindow] FinishIntro — stopping player and transitioning to main window.");
 
         try { _mediaPlayer?.Stop(); }
@@ -176,7 +207,7 @@ public partial class IntroWindow : Window
 
         DisposeVlc();
 
-        // Show the main window fullscreen, then close the intro overlay.
+        // Show the main window (which starts at the login screen), then close the intro.
         if (Application.Current?.ApplicationLifetime is
             IClassicDesktopStyleApplicationLifetime desktop &&
             desktop.MainWindow is { } main)

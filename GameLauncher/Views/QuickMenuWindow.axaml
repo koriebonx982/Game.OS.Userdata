@@ -1,0 +1,19 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GameLauncher.ViewModels"
+        xmlns:views="using:GameLauncher.Views"
+        x:Class="GameLauncher.Views.QuickMenuWindow"
+        x:DataType="vm:QuickMenuViewModel"
+        Title=""
+        Width="340"
+        SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        SystemDecorations="None"
+        Topmost="True"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent">
+
+    <views:QuickMenuOverlay DataContext="{Binding}"/>
+
+</Window>

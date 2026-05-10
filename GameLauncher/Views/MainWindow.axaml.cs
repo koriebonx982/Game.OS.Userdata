@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
@@ -15,7 +16,10 @@ public partial class MainWindow : Window
     };
     private MainViewModel? _boundVm;
     private bool _globalHotkeyLatched;
-    private bool _restoreToMinimizedAfterQuickMenu;
+
+    // Separate overlay window for the global Quick Menu (shown over games without
+    // restoring the full launcher — mirrors the Steam/NVIDIA overlay pattern).
+    private QuickMenuWindow? _quickMenuWindow;
 
     public MainWindow()
     {
@@ -23,8 +27,15 @@ public partial class MainWindow : Window
         KeyDown += OnKeyDown;
         DataContextChanged += OnDataContextChanged;
         Opened += (_, _) => RefreshGlobalHotkeyPolling();
-        Closed += (_, _) => _globalHotkeyPoller.Stop();
+        Closed += OnMainWindowClosed;
         _globalHotkeyPoller.Tick += OnGlobalHotkeyTick;
+    }
+
+    private void OnMainWindowClosed(object? sender, EventArgs e)
+    {
+        _globalHotkeyPoller.Stop();
+        _quickMenuWindow?.Close();
+        _quickMenuWindow = null;
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
@@ -235,9 +246,9 @@ public partial class MainWindow : Window
         if (!OperatingSystem.IsWindows() || _boundVm == null || !_boundVm.SettingsVm.EnableGlobalQuickMenuHotkey)
             return;
 
-        bool ctrlDown = (GameLauncher.Services.NativeMethods.GetAsyncKeyState(GameLauncher.Services.NativeMethods.VK_LCONTROL) & 0x8000) != 0;
-        bool shiftDown = (GameLauncher.Services.NativeMethods.GetAsyncKeyState(GameLauncher.Services.NativeMethods.VK_LSHIFT) & 0x8000) != 0;
-        bool bothDown = ctrlDown && shiftDown;
+        bool ctrlDown  = (GameLauncher.Services.NativeMethods.GetAsyncKeyState(GameLauncher.Services.NativeMethods.VK_LCONTROL) & 0x8000) != 0;
+        bool shiftDown = (GameLauncher.Services.NativeMethods.GetAsyncKeyState(GameLauncher.Services.NativeMethods.VK_LSHIFT)   & 0x8000) != 0;
+        bool bothDown  = ctrlDown && shiftDown;
 
         if (bothDown && !_globalHotkeyLatched)
         {
@@ -250,22 +261,63 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Opens the Quick Menu overlay without restoring or focusing the main launcher window.
+    /// When a game is running and the launcher is minimised, shows a separate always-on-top
+    /// borderless window positioned at the right edge of the screen — matching the Steam /
+    /// NVIDIA overlay pattern for borderless-windowed apps and games.
+    /// When the launcher is already in the foreground (no game running), toggles the
+    /// inline quick menu panel instead.
+    /// </summary>
     private void OpenGlobalQuickMenu()
     {
         if (_boundVm == null) return;
 
-        bool compatibilityMode = _boundVm.SettingsVm.CompatibilityOverlayMode;
-        bool wasMinimized = WindowState == WindowState.Minimized;
-        if (wasMinimized)
+        bool gameIsRunning = _boundVm.DetailVm.IsGameRunning;
+        bool launcherMinimized = WindowState == WindowState.Minimized;
+
+        // If a game is running (or the launcher is minimized), use the separate overlay
+        // window so we never steal focus from the game.
+        if (gameIsRunning || launcherMinimized)
         {
-            WindowState = WindowState.FullScreen;
-            _restoreToMinimizedAfterQuickMenu = compatibilityMode && _boundVm.DetailVm.IsGameRunning;
+            _boundVm.QuickMenuVm.Refresh(
+                currentGameTitle:     _boundVm.DetailVm.IsGameRunning ? _boundVm.DetailVm.Title : null,
+                sessionStartedAt:     _boundVm.DetailVm.IsGameRunning
+                    ? Services.PlaytimeService.GetActiveSessionStart(_boundVm.DetailVm.Platform, _boundVm.DetailVm.Title)
+                      ?? Services.PlaytimeService.GetAnyActiveSessionStart()
+                    : null,
+                friends:              _boundVm.FriendsVm.OnlineFriends
+                    .Select(f => new FriendPresenceVm { Username = f.Username, CurrentGame = f.CurrentGame ?? "" })
+                    .ToList(),
+                unreadCount:          0,
+                lastMessage:          null,
+                unlockedAchievements: _boundVm.DetailVm.HasAchievements ? _boundVm.DetailVm.Achievements.Count(a => a.IsUnlocked) : 0,
+                totalAchievements:    _boundVm.DetailVm.HasAchievements ? _boundVm.DetailVm.Achievements.Count : 0);
+
+            if (_quickMenuWindow == null || !_quickMenuWindow.IsVisible)
+            {
+                _quickMenuWindow?.Close();
+                _quickMenuWindow = new QuickMenuWindow { DataContext = _boundVm.QuickMenuVm };
+                // Wire dismiss so closing the overlay window is reflected in the VM
+                _boundVm.QuickMenuVm.OnDismiss = () =>
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        _boundVm.ShowQuickMenu = false;
+                        _quickMenuWindow?.Hide();
+                    });
+                };
+                _quickMenuWindow.ShowOverGame();
+            }
+            else
+            {
+                _quickMenuWindow.Hide();
+                _boundVm.ShowQuickMenu = false;
+            }
+            return;
         }
 
-        if (compatibilityMode)
-            Topmost = true;
-
-        Activate();
+        // Launcher is in the foreground — use the inline quick menu panel as usual.
         _boundVm.ToggleQuickMenu();
     }
 
@@ -274,18 +326,8 @@ public partial class MainWindow : Window
         if (_boundVm == null || e.PropertyName != nameof(MainViewModel.ShowQuickMenu))
             return;
 
-        if (_boundVm.ShowQuickMenu)
-        {
-            if (_boundVm.SettingsVm.CompatibilityOverlayMode)
-                Topmost = true;
-            return;
-        }
-
-        Topmost = false;
-        if (_restoreToMinimizedAfterQuickMenu)
-        {
-            _restoreToMinimizedAfterQuickMenu = false;
-            WindowState = WindowState.Minimized;
-        }
+        // When the inline quick menu is dismissed, also hide the overlay window if visible.
+        if (!_boundVm.ShowQuickMenu)
+            _quickMenuWindow?.Hide();
     }
 }

@@ -88,10 +88,6 @@ public partial class SettingsViewModel : ViewModelBase
         IsSteamImporting ? "⏳  Importing…" : "⬇  Import Steam Library";
     /// <summary>Status message shown in the Steam Integration card (success / error).</summary>
     [ObservableProperty] private string _steamImportStatus = "";
-    /// <summary>Exophase username for achievement scraping.</summary>
-    [ObservableProperty] private string _exophaseUsername = "";
-    /// <summary>Exophase password — local only.</summary>
-    [ObservableProperty] private string _exophasePassword = "";
     /// <summary>Exophase profile anchor/id (e.g. #2896888) used for per-user achievement pages.</summary>
     [ObservableProperty] private string _exophaseProfileId = "";
     /// <summary>Enable a system-wide quick-menu hotkey on Windows.</summary>
@@ -309,8 +305,6 @@ public partial class SettingsViewModel : ViewModelBase
         SteamApiKey            = appSettings.SteamApiKey;
         SteamUserId            = appSettings.SteamUserId;
         ExophaseProfileId      = appSettings.ExophaseProfileId;
-        ExophaseUsername       = appSettings.ExophaseUsername;
-        ExophasePassword       = appSettings.ExophasePassword;
         EnableSteamSync        = appSettings.EnableSteamSync;
         EnableAchievementAutoSync = appSettings.EnableAchievementAutoSync;
         NotifyRyujinxLogStatus    = appSettings.NotifyRyujinxLogStatus;
@@ -495,8 +489,6 @@ public partial class SettingsViewModel : ViewModelBase
             SteamApiKey           = SteamApiKey,
             SteamUserId           = SteamUserId,
             ExophaseProfileId     = NormaliseExophaseProfileId(ExophaseProfileId),
-            ExophaseUsername      = ExophaseUsername,
-            ExophasePassword      = ExophasePassword,
             EnableSteamSync       = EnableSteamSync,
             EnableAchievementAutoSync = EnableAchievementAutoSync,
             NotifyRyujinxLogStatus    = NotifyRyujinxLogStatus,

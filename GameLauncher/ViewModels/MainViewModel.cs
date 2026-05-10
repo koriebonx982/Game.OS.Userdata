@@ -2921,6 +2921,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private async Task RequestManualSyncAsync()
     {
         var cts = new CancellationTokenSource();
+        // Hard timeout: cancel the sync after 30 seconds so the UI is never
+        // indefinitely stuck in the "Syncing…" state due to a slow server.
+        cts.CancelAfter(TimeSpan.FromSeconds(30));
+
         var previous = Interlocked.Exchange(ref _manualSyncCts, cts);
         if (previous != null)
         {
@@ -2950,6 +2954,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                     SettingsVm.LastSyncedLabel = FormatLastSyncedLabel(_lastSyncedAt));
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Timed out or cancelled — update the label so the user knows
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                SettingsVm.LastSyncedLabel = "Last sync: timed out — try again");
         }
         finally
         {
