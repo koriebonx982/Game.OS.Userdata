@@ -28,7 +28,7 @@ public partial class IntroWindow : Window
     private bool          _finished;
     private readonly string _videoPath;
 
-    // Safety timeout: if VLC hasn't started playback within 8 s, proceed to login.
+    // Safety timeout: if VLC hasn't started playback within 8 s, proceed to main window.
     private CancellationTokenSource? _timeoutCts;
 
     /// <param name="videoPath">Absolute path to the intro video file.</param>
