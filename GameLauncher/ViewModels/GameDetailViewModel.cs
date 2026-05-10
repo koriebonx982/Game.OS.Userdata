@@ -1489,11 +1489,11 @@ public partial class GameDetailViewModel : ViewModelBase
                 notifiedReadingLog = true;
             }
 
-            var newResults = SwitchLogReaderService.ReadRaceResultsFromNewContent(logPath, ref fileOffset, out var newGpResults);
-            if (newResults.Count == 0 && newGpResults.Count == 0) return;
+            var newResults = SwitchLogReaderService.ReadRaceResultsFromNewContent(logPath, ref fileOffset, out var newGpResults, out var newStageResults);
+            if (newResults.Count == 0 && newGpResults.Count == 0 && newStageResults.Count == 0) return;
 
             var newUnlocks = SwitchAchievementDetectorService.DetectNewUnlocks(
-                gameTitle, newResults, newGpResults, session, alreadyCachedNames, Achievements, translations);
+                gameTitle, newResults, newGpResults, newStageResults, session, alreadyCachedNames, Achievements, translations);
 
             foreach (string achName in newUnlocks)
             {
@@ -2616,9 +2616,16 @@ public partial class GameDetailViewModel : ViewModelBase
         PopulateTrailer(dbGame.TrailerUrl);
         PopulateScreenshots(dbGame.Screenshots);
 
-        // Load achievements from the AchievementsUrl if we don't already have them
-        if (!HasAchievements && !string.IsNullOrEmpty(dbGame.AchievementsUrl))
-            _ = FetchAndDisplayAchievementsAsync(dbGame.AchievementsUrl);
+        // Always fetch the full achievement template from AchievementsUrl so the detail
+        // view shows the complete list.  Pass any already-unlocked achievements so their
+        // state is preserved after the template replaces the partial unlocked-only list.
+        if (!string.IsNullOrEmpty(dbGame.AchievementsUrl))
+        {
+            var knownUnlocked = Achievements.Where(a => a.IsUnlocked).ToList();
+            _ = FetchAndDisplayAchievementsAsync(
+                dbGame.AchievementsUrl,
+                knownUnlocked.Count > 0 ? knownUnlocked : null);
+        }
     }
 
     /// <summary>

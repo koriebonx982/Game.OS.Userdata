@@ -112,6 +112,12 @@ namespace GameLauncher
                 Screenshots = new List<string>{ "https://cdn2.steamgriddb.com/hero/85e1b8bbda1bd1ec3465c9728f7d7d2e.png", "https://cdn2.steamgriddb.com/hero/c384385739d41027edba51f4fbf65e96.png" },
                 AchievementsUrl = "https://raw.githubusercontent.com/Koriebonx98/Game.OS.Userdata/main/Switch%20Ach/Games/Mario%20Kart%208%20Deluxe.json",
                 CoverColor = "#c00000", CoverGradient = "#c00000,#ff6b00" },
+            new StoreGame { Title = "Super Mario 3D World + Bowser's Fury", Platform = "Switch", Genre = "Platformer", Price = "£49.99", Rating = 9.4, IsFeatured = true,  ReleaseYear = "2021",
+                Description = "Run, jump and climb across 12 diverse worlds in Super Mario 3D World, then explore the open-world Bowser's Fury island.",
+                CoverUrl = "https://cdn2.steamgriddb.com/grid/4c4f21de5d0a5b3bb92cbf174e05e0c1.png",
+                TrailerUrl = "https://youtu.be/AHjWdFfmrE4",
+                AchievementsUrl = "https://raw.githubusercontent.com/Koriebonx98/Game.OS.Userdata/main/Switch%20Ach/Games/Super%20Mario%203D%20World%20%26%20Bowser%27s%20Fury.json",
+                CoverColor = "#1a7a1a", CoverGradient = "#1a7a1a,#4caf50" },
             // ── Upcoming & popular PC titles ───────────────────────────────────────────
             new StoreGame { Title = "GTA VI",                    Platform = "PC",     Genre = "Open World",   Price = "£69.99", Rating = 9.5, IsFeatured = true,  ReleaseYear = "2026",
                 Description = "Rockstar's long-awaited return to Vice City with Lucia leading an epic crime saga.",

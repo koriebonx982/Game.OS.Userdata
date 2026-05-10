@@ -31,6 +31,17 @@ namespace GameLauncher.Services;
 ///       <item>Coin totals — description pattern <c>"N Coins Total"</c>.</item>
 ///     </list>
 ///   </item>
+///   <item><b>Super Mario 3D World &amp; Bowser's Fury</b>
+///     <list type="bullet">
+///       <item>Specific level completion — description pattern
+///             <c>"Complete World W-S"</c> (e.g. <c>Complete World 1-1</c>).</item>
+///       <item>World entry — description pattern <c>"Complete World N"</c>
+///             (numeric) or <c>"Complete World Name"</c> (named worlds such as
+///             Castle, Bowser, Star, Mushroom, Flower, Crown).</item>
+///       <item>Green stars — description exactly <c>"Collect 3 Green Stars"</c>.</item>
+///       <item>Flagpole top — description exactly <c>"Reach top of flagpole"</c>.</item>
+///     </list>
+///   </item>
 /// </list>
 /// </summary>
 public static class SwitchAchievementDetectorService
@@ -58,12 +69,13 @@ public static class SwitchAchievementDetectorService
     // ── Public API ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Processes newly parsed race and Grand Prix results and returns the names of any
+    /// Processes newly parsed race, Grand Prix, and stage results and returns the names of any
     /// achievements just unlocked (not previously cached or toasted this session).
     /// </summary>
     /// <param name="gameTitle">Title of the game currently running.</param>
     /// <param name="newResults">Race results from the latest log content.</param>
     /// <param name="newGpResults">Grand Prix cup results from the latest log content.</param>
+    /// <param name="newStageResults">Stage results from the latest log content (SM3DW etc.).</param>
     /// <param name="session">Mutable session state; updated in place.</param>
     /// <param name="alreadyUnlockedNames">Achievement names already in the local cache.</param>
     /// <param name="achievementsList">Full achievement list for this game (may be null).</param>
@@ -72,20 +84,25 @@ public static class SwitchAchievementDetectorService
     /// detection will be disabled without it.
     /// </param>
     public static IReadOnlyList<string> DetectNewUnlocks(
-        string                                                    gameTitle,
-        IReadOnlyList<SwitchLogReaderService.SwitchRaceResult>    newResults,
-        IReadOnlyList<SwitchLogReaderService.SwitchGpResult>      newGpResults,
-        SessionState                                              session,
-        IReadOnlySet<string>?                                     alreadyUnlockedNames,
-        IReadOnlyList<Achievement>?                               achievementsList,
-        SwitchTranslateService.SwitchTranslations?                translations)
+        string                                                     gameTitle,
+        IReadOnlyList<SwitchLogReaderService.SwitchRaceResult>     newResults,
+        IReadOnlyList<SwitchLogReaderService.SwitchGpResult>       newGpResults,
+        IReadOnlyList<SwitchLogReaderService.SwitchStageResult>    newStageResults,
+        SessionState                                               session,
+        IReadOnlySet<string>?                                      alreadyUnlockedNames,
+        IReadOnlyList<Achievement>?                                achievementsList,
+        SwitchTranslateService.SwitchTranslations?                 translations)
     {
-        if (newResults.Count == 0 && newGpResults.Count == 0) return [];
+        if (newResults.Count == 0 && newGpResults.Count == 0 && newStageResults.Count == 0) return [];
         if (translations == null) return [];
 
         if (IsMarioKart8Deluxe(gameTitle))
             return DetectMk8dUnlocks(newResults, newGpResults, session,
                                      alreadyUnlockedNames, achievementsList, translations);
+
+        if (IsSuperMario3dWorld(gameTitle))
+            return DetectSm3dwUnlocks(newStageResults, session,
+                                      alreadyUnlockedNames, achievementsList);
 
         return [];
     }
@@ -102,6 +119,16 @@ public static class SwitchAchievementDetectorService
             .Replace("©", "");
         return normalized.Contains("mario kart 8", StringComparison.OrdinalIgnoreCase) ||
                normalized.Contains("mariokart8",   StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSuperMario3dWorld(string gameTitle)
+    {
+        string normalized = gameTitle
+            .Replace("™", "")
+            .Replace("®", "")
+            .Replace("©", "");
+        return normalized.Contains("mario 3d world", StringComparison.OrdinalIgnoreCase) ||
+               normalized.Contains("super mario 3d world", StringComparison.OrdinalIgnoreCase);
     }
 
     // Matches achievement descriptions of the form "N Coins Total" (e.g. "100 Coins Total").
@@ -253,5 +280,115 @@ public static class SwitchAchievementDetectorService
 
         return driverPart.Equals(cleanDriverName, StringComparison.OrdinalIgnoreCase) &&
                coursePart.Equals(cleanCourseName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ── Super Mario 3D World & Bowser's Fury ──────────────────────────────────
+
+    // Maps named SM3DW special-world suffixes (lower-case) to their world_id values.
+    // Numeric worlds (1–6) are handled directly by int.TryParse in the matcher below.
+    private static readonly IReadOnlyDictionary<string, int> _sm3dwNamedWorlds =
+        new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["castle"]   = 7,
+            ["bowser"]   = 8,
+            ["star"]     = 9,
+            ["mushroom"] = 10,
+            ["flower"]   = 11,
+            ["crown"]    = 12,
+        };
+
+    // Regex: "Complete World W-S" → groups 1 = world (int), 2 = stage (int)
+    private static readonly Regex _sm3dwLevelRegex =
+        new(@"^Complete\s+World\s+(\d+)-(\d+)\s*$",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    // Regex: "Complete World X" → group 1 = world name or number
+    private static readonly Regex _sm3dwWorldRegex =
+        new(@"^Complete\s+World\s+(.+?)\s*$",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static IReadOnlyList<string> DetectSm3dwUnlocks(
+        IReadOnlyList<SwitchLogReaderService.SwitchStageResult> stageResults,
+        SessionState                                             session,
+        IReadOnlySet<string>?                                   alreadyCached,
+        IReadOnlyList<Achievement>?                             achievementsList)
+    {
+        if (stageResults.Count == 0) return [];
+
+        var newUnlocks = new List<string>();
+
+        IReadOnlyList<Achievement> candidates = achievementsList != null
+            ? achievementsList
+                .Where(a => (alreadyCached == null || !alreadyCached.Contains(a.Name))
+                         && !session.AlreadyToasted.Contains(a.Name))
+                .ToList()
+            : [];
+
+        foreach (var stage in stageResults)
+        {
+            foreach (var ach in candidates)
+            {
+                if (session.AlreadyToasted.Contains(ach.Name)) continue;
+                if (!IsSm3dwAchievementTriggered(ach.Description, stage)) continue;
+
+                newUnlocks.Add(ach.Name);
+                session.AlreadyToasted.Add(ach.Name);
+            }
+        }
+
+        return newUnlocks;
+    }
+
+    /// <summary>
+    /// Returns <see langword="true"/> when <paramref name="description"/> matches
+    /// any detectable SM3DW achievement pattern given the supplied stage result.
+    /// <list type="bullet">
+    ///   <item><c>"Complete World W-S"</c> — exact world + stage match.</item>
+    ///   <item><c>"Complete World N"</c> — any stage completion in numeric world N.</item>
+    ///   <item><c>"Complete World Name"</c> — any stage completion in the named world
+    ///         (Castle=7, Bowser=8, Star=9, Mushroom=10, Flower=11, Crown=12).</item>
+    ///   <item><c>"Collect 3 Green Stars"</c> — stage has all three green stars.</item>
+    ///   <item><c>"Reach top of flagpole"</c> — stage has flagpole top reached.</item>
+    /// </list>
+    /// </summary>
+    private static bool IsSm3dwAchievementTriggered(
+        string description,
+        SwitchLogReaderService.SwitchStageResult stage)
+    {
+        if (string.IsNullOrWhiteSpace(description)) return false;
+
+        // ── "Collect 3 Green Stars" ───────────────────────────────────────────
+        if (description.Equals("Collect 3 Green Stars", StringComparison.OrdinalIgnoreCase))
+            return stage.GreenStars.Count >= 3;
+
+        // ── "Reach top of flagpole" ───────────────────────────────────────────
+        if (description.Equals("Reach top of flagpole", StringComparison.OrdinalIgnoreCase))
+            return stage.ReachedFlagTop;
+
+        // ── "Complete World W-S" — specific world + stage ─────────────────────
+        var levelMatch = _sm3dwLevelRegex.Match(description);
+        if (levelMatch.Success)
+        {
+            return int.TryParse(levelMatch.Groups[1].Value, out int w) &&
+                   int.TryParse(levelMatch.Groups[2].Value, out int s) &&
+                   stage.WorldId == w && stage.StageId == s;
+        }
+
+        // ── "Complete World X" — whole-world trigger (any stage in that world) ─
+        var worldMatch = _sm3dwWorldRegex.Match(description);
+        if (worldMatch.Success)
+        {
+            string worldPart = worldMatch.Groups[1].Value.Trim();
+
+            // Numeric world (1–6)
+            if (int.TryParse(worldPart, out int worldNum))
+                return stage.WorldId == worldNum;
+
+            // Named world (Castle, Bowser, Star, Mushroom, Flower, Crown)
+            if (_sm3dwNamedWorlds.TryGetValue(worldPart, out int namedId))
+                return stage.WorldId == namedId;
+        }
+
+        return false;
     }
 }

@@ -387,23 +387,49 @@ public static class SwitchLogReaderService
         public int    Rank { get; init; }
     }
 
+    /// <summary>
+    /// Holds the key fields extracted from a Ryujinx <c>ServicePrepo ProcessPlayReport</c>
+    /// block whose <c>Room</c> value is <c>stage</c>.  Fired each time a stage report
+    /// is submitted — used for Super Mario 3D World &amp; Bowser's Fury achievement detection.
+    /// </summary>
+    public sealed class SwitchStageResult
+    {
+        /// <summary>Numeric world identifier (e.g. 1 = World 1, 7 = World Castle).</summary>
+        public int WorldId          { get; init; }
+        /// <summary>Numeric stage identifier within the world.</summary>
+        public int StageId          { get; init; }
+        /// <summary>Indices of green stars collected (0, 1, 2).  Three entries = all stars.</summary>
+        public IReadOnlyList<int> GreenStars { get; init; } = Array.Empty<int>();
+        /// <summary>Number of deaths during the stage run.</summary>
+        public int DeathCount       { get; init; }
+        /// <summary>
+        /// <see langword="true"/> when at least one character reached the top of the
+        /// flagpole (<c>flag_top_characters</c> array is non-empty in the log).
+        /// </summary>
+        public bool ReachedFlagTop  { get; init; }
+    }
+
     // Ryujinx timestamp prefix: "HH:MM:SS.mmm |L| ..."
     private static readonly Regex _tsPrefix =
         new(@"^\d{2}:\d{2}:\d{2}\.\d{3}\s*\|", RegexOptions.Compiled);
 
     /// <summary>
     /// Reads new content appended to <paramref name="logPath"/> since the last call.
-    /// Returns every <c>Room: match</c> play-report block as a <see cref="SwitchRaceResult"/>
-    /// and every <c>Room: gp_result</c> block as a <see cref="SwitchGpResult"/> via
-    /// <paramref name="gpResults"/>.
+    /// Returns every <c>Room: match</c> play-report block as a <see cref="SwitchRaceResult"/>,
+    /// every <c>Room: gp_result</c> block as a <see cref="SwitchGpResult"/> via
+    /// <paramref name="gpResults"/>, and every <c>Room: stage</c> block as a
+    /// <see cref="SwitchStageResult"/> via <paramref name="stageResults"/>.
     /// <paramref name="fileOffset"/> is updated to the current end-of-file position so
     /// subsequent calls only process newly appended lines.
     /// </summary>
     public static List<SwitchRaceResult> ReadRaceResultsFromNewContent(
-        string logPath, ref long fileOffset, out List<SwitchGpResult> gpResults)
+        string logPath, ref long fileOffset,
+        out List<SwitchGpResult>   gpResults,
+        out List<SwitchStageResult> stageResults)
     {
         var results = new List<SwitchRaceResult>();
-        gpResults   = new List<SwitchGpResult>();
+        gpResults    = new List<SwitchGpResult>();
+        stageResults = new List<SwitchStageResult>();
         if (string.IsNullOrEmpty(logPath) || !File.Exists(logPath)) return results;
 
         try
@@ -443,8 +469,9 @@ public static class SwitchLogReaderService
 
                 bool isMatch    = block.Any(l => l.Contains("Room: match",     StringComparison.OrdinalIgnoreCase));
                 bool isGpResult = block.Any(l => l.Contains("Room: gp_result", StringComparison.OrdinalIgnoreCase));
+                bool isStage    = block.Any(l => l.Contains("Room: stage",     StringComparison.OrdinalIgnoreCase));
 
-                if (!isMatch && !isGpResult) continue;
+                if (!isMatch && !isGpResult && !isStage) continue;
 
                 // Extract the JSON report block { ... }
                 // NOTE: In Ryujinx logs "Report:" appears in the middle of the
@@ -506,6 +533,15 @@ public static class SwitchLogReaderService
                             return p.GetInt32();
                         return 0;
                     }
+                    static List<int> IntArray(JsonElement r, string key)
+                    {
+                        var list = new List<int>();
+                        if (r.TryGetProperty(key, out var p) && p.ValueKind == JsonValueKind.Array)
+                            foreach (var el in p.EnumerateArray())
+                                if (el.ValueKind == JsonValueKind.Number)
+                                    list.Add(el.GetInt32());
+                        return list;
+                    }
 
                     if (isMatch)
                     {
@@ -520,12 +556,24 @@ public static class SwitchLogReaderService
                             Driver       = Str(root, "Driver"),
                         });
                     }
-                    else // isGpResult
+                    else if (isGpResult)
                     {
                         gpResults.Add(new SwitchGpResult
                         {
                             Cup  = Str(root, "Cup"),
                             Rank = Int(root, "Rank"),
+                        });
+                    }
+                    else // isStage — Super Mario 3D World & Bowser's Fury (and future games)
+                    {
+                        var flagTopChars = IntArray(root, "flag_top_characters");
+                        stageResults.Add(new SwitchStageResult
+                        {
+                            WorldId        = Int(root, "world_id"),
+                            StageId        = Int(root, "stage_id"),
+                            GreenStars     = IntArray(root, "green_stars"),
+                            DeathCount     = Int(root, "death_count"),
+                            ReachedFlagTop = flagTopChars.Count > 0,
                         });
                     }
                 }

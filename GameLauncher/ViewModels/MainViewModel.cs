@@ -1814,17 +1814,23 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             if (string.IsNullOrEmpty(game.AchievementsUrl))
                 game.AchievementsUrl = achievementsUrl;
 
-            // If the detail panel is still showing this game, trigger achievement loading.
+            // If the detail panel is still showing this game, fetch the full achievement
+            // template so the complete list is shown (not just previously cached unlocks).
+            // Pass unlocked achievements so their state is merged into the template.
             // Use StripSpecialSymbols so "Mario Kart™ 8 Deluxe" matches "Mario Kart 8 Deluxe".
             string url = achievementsUrl;
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
-                if (!DetailVm.HasAchievements &&
-                    string.Equals(
+                if (string.Equals(
                         Models.PlatformHelper.StripSpecialSymbols(DetailVm.Title),
                         strippedTitle,
                         StringComparison.OrdinalIgnoreCase))
-                    _ = DetailVm.FetchAndDisplayAchievementsAsync(url);
+                {
+                    var knownUnlocked = DetailVm.Achievements.Where(a => a.IsUnlocked).ToList();
+                    _ = DetailVm.FetchAndDisplayAchievementsAsync(
+                        url,
+                        knownUnlocked.Count > 0 ? knownUnlocked : null);
+                }
             });
         }
         catch { /* best-effort */ }

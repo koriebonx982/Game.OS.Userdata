@@ -1649,7 +1649,7 @@ class Program
 
             long fileOffset = 0;
             var results = SwitchLogReaderService.ReadRaceResultsFromNewContent(
-                logPath, ref fileOffset, out var gpResults);
+                logPath, ref fileOffset, out var gpResults, out _);
 
             // Verify the "ui" block is NOT returned as a match result
             if (results.Count == 0)
@@ -1711,7 +1711,7 @@ class Program
                 };
 
                 var unlocks2 = SwitchAchievementDetectorService.DetectNewUnlocks(
-                    "Mario Kart 8 Deluxe", results, gpResults, session2, null, achievements2, translations2);
+                    "Mario Kart 8 Deluxe", results, gpResults, [], session2, null, achievements2, translations2);
 
                 if (unlocks2.Contains("Test", StringComparer.OrdinalIgnoreCase))
                     Console.WriteLine("  ✅  End-to-end: \"Test\" achievement unlocked from parsed log");
@@ -1774,6 +1774,7 @@ class Program
                 gameTitle: "Mario Kart 8 Deluxe",
                 newResults: results,
                 newGpResults: [],
+                newStageResults: [],
                 session: session,
                 alreadyUnlockedNames: null,
                 achievementsList: achievements,
@@ -1796,6 +1797,7 @@ class Program
                 gameTitle: "Mario Kart™ 8 Deluxe",
                 newResults: results,
                 newGpResults: [],
+                newStageResults: [],
                 session: session2,
                 alreadyUnlockedNames: null,
                 achievementsList: achievements,
