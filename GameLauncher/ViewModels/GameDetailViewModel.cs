@@ -79,6 +79,18 @@ public partial class GameDetailViewModel : ViewModelBase
         OnPropertyChanged(nameof(TrailerEmbedUrl));
     }
 
+    partial void OnIsTrailerPlayerOpenChanged(bool value)
+    {
+        // When the overlay opens, notify bindings so the WebView reloads its URL.
+        // This prevents a stale/blank player when the same overlay is re-opened
+        // for a different game or after being closed and reopened.
+        if (value)
+        {
+            OnPropertyChanged(nameof(YoutubeVideoId));
+            OnPropertyChanged(nameof(TrailerEmbedUrl));
+        }
+    }
+
     partial void OnExophaseUrlChanged(string? value) =>
         HasExophaseUrl = !string.IsNullOrWhiteSpace(value);
 
@@ -1031,6 +1043,25 @@ public partial class GameDetailViewModel : ViewModelBase
     /// <summary>Dismisses the in-app trailer player overlay.</summary>
     [RelayCommand]
     private void CloseTrailerPlayer() => IsTrailerPlayerOpen = false;
+
+    /// <summary>
+    /// Opens the trailer URL directly in the system's default browser.
+    /// Useful as a fallback when the in-app WebView cannot play the video.
+    /// </summary>
+    [RelayCommand]
+    private void OpenTrailerInBrowser()
+    {
+        if (string.IsNullOrEmpty(TrailerUrl)) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName        = TrailerUrl,
+                UseShellExecute = true,
+            });
+        }
+        catch { /* best-effort */ }
+    }
 
     /// <summary>Opens the Steam install page for this game via the Steam protocol URI.</summary>
     [RelayCommand]
