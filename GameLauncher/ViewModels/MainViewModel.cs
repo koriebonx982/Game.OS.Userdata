@@ -1611,6 +1611,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         DetailVm.LoadFromLocalRom(rom);
         ShowDetail = true;
 
+        // Pre-populate the user's already-unlocked achievements from the in-memory list so
+        // that FetchAndDisplayAchievementsAsync (called during enrichment) can merge their
+        // unlock state into the full achievement template fetched from the Games.Database.
+        // Without this, Achievements is empty at enrichment time and all achievements appear
+        // locked even though the user has earned some (stored in cloud and _achievements).
+        var unlockedAchievements = _achievements
+            .Where(a => string.Equals(a.Platform,   rom.Platform, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(a.GameTitle,  rom.Title,    StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (unlockedAchievements.Count > 0)
+            DetailVm.PopulateAchievements(unlockedAchievements);
+
         // Asynchronously enrich with cover art / description / screenshots / achievements
         // from the platform-specific Games.Database (PS3, Switch, Xbox 360, etc.)
         // Pass TitleID for precise matching of PS3/PS4/Switch folder-named ROMs.
