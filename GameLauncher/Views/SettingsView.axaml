@@ -77,6 +77,17 @@
                 </Button>
 
                 <Button Classes="settings-nav-item"
+                        Classes.active="{Binding IsCustomiseSection}"
+                        HorizontalAlignment="Stretch"
+                        Command="{Binding SelectSectionCommand}"
+                        CommandParameter="customise">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="🎨" FontSize="16" VerticalAlignment="Center"/>
+                        <TextBlock Text="Customise" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Classes="settings-nav-item"
                         Classes.active="{Binding IsSystemSection}"
                         HorizontalAlignment="Stretch"
                         Command="{Binding SelectSectionCommand}"
@@ -647,36 +658,129 @@
                             <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#8b949e">
                                 Link your Exophase account to automatically track achievements across Steam, Xbox,
                                 Epic, PlayStation, and more. Game.OS will scrape your Exophase profile on game launch
-                                and refresh every 2 minutes to pick up newly unlocked achievements.
+                                and refresh every 1 minute to pick up newly unlocked achievements.
                                 Credentials are stored locally only and are never uploaded to the cloud.
                             </TextBlock>
-                            <Grid ColumnDefinitions="*,*" HorizontalAlignment="Stretch">
-                                <StackPanel Grid.Column="0" Spacing="6" Margin="0,0,8,0">
-                                    <TextBlock Text="Exophase Username"
-                                               FontSize="12" Foreground="#8b949e"/>
-                                    <TextBox Classes="form-input"
-                                             Text="{Binding ExophaseUsername}"
-                                             Watermark="Your Exophase username…"
-                                             FontSize="12"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Spacing="6" Margin="8,0,0,0">
-                                    <TextBlock Text="Exophase Password"
-                                               FontSize="12" Foreground="#8b949e"/>
-                                    <TextBox Classes="form-input"
-                                             Text="{Binding ExophasePassword}"
-                                             Watermark="Your Exophase password…"
-                                             PasswordChar="•"
-                                             FontSize="12"/>
-                                </StackPanel>
-                            </Grid>
-                            <TextBlock Text="Stored locally only — never sent to Game.OS servers."
-                                       FontSize="10" Foreground="#484f58"/>
-                            <Button Classes="btn-primary"
-                                    Content="💾  Save Settings"
+                             <Grid ColumnDefinitions="*,*" HorizontalAlignment="Stretch">
+                                 <StackPanel Grid.Column="0" Spacing="6" Margin="0,0,8,0">
+                                     <TextBlock Text="Exophase Profile ID"
+                                                FontSize="12" Foreground="#8b949e"/>
+                                     <TextBox Classes="form-input"
+                                              Text="{Binding ExophaseProfileId}"
+                                              Watermark="#2896888"
+                                              FontSize="12"/>
+                                     <TextBlock Text="Use the unique #ID shown in an Exophase game URL so Game.OS can target your per-user achievement view (for example: #2896888)."
+                                                FontSize="10" Foreground="#484f58"
+                                                TextWrapping="Wrap"/>
+                                 </StackPanel>
+                                 <StackPanel Grid.Column="1" Spacing="6" Margin="8,0,0,0">
+                                     <TextBlock Text="Exophase Username"
+                                                FontSize="12" Foreground="#8b949e"/>
+                                     <TextBox Classes="form-input"
+                                              Text="{Binding ExophaseUsername}"
+                                              Watermark="Your Exophase username…"
+                                              FontSize="12"/>
+                                 </StackPanel>
+                             </Grid>
+                             <Grid ColumnDefinitions="*,*" HorizontalAlignment="Stretch">
+                                 <StackPanel Grid.Column="0" Spacing="6" Margin="0,0,8,0">
+                                     <TextBlock Text="Exophase Password"
+                                                FontSize="12" Foreground="#8b949e"/>
+                                     <TextBox Classes="form-input"
+                                              Text="{Binding ExophasePassword}"
+                                              Watermark="Your Exophase password…"
+                                              PasswordChar="•"
+                                              FontSize="12"/>
+                                 </StackPanel>
+                                 <StackPanel Grid.Column="1" Spacing="6" Margin="8,0,0,0">
+                                     <TextBlock Text="Polling Behaviour"
+                                                FontSize="12" Foreground="#8b949e"/>
+                                     <TextBlock Text="When a game has an Exophase URL, Game.OS checks for new unlocks every 1 minute during the active session."
+                                                FontSize="12" Foreground="#e6edf3"
+                                                TextWrapping="Wrap"/>
+                                 </StackPanel>
+                             </Grid>
+                             <TextBlock Text="Stored locally only — never sent to Game.OS servers."
+                                        FontSize="10" Foreground="#484f58"/>
+                             <Button Classes="btn-primary"
+                                     Content="💾  Save Settings"
                                     Command="{Binding SaveCommand}"
                                     Width="180" HorizontalAlignment="Left"/>
                         </StackPanel>
                     </Border>
+
+                </StackPanel>
+
+                <!-- ── Customise ── -->
+                <StackPanel IsVisible="{Binding IsCustomiseSection}" Spacing="0">
+
+                    <TextBlock Text="Customise" Classes="page-title" Margin="0,0,0,4"/>
+                    <TextBlock Text="Adjust launcher interaction and compatibility behaviour."
+                               Classes="page-subtitle" Margin="0,0,0,24"/>
+
+                    <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,24">
+                        <StackPanel Spacing="16">
+
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Enable global quick menu hotkey"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Windows only. Polls Left Ctrl + Left Shift globally so the quick menu can be opened while a game window is focused."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding EnableGlobalQuickMenuHotkey}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Compatibility overlay mode"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Shows the quick menu as a temporary top-most full-screen fallback, then minimizes back after dismissal. Useful for problematic fullscreen games."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding CompatibilityOverlayMode}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Prefer cached metadata for local games"
+                                               FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="Uses cached covers, game info, and achievements first for installed games so pages stay responsive and continue to work offline."
+                                               FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding PreferOfflineCachedMetadata}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,24">
+                        <Button Classes="btn-primary"
+                                Content="💾  Save Settings"
+                                Command="{Binding SaveCommand}"
+                                Width="180"/>
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   Foreground="#3fb950"
+                                   FontSize="13"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding IsSaveSuccess}"/>
+                    </StackPanel>
 
                 </StackPanel>
 

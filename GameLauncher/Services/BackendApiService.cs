@@ -773,6 +773,38 @@ namespace GameLauncher.Services
             catch (Exception ex) { return ex.Message; }
         }
 
+        public async Task<List<GameInvite>> GetInvitesAsync(CancellationToken ct = default)
+        {
+            EnsureAuthenticated();
+            using var resp = await _http.GetAsync("/api/get-invites", ct);
+            resp.EnsureSuccessStatusCode();
+            var data = await resp.Content.ReadFromJsonAsync<InvitesResponse>(_jsonOpts, ct);
+            return data?.Invites ?? new();
+        }
+
+        public async Task RespondInviteAsync(string inviteId, string response, CancellationToken ct = default)
+        {
+            EnsureAuthenticated();
+            using var resp = await _http.PostAsJsonAsync("/api/respond-invite", new { inviteId, response }, ct);
+            resp.EnsureSuccessStatusCode();
+        }
+
+        public async Task<int> SyncExophaseAchievementsAsync(
+            string exophaseUrl,
+            string platform,
+            string gameTitle,
+            string? titleId,
+            string? exophaseProfileId,
+            CancellationToken ct = default)
+        {
+            EnsureAuthenticated();
+            using var resp = await _http.PostAsJsonAsync("/api/me/achievements/sync-exophase",
+                new { exophaseUrl, platform, gameTitle, titleId, exophaseProfileId }, ct);
+            if (!resp.IsSuccessStatusCode) return 0;
+            var data = await resp.Content.ReadFromJsonAsync<ExophaseSyncResponse>(_jsonOpts, ct);
+            return (data?.Added ?? 0) + (data?.Updated ?? 0);
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────────
 
         private void EnsureAuthenticated()
@@ -815,6 +847,19 @@ namespace GameLauncher.Services
         {
             [JsonPropertyName("success")] public bool       Success { get; set; }
             [JsonPropertyName("games")]   public List<Game>? Games  { get; set; }
+        }
+
+        private sealed class InvitesResponse
+        {
+            [JsonPropertyName("success")] public bool Success { get; set; }
+            [JsonPropertyName("invites")] public List<GameInvite>? Invites { get; set; }
+        }
+
+        private sealed class ExophaseSyncResponse
+        {
+            [JsonPropertyName("success")] public bool Success { get; set; }
+            [JsonPropertyName("added")] public int Added { get; set; }
+            [JsonPropertyName("updated")] public int Updated { get; set; }
         }
 
         private sealed class AchievementsResponse

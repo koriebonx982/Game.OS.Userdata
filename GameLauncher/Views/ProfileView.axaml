@@ -76,7 +76,7 @@
                     <StackPanel Grid.Column="2" VerticalAlignment="Center"
                                 HorizontalAlignment="Right" Spacing="12">
                         <!-- Games stat -->
-                        <Border Background="#ffffff18" CornerRadius="10" Padding="20,12">
+                        <Border Background="#1c2430" CornerRadius="10" Padding="20,12">
                             <StackPanel HorizontalAlignment="Center" Spacing="2">
                                 <TextBlock Text="{Binding TotalOwned}"
                                            FontSize="28" FontWeight="Black"
@@ -88,7 +88,7 @@
                             </StackPanel>
                         </Border>
                         <!-- Achievements stat -->
-                        <Border Background="#ffffff18" CornerRadius="10" Padding="20,12">
+                        <Border Background="#1c2430" CornerRadius="10" Padding="20,12">
                             <StackPanel HorizontalAlignment="Center" Spacing="2">
                                 <TextBlock Text="{Binding AchievementsCount}"
                                            FontSize="28" FontWeight="Black"
@@ -187,8 +187,8 @@
                         <DataTemplate x:DataType="models:Achievement">
                             <Border Classes="achievement-card">
                                 <Grid ColumnDefinitions="44,*">
-                                    <Border Grid.Column="0" Width="36" Height="36"
-                                            CornerRadius="8" Background="#2d2000">
+                                        <Border Grid.Column="0" Width="36" Height="36"
+                                                CornerRadius="8" Background="#1c2430">
                                         <TextBlock Text="🏆" FontSize="18"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"/>

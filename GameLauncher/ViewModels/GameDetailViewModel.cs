@@ -48,6 +48,8 @@ public partial class GameDetailViewModel : ViewModelBase
     [ObservableProperty] private string? _trailerUrl;
     [ObservableProperty] private bool    _hasTrailer;
     [ObservableProperty] private string  _trailerLabel = "▶  Watch Trailer";
+    [ObservableProperty] private string? _exophaseUrl;
+    [ObservableProperty] private bool    _hasExophaseUrl;
 
     /// <summary>
     /// True when the in-app trailer player overlay is visible.
@@ -76,6 +78,9 @@ public partial class GameDetailViewModel : ViewModelBase
         OnPropertyChanged(nameof(YoutubeVideoId));
         OnPropertyChanged(nameof(TrailerEmbedUrl));
     }
+
+    partial void OnExophaseUrlChanged(string? value) =>
+        HasExophaseUrl = !string.IsNullOrWhiteSpace(value);
 
     /// <summary>
     /// Extracts the YouTube video ID from <c>youtube.com/watch?v=</c>, <c>youtu.be/</c>,
@@ -155,6 +160,7 @@ public partial class GameDetailViewModel : ViewModelBase
     /// <see cref="OpenSwitchModsFolder"/> when the scanned ROM does not carry a TitleID.
     /// </summary>
     private string? _databaseTitleId;
+    public string? CurrentTitleId => _currentLocalRom?.TitleId ?? _databaseTitleId;
 
     // ── Install / launch state ────────────────────────────────────────────────
     /// <summary>True when the game is found installed on a local drive.</summary>
@@ -2185,6 +2191,7 @@ public partial class GameDetailViewModel : ViewModelBase
         PopulateStoreUrl(null, game.Platform, null);
 
         PopulateTrailer(game.TrailerUrl);
+        ExophaseUrl = game.ExophaseUrl;
         PopulateScreenshots(game.Screenshots);
         PopulateAchievements(game.GameAchievements);
         IsLocalGame = false;
@@ -2242,6 +2249,7 @@ public partial class GameDetailViewModel : ViewModelBase
         PopulateStoreUrl(game.StorePageUrl, game.Platform, null);
 
         PopulateTrailer(game.TrailerUrl);
+        ExophaseUrl = null;
         PopulateScreenshots(game.Screenshots);
         PopulateAchievements(null);
         IsLocalGame       = false;
@@ -2302,6 +2310,7 @@ public partial class GameDetailViewModel : ViewModelBase
         PopulateStoreUrl(null, "PC", null);
 
         PopulateTrailer(null);
+        ExophaseUrl = null;
         Screenshots.Clear();
         HasScreenshots = false;
         PopulateAchievements(null);
@@ -2374,6 +2383,7 @@ public partial class GameDetailViewModel : ViewModelBase
         Description = $"Repack archive ready to install  ·  {repack.SizeLabel}";
 
         PopulateTrailer(null);
+        ExophaseUrl = null;
         Screenshots.Clear();
         HasScreenshots = false;
         PopulateAchievements(null);
@@ -2432,6 +2442,7 @@ public partial class GameDetailViewModel : ViewModelBase
         Description = $"ROM file  ·  {rom.SizeLabel}";
 
         PopulateTrailer(null);
+        ExophaseUrl = null;
         Screenshots.Clear();
         HasScreenshots = false;
         PopulateAchievements(null);
@@ -2614,6 +2625,7 @@ public partial class GameDetailViewModel : ViewModelBase
             PopulateStoreUrl(dbGame.StorePageUrl, Platform, dbGame.TitleId ?? (dbGame.AppId.HasValue ? dbGame.AppId.Value.ToString() : null));
 
         PopulateTrailer(dbGame.TrailerUrl);
+        ExophaseUrl = dbGame.ExophaseUrl;
         PopulateScreenshots(dbGame.Screenshots);
 
         // Always fetch the full achievement template from AchievementsUrl so the detail
@@ -2679,49 +2691,56 @@ public partial class GameDetailViewModel : ViewModelBase
             string? titleId = _currentLocalRom?.TitleId ?? _databaseTitleId;
             string? cachedPath = CacheService?.GetCachedAchievementsPath(Platform, titleId, Title);
 
-            // Always try the network first so newly added achievements appear immediately.
-            // Fall back to the locally-cached file only when the network is unavailable,
-            // so the detail view still works offline.
-            try
+            bool preferCachedFirst = AppSettingsService.Load().PreferOfflineCachedMetadata
+                && (IsInstalled || IsRom || IsLocalGame);
+            if (preferCachedFirst &&
+                !string.IsNullOrEmpty(cachedPath) &&
+                System.IO.File.Exists(cachedPath))
             {
-                using var http = new System.Net.Http.HttpClient();
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("GameOS-Launcher/2.0");
-                json = await http.GetStringAsync(url).ConfigureAwait(false);
-
-                // Persist the fresh data so subsequent offline sessions use the latest list.
-                if (!string.IsNullOrWhiteSpace(json) && CacheService != null)
-                {
-                    try
-                    {
-                        string? writePath = CacheService.GetAchievementsCachePath(Platform, titleId, Title);
-                        if (!string.IsNullOrEmpty(writePath))
-                        {
-                            var dir = System.IO.Path.GetDirectoryName(writePath);
-                            if (!string.IsNullOrEmpty(dir))
-                                System.IO.Directory.CreateDirectory(dir);
-                            await System.IO.File.WriteAllTextAsync(writePath, json)
-                                .ConfigureAwait(false);
-                            DevLogService.Log($"[AchievementsCache] Updated cache: {writePath}");
-                        }
-                    }
-                    catch { /* best-effort — cache write failure must not block display */ }
-                }
+                DevLogService.Log($"[AchievementsCache] Preferred cached file: {cachedPath}");
+                json = await System.IO.File.ReadAllTextAsync(cachedPath).ConfigureAwait(false);
             }
-            catch (Exception ex) when (ex is System.Net.Http.HttpRequestException ||
-                                       ex is System.Threading.Tasks.TaskCanceledException ||
-                                       ex is System.IO.IOException)
+            else
             {
-                // Network unavailable — fall back to the locally-cached file.
-                DevLogService.Log($"[AchievementsCache] Network fetch failed ({ex.GetType().Name}): {ex.Message}");
-                if (!string.IsNullOrEmpty(cachedPath) && System.IO.File.Exists(cachedPath))
+                try
                 {
-                    DevLogService.Log($"[AchievementsCache] Offline fallback: {cachedPath}");
-                    json = await System.IO.File.ReadAllTextAsync(cachedPath).ConfigureAwait(false);
+                    using var http = new System.Net.Http.HttpClient();
+                    http.DefaultRequestHeaders.UserAgent.ParseAdd("GameOS-Launcher/2.0");
+                    json = await http.GetStringAsync(url).ConfigureAwait(false);
+
+                    if (!string.IsNullOrWhiteSpace(json) && CacheService != null)
+                    {
+                        try
+                        {
+                            string? writePath = CacheService.GetAchievementsCachePath(Platform, titleId, Title);
+                            if (!string.IsNullOrEmpty(writePath))
+                            {
+                                var dir = System.IO.Path.GetDirectoryName(writePath);
+                                if (!string.IsNullOrEmpty(dir))
+                                    System.IO.Directory.CreateDirectory(dir);
+                                await System.IO.File.WriteAllTextAsync(writePath, json)
+                                    .ConfigureAwait(false);
+                                DevLogService.Log($"[AchievementsCache] Updated cache: {writePath}");
+                            }
+                        }
+                        catch { }
+                    }
                 }
-                else
+                catch (Exception ex) when (ex is System.Net.Http.HttpRequestException ||
+                                           ex is System.Threading.Tasks.TaskCanceledException ||
+                                           ex is System.IO.IOException)
                 {
-                    DevLogService.Log($"[AchievementsCache] No cache available for {Platform}/{titleId ?? Title}");
-                    return;
+                    DevLogService.Log($"[AchievementsCache] Network fetch failed ({ex.GetType().Name}): {ex.Message}");
+                    if (!string.IsNullOrEmpty(cachedPath) && System.IO.File.Exists(cachedPath))
+                    {
+                        DevLogService.Log($"[AchievementsCache] Offline fallback: {cachedPath}");
+                        json = await System.IO.File.ReadAllTextAsync(cachedPath).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        DevLogService.Log($"[AchievementsCache] No cache available for {Platform}/{titleId ?? Title}");
+                        return;
+                    }
                 }
             }
 
@@ -2995,9 +3014,10 @@ public partial class GameDetailViewModel : ViewModelBase
             foreach (var a in sorted) Achievements.Add(a);
         }
         HasAchievements   = Achievements.Count > 0;
-        ShowAllAchievements = true;
+        int unlockedCount = Achievements.Count(a => a.IsUnlocked);
+        ShowAllAchievements = false;
         AchievementsLabel = HasAchievements
-            ? $"🏆  Achievements  ({Achievements.Count})"
+            ? $"🏆  Achievements  ({unlockedCount} / {Achievements.Count})"
             : "🏆  Achievements";
         RefreshVisibleAchievements();
     }
@@ -3010,7 +3030,7 @@ public partial class GameDetailViewModel : ViewModelBase
             : Achievements.Take(AchievementsPreviewCount);
         foreach (var a in source)
             VisibleAchievements.Add(a);
-        HasMoreAchievements = !ShowAllAchievements && Achievements.Count > AchievementsPreviewCount;
+        HasMoreAchievements = Achievements.Count > AchievementsPreviewCount;
     }
 
     private void PopulateRegions(List<string>? regions)

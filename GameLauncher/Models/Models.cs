@@ -38,6 +38,7 @@ namespace GameLauncher.Models
         [JsonPropertyName("sysSpecRecommended")] public SystemSpec?   SysSpecRecommended { get; set; }
         [JsonPropertyName("achievementsUrl")]    public string?       AchievementsUrl    { get; set; }
         [JsonPropertyName("trailerUrl")]         public string?       TrailerUrl         { get; set; }
+        [JsonPropertyName("exophaseUrl")]        public string?       ExophaseUrl        { get; set; }
         /// <summary>Steam App ID for games sourced from the Steam API (0 or null = not a Steam game).</summary>
         [JsonPropertyName("steamAppId")]         public long?         SteamAppId         { get; set; }
         // UI-only (not persisted) – enriched from demo data
@@ -140,6 +141,16 @@ namespace GameLauncher.Models
         [JsonPropertyName("from")]   public string From   { get; set; } = "";
         [JsonPropertyName("text")]   public string Text   { get; set; } = "";
         [JsonPropertyName("sentAt")] public string SentAt { get; set; } = "";
+    }
+
+    public class GameInvite
+    {
+        [JsonPropertyName("inviteId")]    public string  InviteId    { get; set; } = "";
+        [JsonPropertyName("from")]        public string  From        { get; set; } = "";
+        [JsonPropertyName("gameName")]    public string  GameName    { get; set; } = "";
+        [JsonPropertyName("sentAt")]      public string  SentAt      { get; set; } = "";
+        [JsonPropertyName("status")]      public string  Status      { get; set; } = "";
+        [JsonPropertyName("respondedAt")] public string? RespondedAt { get; set; }
     }
 
     public class ActivityEntry
@@ -456,6 +467,12 @@ namespace GameLauncher.Models
         [JsonPropertyName("steamUserId")] public string SteamUserId { get; set; } = "";
 
         /// <summary>
+        /// Exophase profile identifier including the leading '#', e.g. "#2896888".
+        /// Stored locally only and used to resolve per-user Exophase achievement pages.
+        /// </summary>
+        [JsonPropertyName("exophaseProfileId")] public string ExophaseProfileId { get; set; } = "";
+
+        /// <summary>
         /// Exophase username for achievement scraping.
         /// Stored locally only, never synced.
         /// </summary>
@@ -486,6 +503,24 @@ namespace GameLauncher.Models
         /// log detection and read status while Switch achievement polling is running.
         /// </summary>
         [JsonPropertyName("notifyRyujinxLogStatus")] public bool NotifyRyujinxLogStatus { get; set; } = false;
+
+        /// <summary>
+        /// Enables a Windows global Left Ctrl + Left Shift poller so the quick menu
+        /// can be opened while another game window is focused.
+        /// </summary>
+        [JsonPropertyName("enableGlobalQuickMenuHotkey")] public bool EnableGlobalQuickMenuHotkey { get; set; } = false;
+
+        /// <summary>
+        /// When enabled, the launcher temporarily raises its quick-menu window as a
+        /// top-most full-screen overlay and then minimizes back after dismissal.
+        /// </summary>
+        [JsonPropertyName("compatibilityOverlayMode")] public bool CompatibilityOverlayMode { get; set; } = false;
+
+        /// <summary>
+        /// When enabled, locally cached metadata is preferred for installed games so
+        /// detail pages stay responsive and available offline.
+        /// </summary>
+        [JsonPropertyName("preferOfflineCachedMetadata")] public bool PreferOfflineCachedMetadata { get; set; } = true;
 
         // ── Placeholder future feature ───────────────────────────────────────
 
@@ -648,6 +683,8 @@ namespace GameLauncher.Models
         public string?       TrailerUrl      { get; set; }
         /// <summary>Link to the achievements JSON file in Games.Database.</summary>
         public string?       AchievementsUrl { get; set; }
+        /// <summary>Optional Exophase achievements/trophies page URL for the game.</summary>
+        public string?       ExophaseUrl    { get; set; }
         /// <summary>Background/screenshot image URLs (from background_images array).</summary>
         public List<string>? Screenshots     { get; set; }
         /// <summary>Direct store page URL (e.g. Steam store page, Nintendo eShop, PlayStation Store).</summary>

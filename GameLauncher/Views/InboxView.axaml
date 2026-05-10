@@ -1,0 +1,186 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GameLauncher.ViewModels"
+             xmlns:models="using:GameLauncher.Models"
+             x:Class="GameLauncher.Views.InboxView"
+             x:DataType="vm:InboxViewModel"
+             Background="#0d1117">
+
+    <Grid RowDefinitions="*,Auto">
+
+        <ScrollViewer Grid.Row="0"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="32,28,32,28" Spacing="0">
+
+                <TextBlock Text="Inbox" Classes="page-title"/>
+                <TextBlock Text="Messages and game invites only."
+                           Classes="page-subtitle" Margin="0,0,0,20"/>
+
+                <TextBlock Text="Loading inbox…"
+                           Foreground="#8b949e" FontSize="13" Margin="0,0,0,16"
+                           IsVisible="{Binding IsLoading}"/>
+
+                <Border Background="#3d1a1a" CornerRadius="6" Padding="14,10"
+                        Margin="0,0,0,16"
+                        IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Text="{Binding ErrorMessage}"
+                               Foreground="#f85149" FontSize="13"/>
+                </Border>
+
+                <StackPanel IsVisible="{Binding HasPendingInvites}" Margin="0,0,0,24">
+                    <TextBlock Text="Game Invites" Classes="section-header" Margin="0,0,0,8"/>
+                    <ItemsControl ItemsSource="{Binding PendingInvites}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:GameInvite">
+                                <Border Background="#161b22" CornerRadius="10" Padding="16,12" Margin="0,0,0,8">
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="4">
+                                            <TextBlock Text="{Binding GameName}"
+                                                       FontSize="14" FontWeight="Bold" Foreground="White"/>
+                                            <TextBlock FontSize="12" Foreground="#8b949e">
+                                                <Run Text="Invite from "/>
+                                                <Run Text="{Binding From}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Classes="btn-success"
+                                                Padding="12,7" Margin="0,0,8,0"
+                                                Command="{Binding $parent[UserControl].DataContext.AcceptInviteCommand}"
+                                                CommandParameter="{Binding}">
+                                            ✓ Accept
+                                        </Button>
+                                        <Button Grid.Column="2" Classes="btn-secondary"
+                                                Padding="12,7"
+                                                Command="{Binding $parent[UserControl].DataContext.DeclineInviteCommand}"
+                                                CommandParameter="{Binding}">
+                                            ✕ Decline
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <StackPanel IsVisible="{Binding HasConversations}">
+                    <TextBlock Text="Messages" Classes="section-header" Margin="0,0,0,8"/>
+                    <ItemsControl ItemsSource="{Binding Conversations}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:InboxConversationVm">
+                                <Border Background="#161b22" CornerRadius="10" Padding="16,12" Margin="0,0,0,8">
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                        <Button Grid.Column="0"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                HorizontalAlignment="Stretch"
+                                                HorizontalContentAlignment="Left"
+                                                Command="{Binding $parent[UserControl].DataContext.OpenConversationCommand}"
+                                                CommandParameter="{Binding FriendUsername}">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock Text="{Binding FriendUsername}"
+                                                           FontSize="14" FontWeight="Bold" Foreground="White"/>
+                                                <TextBlock Text="{Binding LastMessage}"
+                                                           FontSize="12" Foreground="#8b949e"
+                                                           MaxLines="2" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="1" Classes="btn-secondary"
+                                                Padding="10,7" Margin="8,0,8,0"
+                                                Command="{Binding $parent[UserControl].DataContext.ViewFriendProfileCommand}"
+                                                CommandParameter="{Binding FriendUsername}">
+                                            👤 Profile
+                                        </Button>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding LastMessageAt}"
+                                                   FontSize="11" Foreground="#484f58"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <TextBlock Text="No messages or invites yet."
+                           Foreground="#8b949e" FontSize="13" HorizontalAlignment="Center"
+                           Margin="0,32,0,0"
+                           IsVisible="{Binding HasEmptyInbox}"/>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="1"
+                Background="#161b22"
+                BorderBrush="#30363d"
+                BorderThickness="0,1,0,0"
+                IsVisible="{Binding ShowConversation}">
+            <Grid RowDefinitions="Auto,*,Auto" MaxHeight="340">
+
+                <Border Grid.Row="0" Padding="16,10" Background="#1c2128">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8"
+                                    VerticalAlignment="Center">
+                            <TextBlock Text="💬" FontSize="16"/>
+                            <TextBlock Text="{Binding ConversationFriend}"
+                                       FontSize="14" FontWeight="Bold" Foreground="White"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Classes="btn-secondary" Padding="10,6"
+                                Command="{Binding CloseConversationCommand}">
+                            ✕
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <ScrollViewer Grid.Row="1"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto"
+                              Padding="16,8">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="{Binding MessageError}"
+                                   Foreground="#f85149" FontSize="12"
+                                   IsVisible="{Binding MessageError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                        <ItemsControl ItemsSource="{Binding ConversationMessages}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:Message">
+                                    <Border CornerRadius="10" Padding="10,7" Margin="0,2">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="{Binding From}"
+                                                       FontSize="11" FontWeight="Bold"
+                                                       Foreground="#1f6feb"/>
+                                            <TextBlock Text="{Binding Text}"
+                                                       FontSize="13" Foreground="#c9d1d9"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Border Grid.Row="2" Padding="12,10" Background="#1c2128">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding NewMessageText}"
+                                 Watermark="Type a message…"
+                                 Background="#21262d"
+                                 Foreground="White"
+                                 BorderBrush="#30363d"
+                                 CornerRadius="8"
+                                 Padding="10,8"
+                                 Margin="0,0,8,0"/>
+                        <Button Grid.Column="1"
+                                Classes="btn-primary"
+                                Padding="16,8"
+                                IsEnabled="{Binding !IsSendingMessage}"
+                                Command="{Binding SendMessageCommand}">
+                            Send ➤
+                        </Button>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+    </Grid>
+</UserControl>

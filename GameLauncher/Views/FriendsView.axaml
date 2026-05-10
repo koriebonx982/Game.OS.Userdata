@@ -47,7 +47,7 @@
         </Border>
 
         <!-- ── Recent Activity Feed ── -->
-        <StackPanel IsVisible="{Binding HasRecentActivity}" Margin="0,0,0,24">
+        <StackPanel IsVisible="False" Margin="0,0,0,24">
             <TextBlock Text="Recent Activity" Classes="section-header" Margin="0,0,0,10"/>
             <Border Background="#161b22" CornerRadius="12" Padding="4">
                 <ItemsControl ItemsSource="{Binding RecentActivity}">
@@ -108,7 +108,7 @@
         </StackPanel>
 
         <!-- Pending Requests -->
-        <StackPanel IsVisible="{Binding PendingRequests.Count}" Margin="0,0,0,24">
+        <StackPanel IsVisible="False" Margin="0,0,0,24">
             <TextBlock Text="Friend Requests" Classes="section-header"/>
             <ItemsControl ItemsSource="{Binding PendingRequests}">
                 <ItemsControl.ItemTemplate>
@@ -461,4 +461,3 @@
 
     </Grid>
 </UserControl>
-

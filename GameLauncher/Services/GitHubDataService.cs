@@ -1583,6 +1583,13 @@ namespace GameLauncher.Services
                     null;
                 if (string.IsNullOrWhiteSpace(achievementsUrl)) achievementsUrl = null;
 
+                string? exophaseUrl =
+                    item.TryGetProperty("exophaseUrl",  out var ex1) && ex1.ValueKind == JsonValueKind.String ? ex1.GetString() :
+                    item.TryGetProperty("exophase_url", out var ex2) && ex2.ValueKind == JsonValueKind.String ? ex2.GetString() :
+                    item.TryGetProperty("ExophaseUrl",  out var ex3) && ex3.ValueKind == JsonValueKind.String ? ex3.GetString() :
+                    null;
+                if (string.IsNullOrWhiteSpace(exophaseUrl)) exophaseUrl = null;
+
                 // Store page URL — explicit field or construct from appid
                 string? storePageUrl =
                     item.TryGetProperty("storeUrl",   out var su1) && su1.ValueKind == JsonValueKind.String ? su1.GetString() :
@@ -1695,6 +1702,7 @@ namespace GameLauncher.Services
                     Description     = description,
                     TrailerUrl      = trailerUrl,
                     AchievementsUrl = achievementsUrl,
+                    ExophaseUrl     = exophaseUrl,
                     Screenshots     = screenshots,
                     StorePageUrl    = storePageUrl,
                     Genre           = genre,

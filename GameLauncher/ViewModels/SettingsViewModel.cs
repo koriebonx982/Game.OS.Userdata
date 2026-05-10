@@ -92,6 +92,14 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private string _exophaseUsername = "";
     /// <summary>Exophase password — local only.</summary>
     [ObservableProperty] private string _exophasePassword = "";
+    /// <summary>Exophase profile anchor/id (e.g. #2896888) used for per-user achievement pages.</summary>
+    [ObservableProperty] private string _exophaseProfileId = "";
+    /// <summary>Enable a system-wide quick-menu hotkey on Windows.</summary>
+    [ObservableProperty] private bool _enableGlobalQuickMenuHotkey = false;
+    /// <summary>Use a top-most quick-menu fallback for problematic fullscreen games.</summary>
+    [ObservableProperty] private bool _compatibilityOverlayMode = false;
+    /// <summary>Prefer cached local metadata first for installed games and offline sessions.</summary>
+    [ObservableProperty] private bool _preferOfflineCachedMetadata = true;
 
     /// <summary>
     /// Wired by MainViewModel: invoked when "Import Steam Library" is clicked.
@@ -180,6 +188,7 @@ public partial class SettingsViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(IsPlaytimeSection))]
     [NotifyPropertyChangedFor(nameof(IsSyncSection))]
     [NotifyPropertyChangedFor(nameof(IsAccountSection))]
+    [NotifyPropertyChangedFor(nameof(IsCustomiseSection))]
     [NotifyPropertyChangedFor(nameof(IsSystemSection))]
     [NotifyPropertyChangedFor(nameof(IsNotificationsSection))]
     [NotifyPropertyChangedFor(nameof(IsDeveloperSection))]
@@ -190,6 +199,7 @@ public partial class SettingsViewModel : ViewModelBase
     public bool IsPlaytimeSection      => SelectedSection == "playtime";
     public bool IsSyncSection          => SelectedSection == "sync";
     public bool IsAccountSection       => SelectedSection == "account";
+    public bool IsCustomiseSection     => SelectedSection == "customise";
     public bool IsSystemSection        => SelectedSection == "system";
     public bool IsNotificationsSection => SelectedSection == "notifications";
     public bool IsDeveloperSection     => SelectedSection == "developer";
@@ -298,11 +308,15 @@ public partial class SettingsViewModel : ViewModelBase
         BroadcastUserOnline    = appSettings.BroadcastUserOnline;
         SteamApiKey            = appSettings.SteamApiKey;
         SteamUserId            = appSettings.SteamUserId;
+        ExophaseProfileId      = appSettings.ExophaseProfileId;
         ExophaseUsername       = appSettings.ExophaseUsername;
         ExophasePassword       = appSettings.ExophasePassword;
         EnableSteamSync        = appSettings.EnableSteamSync;
         EnableAchievementAutoSync = appSettings.EnableAchievementAutoSync;
         NotifyRyujinxLogStatus    = appSettings.NotifyRyujinxLogStatus;
+        EnableGlobalQuickMenuHotkey = appSettings.EnableGlobalQuickMenuHotkey;
+        CompatibilityOverlayMode   = appSettings.CompatibilityOverlayMode;
+        PreferOfflineCachedMetadata = appSettings.PreferOfflineCachedMetadata;
         LogGamesScanner           = appSettings.LogGamesScanner;
         LogGamesScannerAdvanced   = appSettings.LogGamesScannerAdvanced;
         LogRomsScanner            = appSettings.LogRomsScanner;
@@ -480,11 +494,15 @@ public partial class SettingsViewModel : ViewModelBase
             BroadcastUserOnline   = BroadcastUserOnline,
             SteamApiKey           = SteamApiKey,
             SteamUserId           = SteamUserId,
+            ExophaseProfileId     = NormaliseExophaseProfileId(ExophaseProfileId),
             ExophaseUsername      = ExophaseUsername,
             ExophasePassword      = ExophasePassword,
             EnableSteamSync       = EnableSteamSync,
             EnableAchievementAutoSync = EnableAchievementAutoSync,
             NotifyRyujinxLogStatus    = NotifyRyujinxLogStatus,
+            EnableGlobalQuickMenuHotkey = EnableGlobalQuickMenuHotkey,
+            CompatibilityOverlayMode   = CompatibilityOverlayMode,
+            PreferOfflineCachedMetadata = PreferOfflineCachedMetadata,
             LogGamesScanner           = LogGamesScanner,
             LogGamesScannerAdvanced   = LogGamesScannerAdvanced,
             LogRomsScanner            = LogRomsScanner,
@@ -505,6 +523,8 @@ public partial class SettingsViewModel : ViewModelBase
 
         StatusMessage = "✅ Settings saved!";
         IsSaveSuccess = true;
+        ExophaseProfileId = NormaliseExophaseProfileId(ExophaseProfileId);
+        SettingsApplied?.Invoke();
 
         // Link Steam ID to the current account in the background (prevents duplicate SteamID).
         if (LinkSteamIdAction != null && !string.IsNullOrWhiteSpace(SteamUserId))
@@ -563,6 +583,16 @@ public partial class SettingsViewModel : ViewModelBase
 
     /// <summary>Raised when the user clicks the Gallery button to pick an intro video from GitHub.</summary>
     public System.Action? PickIntroVideoFromGalleryRequested { get; set; }
+
+    /// <summary>Raised after settings are persisted so the shell can refresh runtime-only behaviour.</summary>
+    public System.Action? SettingsApplied { get; set; }
+
+    private static string NormaliseExophaseProfileId(string value)
+    {
+        var trimmed = (value ?? "").Trim();
+        if (string.IsNullOrEmpty(trimmed)) return "";
+        return trimmed.StartsWith("#", StringComparison.Ordinal) ? trimmed : $"#{trimmed}";
+    }
 }
 
 /// <summary>

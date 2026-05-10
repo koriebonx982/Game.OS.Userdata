@@ -599,7 +599,9 @@ jobs:
           dotnet restore GameLauncher/GameLauncher.csproj
           dotnet publish GameLauncher/GameLauncher.csproj `
             -c Release -r win-x64 --self-contained true `
-            -p:PublishSingleFile=true -o C:\gameos-win
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -o C:\gameos-win
           Copy-Item 'GameLauncher\gameos-token.dat'   'C:\gameos-win\' -ErrorAction SilentlyContinue
           Copy-Item 'GameLauncher\gameos-backend.url' 'C:\gameos-win\' -ErrorAction SilentlyContinue
           Get-ChildItem 'C:\gameos-win\GameLauncher.exe'

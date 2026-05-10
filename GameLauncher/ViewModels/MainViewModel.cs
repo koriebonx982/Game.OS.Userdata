@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -34,6 +35,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     /// <summary>Timestamp of the last successful periodic sync (used by the Settings label).</summary>
     private DateTime _lastSyncedAt = DateTime.MinValue;
+    private readonly SemaphoreSlim _manualSyncSemaphore = new(1, 1);
+    private CancellationTokenSource? _manualSyncCts;
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _exophasePollers =
+        new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan ExophasePollInterval = TimeSpan.FromMinutes(1);
 
     // ── Sync status (shown in the bottom-right overlay) ────────────────────
     /// <summary>True while any background metadata cache task is running.</summary>
@@ -128,6 +134,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public ProfileViewModel   ProfileVm        { get; }
     public ProfileViewModel   FriendProfileVm  { get; }
     public FriendsViewModel   FriendsVm        { get; }
+    public InboxViewModel     InboxVm          { get; }
     public SettingsViewModel  SettingsVm       { get; }
     public GameDetailViewModel DetailVm        { get; }
     public QuickMenuViewModel  QuickMenuVm     { get; }
@@ -185,6 +192,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ProfileVm      = new ProfileViewModel();
         FriendProfileVm= new ProfileViewModel();
         FriendsVm      = new FriendsViewModel();
+        InboxVm        = new InboxViewModel();
         SettingsVm     = new SettingsViewModel();
         DetailVm       = new GameDetailViewModel();
         QuickMenuVm    = new QuickMenuViewModel();
@@ -205,13 +213,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         };
 
         // Wire Settings → SyncNow so the Resync button triggers TryRefreshUserDataAsync
-        SettingsVm.SyncNowAction = async () =>
-        {
-            await TryRefreshUserDataAsync().ConfigureAwait(false);
-            _lastSyncedAt = DateTime.UtcNow;
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                SettingsVm.LastSyncedLabel = FormatLastSyncedLabel(_lastSyncedAt));
-        };
+        SettingsVm.SyncNowAction = RequestManualSyncAsync;
 
         // Wire playtime tracking: when a game is launched from the detail view,
         // pass the process to the PlaytimeService to record the session on a
@@ -275,6 +277,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             // Refresh dashboard immediately so the game appears in "Continue Playing"
             RefreshDashboardLocalGames();
+
+            if (proc != null && !string.IsNullOrWhiteSpace(DetailVm.ExophaseUrl))
+            {
+                StartExophasePollingForSession(
+                    proc,
+                    title,
+                    platform,
+                    DetailVm.ExophaseUrl!,
+                    DetailVm.CurrentTitleId);
+            }
         };
 
         // Wire Xenia (Xbox 360) achievement unlock: persist newly-unlocked achievements
@@ -507,6 +519,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 int sessionMinutes = PlaytimeService.GetTotalMinutes(platform, title);
                 if (sessionMinutes > 0)
                     Services.NotificationService.ShowSessionEndedNotification(title, sessionMinutes);
+
+                StopExophasePolling(platform, title);
             });
         };
 
@@ -524,6 +538,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         LibraryVm.OnOpenMyGameDetail  = OpenDetailFromMyGameCard;
         StoreVm.OnOpenDetail          = OpenDetailFromStoreGame;
         FriendsVm.OnViewFriendProfile = OpenFriendProfile;
+        InboxVm.OnViewFriendProfile   = OpenFriendProfile;
 
         // Start background scanner regardless of login state
         _scanner = new GameScannerService();
@@ -676,6 +691,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         StoreVm.Load(GameCatalog.Store, _library, _profile, _client, false);
         ProfileVm.Load(_profile, _library, _achievements, false);
         FriendsVm.LoadDemo();
+        InboxVm.LoadDemo(_profile.Username);
         SettingsVm.LoadAccount(_profile, _library);
 
         // Pre-fetch cover art for the unified My Games cards
@@ -1440,8 +1456,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ActivePage = page;
         if (page == "library")
             LibraryVm.Load(_library);
-        if (page == "friends" || page == "inbox")
+        if (page == "friends")
             FriendsVm.Load(_client, _profile.Username);
+        if (page == "inbox")
+            InboxVm.Load(_client, _profile.Username);
         if (page == "profile")
             ProfileVm.Load(_profile, _library, _achievements, _client.IsAdmin);
     }
@@ -1874,6 +1892,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             var card = LibraryVm.FindMyGameCard(source.Title, source.Platform);
             if (card == null) continue;
+            int total = GetCachedAchievementTotal(source.Platform, source.TitleId, source.Title);
 
             // For cloud game cards whose source Game already has enriched achievements
             // (GameAchievements populated), use AchievementCountLabel for the X / Y format.
@@ -1884,9 +1903,36 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
 
             string key = $"{source.Platform.ToLowerInvariant()}||{source.Title.ToLowerInvariant()}";
-            if (unlockCounts.TryGetValue(key, out int count) && count > 0)
-                card.AchievementLabel = $"🏆 {count}";
+            if (unlockCounts.TryGetValue(key, out int count))
+                card.AchievementLabel = total > 0 ? $"🏆 {count} / {total}" : (count > 0 ? $"🏆 {count}" : "");
+            else if (total > 0)
+                card.AchievementLabel = $"🏆 0 / {total}";
         }
+    }
+
+    private int GetCachedAchievementTotal(string platform, string? titleId, string title)
+    {
+        try
+        {
+            string? path = _metadataCache.GetCachedAchievementsPath(platform, titleId, title);
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return 0;
+
+            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+            var root = doc.RootElement;
+            if (root.ValueKind == System.Text.Json.JsonValueKind.Array)
+                return root.GetArrayLength();
+            if (root.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                if (root.TryGetProperty("achievements", out var achievements) &&
+                    achievements.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    return achievements.GetArrayLength();
+                if (root.TryGetProperty("Items", out var items) &&
+                    items.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    return items.GetArrayLength();
+            }
+        }
+        catch { }
+        return 0;
     }
 
     /// "My Games" list from the Games.Database.  Groups cards by platform to
@@ -2026,6 +2072,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                                                    string? titleId = null, int steamAppId = 0)
     {
         DatabaseGame? dbGame = null;
+        var cached = _metadataCache.LoadCachedGameInfo(platform, titleId, localTitle);
+        if (cached != null)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => DetailVm.EnrichFromDatabaseGame(cached));
+            if (steamAppId <= 0 && cached.AppId.HasValue)
+                steamAppId = (int)cached.AppId.Value;
+        }
+
         try
         {
             var dbGames = await GameOsClient.FetchGamesDatabaseAsync(platform);
@@ -2043,13 +2097,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
         catch
         {
-            var cached = _metadataCache.LoadCachedGameInfo(platform, titleId, localTitle);
             if (cached != null)
             {
                 DevLogService.Log($"[Detail] Using cached game.json for '{localTitle}' ({platform}) — network unavailable.");
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => DetailVm.EnrichFromDatabaseGame(cached));
-                if (steamAppId <= 0 && cached.AppId.HasValue)
-                    steamAppId = (int)cached.AppId!.Value;
             }
         }
 
@@ -2123,6 +2173,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     // Enrich achievements URL so non-PC games show achievements when opened
                     if (string.IsNullOrEmpty(game.AchievementsUrl) && !string.IsNullOrEmpty(dbGame.AchievementsUrl))
                     { game.AchievementsUrl = dbGame.AchievementsUrl; anyUpdated = true; }
+                    if (string.IsNullOrEmpty(game.ExophaseUrl) && !string.IsNullOrEmpty(dbGame.ExophaseUrl))
+                    { game.ExophaseUrl = dbGame.ExophaseUrl; anyUpdated = true; }
                 }
 
                 // Refresh the library UI once per platform batch if anything changed
@@ -2467,6 +2519,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        _manualSyncCts?.Cancel();
+        _manualSyncCts?.Dispose();
+        _manualSyncCts = null;
+        foreach (var kvp in _exophasePollers.ToArray())
+        {
+            if (_exophasePollers.TryRemove(kvp.Key, out var cts))
+            {
+                cts.Cancel();
+                cts.Dispose();
+            }
+        }
         _messagePoller?.Dispose();
         _messagePoller = null;
         _presenceTimer?.Dispose();
@@ -2853,6 +2916,127 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // achievements, and apply cloud playtime so the dashboard is up-to-date instantly.
         await TryRefreshUserDataAsync().ConfigureAwait(false);
         await ApplyCloudPlaytimeAsync(_library).ConfigureAwait(false);
+    }
+
+    private async Task RequestManualSyncAsync()
+    {
+        var cts = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref _manualSyncCts, cts);
+        if (previous != null)
+        {
+            try { previous.Cancel(); }
+            catch (ObjectDisposedException) { }
+            try { previous.Dispose(); }
+            catch (ObjectDisposedException) { }
+        }
+
+        if (!await _manualSyncSemaphore.WaitAsync(0).ConfigureAwait(false))
+        {
+            cts.Dispose();
+            return;
+        }
+
+        try
+        {
+            await Task.Run(async () =>
+            {
+                if (!cts.IsCancellationRequested)
+                    await TryRefreshUserDataAsync().ConfigureAwait(false);
+            }, cts.Token).ConfigureAwait(false);
+
+            if (!cts.IsCancellationRequested)
+            {
+                _lastSyncedAt = DateTime.UtcNow;
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    SettingsVm.LastSyncedLabel = FormatLastSyncedLabel(_lastSyncedAt));
+            }
+        }
+        finally
+        {
+            _manualSyncSemaphore.Release();
+            if (ReferenceEquals(_manualSyncCts, cts))
+                _manualSyncCts = null;
+            cts.Dispose();
+        }
+    }
+
+    private void StartExophasePollingForSession(
+        System.Diagnostics.Process proc,
+        string title,
+        string platform,
+        string exophaseUrl,
+        string? titleId)
+    {
+        if (!_client.IsAuthenticated || string.IsNullOrWhiteSpace(exophaseUrl))
+            return;
+
+        var settings = AppSettingsService.Load();
+        if (string.IsNullOrWhiteSpace(settings.ExophaseProfileId))
+            return;
+
+        string key = $"{platform.ToLowerInvariant()}||{title.ToLowerInvariant()}";
+        StopExophasePolling(platform, title);
+
+        var cts = new CancellationTokenSource();
+        if (!_exophasePollers.TryAdd(key, cts))
+        {
+            cts.Dispose();
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (!cts.Token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        if (proc.HasExited) break;
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        break;
+                    }
+
+                    int changes = await _client.SyncExophaseAchievementsAsync(
+                        exophaseUrl,
+                        platform,
+                        title,
+                        titleId ?? _library.FirstOrDefault(g =>
+                            string.Equals(g.Platform, platform, StringComparison.OrdinalIgnoreCase) &&
+                            string.Equals(g.Title, title, StringComparison.OrdinalIgnoreCase))
+                            ?.TitleId,
+                        settings.ExophaseProfileId,
+                        cts.Token).ConfigureAwait(false);
+
+                    if (changes > 0)
+                    {
+                        await TryRefreshUserDataAsync().ConfigureAwait(false);
+                        await _client.WriteSyncSignalAsync(cts.Token).ConfigureAwait(false);
+                    }
+
+                    await Task.Delay(ExophasePollInterval, cts.Token).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch { /* best-effort */ }
+            finally
+            {
+                if (_exophasePollers.TryRemove(key, out var removed))
+                    removed.Dispose();
+            }
+        }, cts.Token);
+    }
+
+    private void StopExophasePolling(string platform, string title)
+    {
+        string key = $"{platform.ToLowerInvariant()}||{title.ToLowerInvariant()}";
+        if (_exophasePollers.TryRemove(key, out var cts))
+        {
+            cts.Cancel();
+            cts.Dispose();
+        }
     }
 
     /// <summary>
@@ -3774,6 +3958,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                         // AchievementsUrl for caching — avoids racing with
                         // EnrichLibraryFromDatabaseAsync which may be updating the same game
                         // objects concurrently on another thread.
+                        bool fullyCached =
+                            _metadataCache.GetCachedCoverPath(game.Platform, game.TitleId, game.Title) != null &&
+                            _metadataCache.GetCachedAchievementsPath(game.Platform, game.TitleId, game.Title) != null &&
+                            _metadataCache.IsGameInfoCached(game.Platform, game.TitleId, game.Title);
+                        if (fullyCached)
+                            continue;
+
                         var gameForCache = new Models.Game
                         {
                             Platform        = game.Platform,
@@ -3856,10 +4047,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 {
                     try
                     {
+                        var pendingEntries = entries
+                            .Where(entry =>
+                                _metadataCache.GetCachedCoverPath(platform, entry.TitleId, entry.Title) == null ||
+                                _metadataCache.GetCachedAchievementsPath(platform, entry.TitleId, entry.Title) == null ||
+                                !_metadataCache.IsGameInfoCached(platform, entry.TitleId, entry.Title))
+                            .ToList();
+                        if (pendingEntries.Count == 0)
+                            continue;
+
                         var dbGames = await GameOsClient.FetchGamesDatabaseAsync(platform).ConfigureAwait(false);
                         if (dbGames.Count == 0) continue;
 
-                        foreach (var (title, _, titleId) in entries)
+                        foreach (var (title, _, titleId) in pendingEntries)
                         {
                             try
                             {
@@ -3995,6 +4195,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                             string.Equals(FriendsVm.ConversationFriend, friendUsername,
                                           StringComparison.OrdinalIgnoreCase) &&
                             FriendsVm.ShowConversation;
+                        if (!conversationOpen)
+                        {
+                            conversationOpen =
+                                string.Equals(InboxVm.ConversationFriend, friendUsername,
+                                              StringComparison.OrdinalIgnoreCase) &&
+                                InboxVm.ShowConversation;
+                        }
 
                         // Skip notification if this is the very first poll (seed phase)
                         bool seedPhase = string.IsNullOrEmpty(lastSeen);

@@ -1,23 +1,46 @@
 using System;
+using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Threading;
 using GameLauncher.ViewModels;
 
 namespace GameLauncher.Views;
 
 public partial class MainWindow : Window
 {
+    private readonly DispatcherTimer _globalHotkeyPoller = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(150)
+    };
+    private MainViewModel? _boundVm;
+    private bool _globalHotkeyLatched;
+    private bool _restoreToMinimizedAfterQuickMenu;
+
     public MainWindow()
     {
         InitializeComponent();
         KeyDown += OnKeyDown;
         DataContextChanged += OnDataContextChanged;
+        Opened += (_, _) => RefreshGlobalHotkeyPolling();
+        Closed += (_, _) => _globalHotkeyPoller.Stop();
+        _globalHotkeyPoller.Tick += OnGlobalHotkeyTick;
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
+        if (_boundVm != null)
+        {
+            _boundVm.PropertyChanged -= OnMainViewModelPropertyChanged;
+            _boundVm.SettingsVm.SettingsApplied -= RefreshGlobalHotkeyPolling;
+        }
+
         if (DataContext is MainViewModel vm)
         {
+            _boundVm = vm;
+            vm.PropertyChanged += OnMainViewModelPropertyChanged;
+            vm.SettingsVm.SettingsApplied += RefreshGlobalHotkeyPolling;
+
             // Capture the window state at the time of minimise so we can restore
             // to the same state (FullScreen, Normal, Maximized) when the game exits.
             WindowState _stateBeforeMinimize = WindowState;
@@ -32,6 +55,12 @@ public partial class MainWindow : Window
                 WindowState = _stateBeforeMinimize;
                 Activate();
             };
+            RefreshGlobalHotkeyPolling();
+        }
+        else
+        {
+            _boundVm = null;
+            RefreshGlobalHotkeyPolling();
         }
     }
 
@@ -185,5 +214,78 @@ public partial class MainWindow : Window
         int idx = System.Array.IndexOf(_navPages, vm.ActivePage);
         if (idx >= 0 && idx < _navPages.Length - 1)
             vm.NavigateCommand.Execute(_navPages[idx + 1]);
+    }
+
+    private void RefreshGlobalHotkeyPolling()
+    {
+        if (OperatingSystem.IsWindows() && _boundVm?.SettingsVm.EnableGlobalQuickMenuHotkey == true)
+        {
+            if (!_globalHotkeyPoller.IsEnabled)
+                _globalHotkeyPoller.Start();
+        }
+        else
+        {
+            _globalHotkeyPoller.Stop();
+            _globalHotkeyLatched = false;
+        }
+    }
+
+    private void OnGlobalHotkeyTick(object? sender, EventArgs e)
+    {
+        if (!OperatingSystem.IsWindows() || _boundVm == null || !_boundVm.SettingsVm.EnableGlobalQuickMenuHotkey)
+            return;
+
+        bool ctrlDown = (GameLauncher.Services.NativeMethods.GetAsyncKeyState(GameLauncher.Services.NativeMethods.VK_LCONTROL) & 0x8000) != 0;
+        bool shiftDown = (GameLauncher.Services.NativeMethods.GetAsyncKeyState(GameLauncher.Services.NativeMethods.VK_LSHIFT) & 0x8000) != 0;
+        bool bothDown = ctrlDown && shiftDown;
+
+        if (bothDown && !_globalHotkeyLatched)
+        {
+            _globalHotkeyLatched = true;
+            OpenGlobalQuickMenu();
+        }
+        else if (!bothDown)
+        {
+            _globalHotkeyLatched = false;
+        }
+    }
+
+    private void OpenGlobalQuickMenu()
+    {
+        if (_boundVm == null) return;
+
+        bool compatibilityMode = _boundVm.SettingsVm.CompatibilityOverlayMode;
+        bool wasMinimized = WindowState == WindowState.Minimized;
+        if (wasMinimized)
+        {
+            WindowState = WindowState.FullScreen;
+            _restoreToMinimizedAfterQuickMenu = compatibilityMode && _boundVm.DetailVm.IsGameRunning;
+        }
+
+        if (compatibilityMode)
+            Topmost = true;
+
+        Activate();
+        _boundVm.ToggleQuickMenu();
+    }
+
+    private void OnMainViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_boundVm == null || e.PropertyName != nameof(MainViewModel.ShowQuickMenu))
+            return;
+
+        if (_boundVm.ShowQuickMenu)
+        {
+            if (_boundVm.SettingsVm.CompatibilityOverlayMode)
+                Topmost = true;
+            return;
+        }
+
+        Topmost = false;
+        if (_restoreToMinimizedAfterQuickMenu)
+        {
+            _restoreToMinimizedAfterQuickMenu = false;
+            WindowState = WindowState.Minimized;
+        }
     }
 }

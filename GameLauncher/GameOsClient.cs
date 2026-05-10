@@ -555,6 +555,33 @@ namespace GameLauncher
             return await _github!.GetMessagesAsync(_username, withUsername, ct);
         }
 
+        public async Task<List<GameInvite>> GetInvitesAsync(CancellationToken ct = default)
+        {
+            if (_backend != null)
+                return await _backend.GetInvitesAsync(ct);
+            return new();
+        }
+
+        public async Task RespondInviteAsync(string inviteId, string response, CancellationToken ct = default)
+        {
+            if (_backend != null)
+                await _backend.RespondInviteAsync(inviteId, response, ct);
+        }
+
+        public async Task<int> SyncExophaseAchievementsAsync(
+            string exophaseUrl,
+            string platform,
+            string gameTitle,
+            string? titleId = null,
+            string? exophaseProfileId = null,
+            CancellationToken ct = default)
+        {
+            if (_backend != null)
+                return await _backend.SyncExophaseAchievementsAsync(
+                    exophaseUrl, platform, gameTitle, titleId, exophaseProfileId, ct);
+            return 0;
+        }
+
         // ── App Store (public repository, no auth required) ──────────────────
         /// <summary>
         /// Fetch all app entries from the public Koriebonx98/AppStore- repository.
