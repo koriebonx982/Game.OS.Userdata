@@ -211,6 +211,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             if (DetailVm.IsGameRunning)
                 DetailVm.ForceExitGame();
         };
+        QuickMenuVm.OnViewFriendProfile = OpenFriendProfile;
+        QuickMenuVm.OnLoadConversation = async friendUsername =>
+            await _client.GetMessagesAsync(friendUsername);
+        QuickMenuVm.OnSendMessage = async (friendUsername, text) =>
+        {
+            await _client.SendMessageAsync(friendUsername, text);
+            return true;
+        };
 
         // Wire Settings → SyncNow so the Resync button triggers TryRefreshUserDataAsync
         SettingsVm.SyncNowAction = RequestManualSyncAsync;
@@ -1576,12 +1584,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // Collect online friends
+        // Collect friends (online first)
         var onlineFriends = FriendsVm.OnlineFriends
             .Select(f => new FriendPresenceVm
             {
                 Username    = f.Username,
                 CurrentGame = f.CurrentGame ?? "",
+                Status      = f.Status,
+            })
+            .ToList();
+        var allFriends = FriendsVm.OnlineFriends
+            .Concat(FriendsVm.OfflineFriends)
+            .Select(f => new FriendPresenceVm
+            {
+                Username    = f.Username,
+                CurrentGame = f.CurrentGame ?? "",
+                Status      = f.Status,
             })
             .ToList();
 
@@ -1594,16 +1612,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         QuickMenuVm.Refresh(
+            currentUsername:       _profile.Username,
             currentGameTitle:      DetailVm.IsGameRunning ? DetailVm.Title : null,
             sessionStartedAt:      DetailVm.IsGameRunning
                 ? PlaytimeService.GetActiveSessionStart(DetailVm.Platform, DetailVm.Title)
                   ?? PlaytimeService.GetAnyActiveSessionStart()
                 : null,
-            friends:               onlineFriends,
+            onlineFriends:         onlineFriends,
+            allFriends:            allFriends,
             unreadCount:           0,
             lastMessage:           null,
             unlockedAchievements:  unlocked,
-            totalAchievements:     total);
+            totalAchievements:     total,
+            achievements:          DetailVm.Achievements);
 
         ShowQuickMenu = true;
     }
