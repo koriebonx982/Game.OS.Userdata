@@ -281,18 +281,34 @@ public partial class MainWindow : Window
         if (gameIsRunning || launcherMinimized)
         {
             _boundVm.QuickMenuVm.Refresh(
+                currentUsername:     _boundVm.ProfileVm.Username,
                 currentGameTitle:     _boundVm.DetailVm.IsGameRunning ? _boundVm.DetailVm.Title : null,
                 sessionStartedAt:     _boundVm.DetailVm.IsGameRunning
                     ? Services.PlaytimeService.GetActiveSessionStart(_boundVm.DetailVm.Platform, _boundVm.DetailVm.Title)
                       ?? Services.PlaytimeService.GetAnyActiveSessionStart()
                     : null,
-                friends:              _boundVm.FriendsVm.OnlineFriends
-                    .Select(f => new FriendPresenceVm { Username = f.Username, CurrentGame = f.CurrentGame ?? "" })
+                onlineFriends:        _boundVm.FriendsVm.OnlineFriends
+                    .Select(f => new FriendPresenceVm
+                    {
+                        Username = f.Username,
+                        CurrentGame = f.CurrentGame ?? "",
+                        Status = f.Status
+                    })
+                    .ToList(),
+                allFriends:           _boundVm.FriendsVm.OnlineFriends
+                    .Concat(_boundVm.FriendsVm.OfflineFriends)
+                    .Select(f => new FriendPresenceVm
+                    {
+                        Username = f.Username,
+                        CurrentGame = f.CurrentGame ?? "",
+                        Status = f.Status
+                    })
                     .ToList(),
                 unreadCount:          0,
                 lastMessage:          null,
                 unlockedAchievements: _boundVm.DetailVm.HasAchievements ? _boundVm.DetailVm.Achievements.Count(a => a.IsUnlocked) : 0,
-                totalAchievements:    _boundVm.DetailVm.HasAchievements ? _boundVm.DetailVm.Achievements.Count : 0);
+                totalAchievements:    _boundVm.DetailVm.HasAchievements ? _boundVm.DetailVm.Achievements.Count : 0,
+                achievements:         _boundVm.DetailVm.Achievements);
 
             if (_quickMenuWindow == null)
             {

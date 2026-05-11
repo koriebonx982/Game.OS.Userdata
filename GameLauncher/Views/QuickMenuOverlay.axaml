@@ -1,22 +1,31 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:GameLauncher.ViewModels"
+             xmlns:models="using:GameLauncher.Models"
              x:Class="GameLauncher.Views.QuickMenuOverlay"
              x:DataType="vm:QuickMenuViewModel">
 
+    <Grid>
     <!-- Semi-transparent backdrop -->
     <Border Background="#CC0d1117" HorizontalAlignment="Right" VerticalAlignment="Stretch"
             Width="340" Padding="0">
         <Border Background="#161b22" CornerRadius="0,0,0,0" Padding="20,24">
-            <StackPanel Spacing="20">
+            <Grid RowDefinitions="Auto,*" RowSpacing="16">
 
                 <!-- Header -->
-                <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0"
+                <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <Button Grid.Column="0"
+                            Classes="btn-secondary"
+                            IsVisible="{Binding !IsHomePage}"
+                            Padding="10,6"
+                            Command="{Binding BackToHomeCommand}">
+                        <TextBlock Text="←" FontSize="14" FontWeight="Bold"/>
+                    </Button>
+                    <TextBlock Grid.Column="1"
                                Text="Quick Menu"
                                FontSize="20" FontWeight="Bold"
                                Foreground="White" VerticalAlignment="Center"/>
-                    <Button Grid.Column="1"
+                    <Button Grid.Column="2"
                             Classes="btn-secondary"
                             Padding="10,6"
                             Command="{Binding DismissCommand}">
@@ -24,112 +33,261 @@
                     </Button>
                 </Grid>
 
-                <!-- ── Current Session ── -->
-                <Border Background="#0d2137" CornerRadius="10" Padding="16,14">
-                    <StackPanel Spacing="6">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="🎮" FontSize="16" VerticalAlignment="Center"/>
-                            <TextBlock Text="Now Playing"
-                                       FontSize="13" FontWeight="Bold"
-                                       Foreground="#8b949e" VerticalAlignment="Center"/>
-                        </StackPanel>
-                        <TextBlock Text="{Binding CurrentGameTitle}"
-                                   FontSize="15" FontWeight="Bold"
-                                   Foreground="White"
-                                   IsVisible="{Binding IsPlayingGame}"
-                                   TextWrapping="Wrap"/>
-                        <TextBlock Text="{Binding CurrentSessionLabel}"
-                                   FontSize="12" Foreground="#0ea5e9"/>
-                        <!-- Exit Game button -->
-                        <Button Classes="btn-danger"
-                                Padding="16,8" Margin="0,6,0,0"
-                                IsVisible="{Binding IsPlayingGame}"
-                                Command="{Binding ExitGameCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="⏹" FontSize="13" VerticalAlignment="Center"/>
-                                <TextBlock Text="Exit Game" FontSize="13" FontWeight="SemiBold"
+                <Grid Grid.Row="1">
+                    <!-- Home page -->
+                    <StackPanel Spacing="16" IsVisible="{Binding IsHomePage}">
+                        <!-- Current Session -->
+                        <Border Background="#0d2137" CornerRadius="10" Padding="16,14">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="🎮" FontSize="16" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Now Playing"
+                                               FontSize="13" FontWeight="Bold"
+                                               Foreground="#8b949e" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock Text="{Binding CurrentGameTitle}"
+                                           FontSize="15" FontWeight="Bold"
+                                           Foreground="White"
+                                           IsVisible="{Binding IsPlayingGame}"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding CurrentSessionLabel}"
+                                           FontSize="12" Foreground="#0ea5e9"/>
+                                <Button Classes="btn-danger"
+                                        Padding="16,8" Margin="0,6,0,0"
+                                        IsVisible="{Binding IsPlayingGame}"
+                                        Command="{Binding ExitGameCommand}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="⏹" FontSize="13" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Exit Game" FontSize="13" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Achievements entry -->
+                        <Button Classes="btn-secondary"
+                                Padding="16,14"
+                                IsVisible="{Binding HasAchievementsProgress}"
+                                Command="{Binding OpenAchievementsCommand}">
+                            <StackPanel Spacing="8">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="🏆" FontSize="14" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Achievements"
+                                               FontSize="13" FontWeight="Bold"
+                                               Foreground="#8b949e" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock Text="{Binding AchievementsLabel}"
+                                           FontSize="13" Foreground="#f1c40f"/>
+                                <ProgressBar Value="{Binding AchievementsUnlocked}"
+                                             Maximum="{Binding AchievementsTotal}"
+                                             Minimum="0"
+                                             Height="6" CornerRadius="3"
+                                             Foreground="#f1c40f"
+                                             Background="#21262d"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Friends entry -->
+                        <Button Classes="btn-secondary"
+                                Padding="16,14"
+                                Command="{Binding OpenFriendsCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="👥" FontSize="14" VerticalAlignment="Center"/>
+                                <TextBlock Text="Friends"
+                                           FontSize="13" FontWeight="Bold"
+                                           Foreground="#8b949e" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding Friends.Count, StringFormat='{}{0} total'}"
+                                           FontSize="12"
+                                           Foreground="#e6edf3"
                                            VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
-                    </StackPanel>
-                </Border>
 
-                <!-- ── Achievements Progress ── -->
-                <Border Background="#1a1a2e" CornerRadius="10" Padding="16,14"
-                        IsVisible="{Binding HasAchievementsProgress}">
-                    <StackPanel Spacing="8">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="🏆" FontSize="14" VerticalAlignment="Center"/>
-                            <TextBlock Text="Achievements"
-                                       FontSize="13" FontWeight="Bold"
-                                       Foreground="#8b949e" VerticalAlignment="Center"/>
-                        </StackPanel>
-                        <TextBlock Text="{Binding AchievementsLabel}"
-                                   FontSize="13" Foreground="#f1c40f"/>
-                        <ProgressBar Value="{Binding AchievementsUnlocked}"
-                                     Maximum="{Binding AchievementsTotal}"
-                                     Minimum="0"
-                                     Height="6" CornerRadius="3"
-                                     Foreground="#f1c40f"
-                                     Background="#21262d"/>
+                        <Border Background="#1a1a2e" CornerRadius="10" Padding="16,14"
+                                IsVisible="{Binding HasUnreadMessages}">
+                            <StackPanel Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="✉" FontSize="14" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding UnreadMessageCount, StringFormat='{}{0} unread message(s)'}"
+                                               FontSize="13" FontWeight="Bold"
+                                               Foreground="#f0883e" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock Text="{Binding LastMessagePreview}"
+                                           FontSize="12" Foreground="#8b949e"
+                                           TextWrapping="Wrap"
+                                           IsVisible="{Binding LastMessagePreview, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                </Border>
 
-                <!-- ── Online Friends ── -->
-                <StackPanel Spacing="8">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBlock Text="👥" FontSize="14" VerticalAlignment="Center"/>
-                        <TextBlock Text="Friends Online"
-                                   FontSize="13" FontWeight="Bold"
-                                   Foreground="#8b949e" VerticalAlignment="Center"/>
+                    <!-- Achievements page -->
+                    <StackPanel Spacing="10" IsVisible="{Binding IsAchievementsPage}">
+                        <TextBlock Text="All Achievements"
+                                   FontSize="14" FontWeight="Bold"
+                                   Foreground="#8b949e"/>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      MaxHeight="560">
+                            <StackPanel Spacing="6">
+                                <ItemsControl ItemsSource="{Binding Achievements}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:QuickMenuAchievementVm">
+                                            <Border Background="#21262d" CornerRadius="8" Padding="12,10">
+                                                <StackPanel Spacing="4">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <TextBlock Text="{Binding StatusIcon}" FontSize="12"/>
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   FontSize="13" FontWeight="SemiBold"
+                                                                   Foreground="White"/>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding Description}"
+                                                               FontSize="11" Foreground="#8b949e"
+                                                               TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{Binding StatusLabel}"
+                                                               FontSize="11"
+                                                               Foreground="#0ea5e9"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="No achievements found for this game."
+                                           FontSize="12" Foreground="#8b949e"
+                                           IsVisible="{Binding !HasAchievements}"/>
+                            </StackPanel>
+                        </ScrollViewer>
                     </StackPanel>
-                    <ItemsControl ItemsSource="{Binding OnlineFriends}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:FriendPresenceVm">
-                                <Border Background="#21262d" CornerRadius="8"
-                                        Padding="12,10" Margin="0,0,0,4">
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <StackPanel Grid.Column="0" Spacing="2">
-                                            <TextBlock Text="{Binding Username}"
-                                                       FontSize="13" FontWeight="SemiBold"
-                                                       Foreground="White"/>
-                                            <TextBlock Text="{Binding StatusLabel}"
-                                                       FontSize="11" Foreground="#3fb950"/>
-                                        </StackPanel>
-                                        <Border Grid.Column="1"
-                                                Width="8" Height="8"
-                                                CornerRadius="4"
-                                                Background="#3fb950"
-                                                VerticalAlignment="Center"/>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <TextBlock Text="No friends online right now."
-                               FontSize="12" Foreground="#484f58"
-                               IsVisible="{Binding !HasOnlineFriends}"/>
-                </StackPanel>
 
-                <!-- ── Inbox Preview ── -->
-                <Border Background="#1a1a2e" CornerRadius="10" Padding="16,14"
-                        IsVisible="{Binding HasUnreadMessages}">
-                    <StackPanel Spacing="6">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="✉" FontSize="14" VerticalAlignment="Center"/>
-                            <TextBlock Text="{Binding UnreadMessageCount, StringFormat='{}{0} unread message(s)'}"
-                                       FontSize="13" FontWeight="Bold"
-                                       Foreground="#f0883e" VerticalAlignment="Center"/>
-                        </StackPanel>
-                        <TextBlock Text="{Binding LastMessagePreview}"
-                                   FontSize="12" Foreground="#8b949e"
-                                   TextWrapping="Wrap"
-                                   IsVisible="{Binding LastMessagePreview, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                    <!-- Friends page -->
+                    <StackPanel Spacing="10" IsVisible="{Binding IsFriendsPage}">
+                        <TextBlock Text="Friends"
+                                   FontSize="14" FontWeight="Bold"
+                                   Foreground="#8b949e"/>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      MaxHeight="560">
+                            <StackPanel Spacing="6">
+                                <ItemsControl ItemsSource="{Binding Friends}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:FriendPresenceVm">
+                                            <Border Background="#21262d" CornerRadius="8" Padding="12,10">
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                                    <StackPanel Grid.Column="0" Spacing="3">
+                                                        <TextBlock Text="{Binding Username}"
+                                                                   FontSize="13" FontWeight="SemiBold"
+                                                                   Foreground="White"/>
+                                                        <TextBlock Text="{Binding StatusLabel}"
+                                                                   FontSize="11" Foreground="#8b949e"/>
+                                                    </StackPanel>
+                                                    <Button Grid.Column="1" Classes="btn-secondary" Padding="10,6">
+                                                        <TextBlock Text="Profile" FontSize="11"/>
+                                                        <Button.Flyout>
+                                                            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                                                <MenuItem Header="Invite"
+                                                                          Command="{Binding $parent[UserControl].DataContext.InviteFriendCommand}"
+                                                                          CommandParameter="{Binding Username}"/>
+                                                                <MenuItem Header="Message"
+                                                                          Command="{Binding $parent[UserControl].DataContext.MessageFriendCommand}"
+                                                                          CommandParameter="{Binding Username}"/>
+                                                                <MenuItem Header="View"
+                                                                          Command="{Binding $parent[UserControl].DataContext.ViewFriendCommand}"
+                                                                          CommandParameter="{Binding Username}"/>
+                                                            </MenuFlyout>
+                                                        </Button.Flyout>
+                                                    </Button>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="No friends found."
+                                           FontSize="12" Foreground="#8b949e"
+                                           IsVisible="{Binding !HasFriends}"/>
+                            </StackPanel>
+                        </ScrollViewer>
                     </StackPanel>
-                </Border>
-
-            </StackPanel>
+                </Grid>
+            </Grid>
         </Border>
     </Border>
+
+    <!-- Chat mini-window -->
+    <Border IsVisible="{Binding ShowChatWindow}"
+            Background="#CC0d1117"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch">
+        <Border Width="320"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="#161b22"
+                BorderBrush="#30363d"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="12">
+            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                    <TextBlock Text="{Binding ChatFriendUsername}"
+                               FontSize="13" FontWeight="Bold"
+                               Foreground="White"
+                               VerticalAlignment="Center"/>
+                    <Button Grid.Column="1"
+                            Classes="btn-secondary"
+                            Padding="8,4"
+                            Command="{Binding CloseChatWindowCommand}">
+                        <TextBlock Text="✕" FontSize="12" FontWeight="Bold"/>
+                    </Button>
+                </Grid>
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              MaxHeight="220">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Loading messages..."
+                                   Foreground="#8b949e"
+                                   IsVisible="{Binding IsChatBusy}"/>
+                        <TextBlock Text="{Binding ChatError}"
+                                   Foreground="#f85149"
+                                   IsVisible="{Binding ChatError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                        <ItemsControl ItemsSource="{Binding ChatMessages}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:Message">
+                                    <Border Background="#21262d" CornerRadius="8" Padding="8,6">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock Text="{Binding From}"
+                                                       FontSize="10" FontWeight="Bold"
+                                                       Foreground="#0ea5e9"/>
+                                            <TextBlock Text="{Binding Text}"
+                                                       FontSize="12"
+                                                       Foreground="#e6edf3"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </ScrollViewer>
+                <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBox Grid.Column="0"
+                             Text="{Binding NewChatMessage}"
+                             Watermark="Type a message..."
+                             Background="#21262d"
+                             BorderBrush="#30363d"
+                             Foreground="White"
+                             CornerRadius="6"
+                             Padding="8,6"/>
+                    <Button Grid.Column="1"
+                            Classes="btn-primary"
+                            Padding="12,6"
+                            IsEnabled="{Binding !IsChatBusy}"
+                            Command="{Binding SendChatMessageCommand}">
+                        Send
+                    </Button>
+                </Grid>
+            </Grid>
+        </Border>
+    </Border>
+    </Grid>
 
 </UserControl>

@@ -36,6 +36,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>Timestamp of the last successful periodic sync (used by the Settings label).</summary>
     private DateTime _lastSyncedAt = DateTime.MinValue;
     private readonly SemaphoreSlim _manualSyncSemaphore = new(1, 1);
+    private readonly SemaphoreSlim _syncRefreshSemaphore = new(1, 1);
     private CancellationTokenSource? _manualSyncCts;
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _exophasePollers =
         new(StringComparer.OrdinalIgnoreCase);
@@ -53,6 +54,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// Incremented/decremented via <see cref="System.Threading.Interlocked"/> for thread safety.
     /// </summary>
     private int _cacheTaskCount = 0;
+    private readonly object _cacheLabelGate = new();
+    private long _lastCacheLabelUpdatedAt;
+    private string _lastCacheLabelText = "";
 
     // ── Message polling ────────────────────────────────────────────────────
     /// <summary>Fires every 60 seconds after login to check for new direct messages.</summary>
@@ -210,6 +214,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Forward to DetailVm to kill the running game process
             if (DetailVm.IsGameRunning)
                 DetailVm.ForceExitGame();
+        };
+        QuickMenuVm.OnViewFriendProfile = OpenFriendProfile;
+        QuickMenuVm.OnLoadConversation = async friendUsername =>
+            await _client.GetMessagesAsync(friendUsername);
+        QuickMenuVm.OnSendMessage = async (friendUsername, text) =>
+        {
+            await _client.SendMessageAsync(friendUsername, text);
+            return true;
         };
 
         // Wire Settings → SyncNow so the Resync button triggers TryRefreshUserDataAsync
@@ -1576,12 +1588,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // Collect online friends
+        // Collect friends (online first)
         var onlineFriends = FriendsVm.OnlineFriends
             .Select(f => new FriendPresenceVm
             {
                 Username    = f.Username,
                 CurrentGame = f.CurrentGame ?? "",
+                Status      = f.Status,
+            })
+            .ToList();
+        var allFriends = FriendsVm.OnlineFriends
+            .Concat(FriendsVm.OfflineFriends)
+            .Select(f => new FriendPresenceVm
+            {
+                Username    = f.Username,
+                CurrentGame = f.CurrentGame ?? "",
+                Status      = f.Status,
             })
             .ToList();
 
@@ -1594,16 +1616,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         QuickMenuVm.Refresh(
+            currentUsername:       _profile.Username,
             currentGameTitle:      DetailVm.IsGameRunning ? DetailVm.Title : null,
             sessionStartedAt:      DetailVm.IsGameRunning
                 ? PlaytimeService.GetActiveSessionStart(DetailVm.Platform, DetailVm.Title)
                   ?? PlaytimeService.GetAnyActiveSessionStart()
                 : null,
-            friends:               onlineFriends,
+            onlineFriends:         onlineFriends,
+            allFriends:            allFriends,
             unreadCount:           0,
             lastMessage:           null,
             unlockedAchievements:  unlocked,
-            totalAchievements:     total);
+            totalAchievements:     total,
+            achievements:          DetailVm.Achievements);
 
         ShowQuickMenu = true;
     }
@@ -3061,109 +3086,118 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         var username = _profile?.Username;
         if (string.IsNullOrEmpty(username)) return;
-
-        System.Diagnostics.Debug.WriteLine(
-            $"[SyncCheck] Checking for remote userdata updates for '{username}'...");
+        if (!await _syncRefreshSemaphore.WaitAsync(0).ConfigureAwait(false))
+            return;
 
         try
         {
-            var games        = await _client.GetGamesAsync().ConfigureAwait(false);
-            var achievements = await _client.GetAchievementsAsync().ConfigureAwait(false);
+            System.Diagnostics.Debug.WriteLine(
+                $"[SyncCheck] Checking for remote userdata updates for '{username}'...");
 
-            bool gamesChanged = !GamesListEqual(_library, games);
-            // Only treat achievements as changed when the server returned a non-empty list.
-            // An empty response (count == 0) almost always signals a transient API error;
-            // treating it as "unchanged" prevents the dashboard from resetting to "0 Achievements".
-            bool achvChanged  = achievements.Count > 0 && achievements.Count != _achievements.Count;
-
-            // Also detect when another device has updated a game's playtime/lastPlayedAt
-            // in games.json (written by UpdateGamePlaytimeAsync on session end).
-            bool playtimeChanged = !gamesChanged && GamesPlaytimeChanged(_library, games);
-
-            // Detect newly-unlocked achievements and log them to the activity feed
-            if (achvChanged && achievements.Count > _achievements.Count)
-                _ = DetectAndLogNewAchievementsAsync(_achievements, achievements);
-
-            if (gamesChanged || achvChanged || playtimeChanged)
+            try
             {
+                var games        = await _client.GetGamesAsync().ConfigureAwait(false);
+                var achievements = await _client.GetAchievementsAsync().ConfigureAwait(false);
+
+                bool gamesChanged = !GamesListEqual(_library, games);
+                // Only treat achievements as changed when the server returned a non-empty list.
+                // An empty response (count == 0) almost always signals a transient API error;
+                // treating it as "unchanged" prevents the dashboard from resetting to "0 Achievements".
+                bool achvChanged  = achievements.Count > 0 && achievements.Count != _achievements.Count;
+
+                // Also detect when another device has updated a game's playtime/lastPlayedAt
+                // in games.json (written by UpdateGamePlaytimeAsync on session end).
+                bool playtimeChanged = !gamesChanged && GamesPlaytimeChanged(_library, games);
+
+                // Detect newly-unlocked achievements and log them to the activity feed
+                if (achvChanged && achievements.Count > _achievements.Count)
+                    _ = DetectAndLogNewAchievementsAsync(_achievements, achievements);
+
+                if (gamesChanged || achvChanged || playtimeChanged)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[SyncCheck] Remote userdata changed for '{username}' " +
+                        $"(games: {(gamesChanged ? "changed" : "same")}, " +
+                        $"achievements: {(achvChanged ? "changed" : "same")}, " +
+                        $"playtime: {(playtimeChanged ? "changed" : "same")}). Updating local cache.");
+
+                    foreach (var g in games)
+                        g.Platform = Models.PlatformHelper.NormalizePlatform(g.Platform);
+
+                    // Re-apply local playtime to the freshly fetched games (the server only stores
+                    // game metadata, not playtime — without this the dashboard shows zero playtime
+                    // every time the periodic sync refreshes the library list).
+                    PlaytimeService.ApplyStoredPlaytime(games);
+
+                    // Re-apply Steam cached games as a fallback so titles are never lost while
+                    // background cloud sync catches up on freshly imported Steam libraries.
+                    ReapplySteamCachedGames(games);
+
+                    _library = games;
+                    // Guard: never replace the in-memory achievement list with an empty server
+                    // response — a zero-count result is almost always a transient API error.
+                    if (achievements.Count > 0)
+                        _achievements = achievements;
+
+                    _offlineCache.Save(username, _profile ?? new Models.UserProfile(), games,
+                        achievements.Count > 0 ? achievements : _achievements);
+
+                    // Only refresh the library immediately; the dashboard will be refreshed by
+                    // ApplyCloudPlaytimeAsync (called below) once cloud playtime has been applied,
+                    // so the dashboard always shows the correct playtime total rather than the
+                    // server-only (local-playtime-only) value that exists at this point.
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    {
+                        LibraryVm.Load(_library);
+                    });
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[SyncCheck] Remote userdata unchanged for '{username}' — skipping update.");
+                }
+
+                // Always refresh cloud playtime so that sessions played on another device are
+                // reflected on this one without requiring a full sign-out/sign-in cycle.
+                // This runs on every sync-check tick (every 5 minutes) and is lightweight
+                // since it only reads the activity log and updates in-memory game objects.
+                _ = ApplyCloudPlaytimeAsync(_library);
+
+                // Track last sync time for the Settings label
+                _lastSyncedAt = DateTime.UtcNow;
+                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    SettingsVm.LastSyncedLabel = FormatLastSyncedLabel(_lastSyncedAt));
+
+                // Also check Games.Database for updated platform JSON files (respects AutoUpdate preference)
+                if (Services.AppSettingsService.Load().AutoUpdate)
+                    _ = Services.GitHubDataService.CheckForUpdatesAsync();
+            }
+            catch (System.Net.Http.HttpRequestException ex)
+            {
+                // Network lost — transition to Offline Mode and start the reconnect timer
                 System.Diagnostics.Debug.WriteLine(
-                    $"[SyncCheck] Remote userdata changed for '{username}' " +
-                    $"(games: {(gamesChanged ? "changed" : "same")}, " +
-                    $"achievements: {(achvChanged ? "changed" : "same")}, " +
-                    $"playtime: {(playtimeChanged ? "changed" : "same")}). Updating local cache.");
+                    $"[SyncCheck] Network lost: {ex.Message}. Switching to Offline Mode.");
 
-                foreach (var g in games)
-                    g.Platform = Models.PlatformHelper.NormalizePlatform(g.Platform);
-
-                // Re-apply local playtime to the freshly fetched games (the server only stores
-                // game metadata, not playtime — without this the dashboard shows zero playtime
-                // every time the periodic sync refreshes the library list).
-                PlaytimeService.ApplyStoredPlaytime(games);
-
-                // Re-apply Steam cached games as a fallback so titles are never lost while
-                // background cloud sync catches up on freshly imported Steam libraries.
-                ReapplySteamCachedGames(games);
-
-                _library = games;
-                // Guard: never replace the in-memory achievement list with an empty server
-                // response — a zero-count result is almost always a transient API error.
-                if (achievements.Count > 0)
-                    _achievements = achievements;
-
-                _offlineCache.Save(username, _profile ?? new Models.UserProfile(), games,
-                    achievements.Count > 0 ? achievements : _achievements);
-
-                // Only refresh the library immediately; the dashboard will be refreshed by
-                // ApplyCloudPlaytimeAsync (called below) once cloud playtime has been applied,
-                // so the dashboard always shows the correct playtime total rather than the
-                // server-only (local-playtime-only) value that exists at this point.
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
-                    LibraryVm.Load(_library);
+                    IsOfflineMode = true;
+                    StopSyncCheckTimer();
+                    StopHeartbeatPoller();
+                    _messagePoller?.Dispose();
+                    _messagePoller = null;
+                    _presenceTimer?.Dispose();
+                    _presenceTimer = null;
+                    StartOfflineReconnectTimer();
                 });
             }
-            else
+            catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine(
-                    $"[SyncCheck] Remote userdata unchanged for '{username}' — skipping update.");
+                System.Diagnostics.Debug.WriteLine($"[SyncCheck] Sync check failed: {ex.Message}");
             }
-
-            // Always refresh cloud playtime so that sessions played on another device are
-            // reflected on this one without requiring a full sign-out/sign-in cycle.
-            // This runs on every sync-check tick (every 5 minutes) and is lightweight
-            // since it only reads the activity log and updates in-memory game objects.
-            _ = ApplyCloudPlaytimeAsync(_library);
-
-            // Track last sync time for the Settings label
-            _lastSyncedAt = DateTime.UtcNow;
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                SettingsVm.LastSyncedLabel = FormatLastSyncedLabel(_lastSyncedAt));
-
-            // Also check Games.Database for updated platform JSON files (respects AutoUpdate preference)
-            if (Services.AppSettingsService.Load().AutoUpdate)
-                _ = Services.GitHubDataService.CheckForUpdatesAsync();
         }
-        catch (System.Net.Http.HttpRequestException ex)
+        finally
         {
-            // Network lost — transition to Offline Mode and start the reconnect timer
-            System.Diagnostics.Debug.WriteLine(
-                $"[SyncCheck] Network lost: {ex.Message}. Switching to Offline Mode.");
-
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                IsOfflineMode = true;
-                StopSyncCheckTimer();
-                StopHeartbeatPoller();
-                _messagePoller?.Dispose();
-                _messagePoller = null;
-                _presenceTimer?.Dispose();
-                _presenceTimer = null;
-                StartOfflineReconnectTimer();
-            });
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[SyncCheck] Sync check failed: {ex.Message}");
+            _syncRefreshSemaphore.Release();
         }
     }
 
@@ -3901,6 +3935,35 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private void UpdateCacheSyncLabel(string label, bool force = false)
+    {
+        bool shouldPost;
+        lock (_cacheLabelGate)
+        {
+            long now = Environment.TickCount64;
+            long elapsed = now - _lastCacheLabelUpdatedAt;
+
+            shouldPost = force ||
+                         !string.Equals(_lastCacheLabelText, label, StringComparison.Ordinal) ||
+                         elapsed >= 160;
+            if (!shouldPost) return;
+
+            _lastCacheLabelText = label;
+            _lastCacheLabelUpdatedAt = now;
+        }
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => CacheSyncLabel = label);
+    }
+
+    private void ResetCacheSyncLabelTracking()
+    {
+        lock (_cacheLabelGate)
+        {
+            _lastCacheLabelText = "";
+            _lastCacheLabelUpdatedAt = 0;
+        }
+    }
+
     /// <summary>
     /// Background task: iterates all cloud library games and caches metadata + images
     /// not yet populated on the in-memory object (e.g. because enrichment is still
@@ -3961,8 +4024,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                             }
                         }
 
-                        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                            CacheSyncLabel = $"Caching {game.Title}…");
+                        UpdateCacheSyncLabel($"Caching {game.Title}…");
 
                         // Create a minimal game record with the best-available CoverUrl and
                         // AchievementsUrl for caching — avoids racing with
@@ -4011,6 +4073,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     IsCachingGames = false;
                     CacheSyncLabel = "";
                 });
+                ResetCacheSyncLabelTracking();
             }
         }
     }
@@ -4043,8 +4106,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
                 IsCachingGames = true;
-                CacheSyncLabel = "Scanning local games…";
             });
+            UpdateCacheSyncLabel("Scanning local games…", force: true);
 
             // Group by platform to fetch each database at most once
             var byPlatform = sources
@@ -4079,8 +4142,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                                 // Resolve the effective cache key: scanner titleId → database titleId → title
                                 string? cacheKey = titleId ?? dbGame.TitleId;
 
-                                Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                                    CacheSyncLabel = $"Caching {dbGame.Title ?? title}…");
+                                UpdateCacheSyncLabel($"Caching {dbGame.Title ?? title}…");
 
                                 await _metadataCache.CacheLocalGameAsync(
                                     platform,
@@ -4111,6 +4173,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                         IsCachingGames = false;
                         CacheSyncLabel = "";
                     });
+                    ResetCacheSyncLabelTracking();
                 }
             }
         }
