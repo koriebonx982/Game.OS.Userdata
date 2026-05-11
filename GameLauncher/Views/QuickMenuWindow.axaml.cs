@@ -1,5 +1,7 @@
+using System;
 using Avalonia;
 using Avalonia.Controls;
+using GameLauncher.Services;
 
 namespace GameLauncher.Views;
 
@@ -43,6 +45,27 @@ public partial class QuickMenuWindow : Window
         }
 
         Show();
-        Activate();
+
+        // On Windows, reinforce the topmost Z-order at the Win32 level.
+        // Avalonia's Topmost=true sets WS_EX_TOPMOST but Activate() from a background
+        // process is restricted by Windows; SetWindowPos bypasses this and forces the
+        // window above the currently-focused game window (borderless-windowed mode).
+        if (OperatingSystem.IsWindows())
+        {
+            var handle = TryGetPlatformHandle();
+            if (handle is not null)
+            {
+                NativeMethods.SetWindowPos(
+                    handle.Handle,
+                    NativeMethods.HWND_TOPMOST,
+                    0, 0, 0, 0,
+                    NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_SHOWWINDOW);
+                NativeMethods.SetForegroundWindow(handle.Handle);
+            }
+        }
+        else
+        {
+            Activate();
+        }
     }
 }
