@@ -98,7 +98,7 @@ public partial class QuickMenuViewModel : ViewModelBase
     [RelayCommand]
     private void InviteFriend(string friendUsername)
     {
-        _ = friendUsername;
+        if (string.IsNullOrWhiteSpace(friendUsername)) return;
         // Intentionally no-op for now: each game/emulator has different invite paths.
     }
 
@@ -163,7 +163,7 @@ public partial class QuickMenuViewModel : ViewModelBase
 
             ChatMessages.Add(new Message
             {
-                From   = string.IsNullOrWhiteSpace(CurrentUsername) ? "You" : CurrentUsername,
+                From   = "You",
                 Text   = text,
                 SentAt = System.DateTimeOffset.UtcNow.ToString("o"),
             });

@@ -235,7 +235,7 @@
                             Classes="btn-secondary"
                             Padding="8,4"
                             Command="{Binding CloseChatWindowCommand}">
-                        ✕
+                        <TextBlock Text="✕" FontSize="12" FontWeight="Bold"/>
                     </Button>
                 </Grid>
                 <ScrollViewer Grid.Row="1"
@@ -271,7 +271,7 @@
                 <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <TextBox Grid.Column="0"
                              Text="{Binding NewChatMessage}"
-                             Watermark="Type a message…"
+                             Watermark="Type a message..."
                              Background="#21262d"
                              BorderBrush="#30363d"
                              Foreground="White"
