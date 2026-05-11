@@ -66,12 +66,14 @@ public partial class GameDetailViewModel : ViewModelBase
     /// <summary>
     /// The YouTube embed URL used by the in-app WebView player
     /// (e.g. <c>https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1</c>).
-    /// Empty string when <see cref="TrailerUrl"/> is not a recognised YouTube URL.
+    /// Returns <c>"about:blank"</c> when the overlay is closed so that closing
+    /// the player stops audio/video, and re-opening it always causes a real URL
+    /// change in the binding (guaranteeing the WebView re-navigates).
     /// </summary>
     public string TrailerEmbedUrl =>
-        string.IsNullOrEmpty(YoutubeVideoId)
-            ? ""
-            : $"https://www.youtube.com/embed/{YoutubeVideoId}?autoplay=1&rel=0";
+        IsTrailerPlayerOpen && !string.IsNullOrEmpty(YoutubeVideoId)
+            ? $"https://www.youtube.com/embed/{YoutubeVideoId}?autoplay=1&rel=0"
+            : "about:blank";
 
     partial void OnTrailerUrlChanged(string? value)
     {
@@ -81,14 +83,11 @@ public partial class GameDetailViewModel : ViewModelBase
 
     partial void OnIsTrailerPlayerOpenChanged(bool value)
     {
-        // When the overlay opens, notify bindings so the WebView reloads its URL.
-        // This prevents a stale/blank player when the same overlay is re-opened
-        // for a different game or after being closed and reopened.
-        if (value)
-        {
-            OnPropertyChanged(nameof(YoutubeVideoId));
-            OnPropertyChanged(nameof(TrailerEmbedUrl));
-        }
+        // Always notify so the WebView URL binding fires in both directions:
+        // open  → "about:blank" → YouTube URL  (WebView navigates to video)
+        // close → YouTube URL  → "about:blank" (WebView stops playback/audio)
+        OnPropertyChanged(nameof(YoutubeVideoId));
+        OnPropertyChanged(nameof(TrailerEmbedUrl));
     }
 
     partial void OnExophaseUrlChanged(string? value) =>

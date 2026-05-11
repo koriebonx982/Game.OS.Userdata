@@ -14,6 +14,14 @@ internal static class NativeMethods
     internal const int VK_LCONTROL = 0xA2;
     internal const int VK_LSHIFT = 0xA0;
 
+    // SetWindowPos flags
+    internal const uint SWP_NOMOVE     = 0x0002;
+    internal const uint SWP_NOSIZE     = 0x0001;
+    internal const uint SWP_SHOWWINDOW = 0x0040;
+
+    /// <summary>Sentinel HWND that places a window above all non-topmost windows.</summary>
+    internal static readonly nint HWND_TOPMOST = new nint(-1);
+
     [DllImport("user32.dll", SetLastError = false)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool SetForegroundWindow(nint hWnd);
@@ -24,4 +32,13 @@ internal static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = false)]
     internal static extern short GetAsyncKeyState(int vKey);
+
+    /// <summary>
+    /// Changes the size, position, and Z-order of a window.
+    /// Used to force an overlay window into the topmost Z-band at the Win32 level.
+    /// </summary>
+    [DllImport("user32.dll", SetLastError = false)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter,
+        int X, int Y, int cx, int cy, uint uFlags);
 }

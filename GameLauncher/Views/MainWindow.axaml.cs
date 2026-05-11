@@ -320,8 +320,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Launcher is in the foreground — use the inline quick menu panel as usual.
-        _boundVm.ToggleQuickMenu();
+        // Launcher is in the foreground — the inline quick menu is toggled by
+        // OnKeyDown (which fires synchronously on the key press and is always
+        // processed before the 150 ms poller tick).  Calling ToggleQuickMenu()
+        // here as well would create a second toggle within 150 ms that immediately
+        // closes the menu the user just opened, causing the open/close glitch.
     }
 
     private void OnMainViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
