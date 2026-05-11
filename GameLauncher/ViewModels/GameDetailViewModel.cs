@@ -65,7 +65,7 @@ public partial class GameDetailViewModel : ViewModelBase
 
     /// <summary>
     /// The YouTube embed URL used by the in-app WebView player
-    /// (e.g. <c>https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1</c>).
+    /// (e.g. <c>https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&amp;rel=0</c>).
     /// Returns <c>"about:blank"</c> when the overlay is closed so that closing
     /// the player stops audio/video, and re-opening it always causes a real URL
     /// change in the binding (guaranteeing the WebView re-navigates).

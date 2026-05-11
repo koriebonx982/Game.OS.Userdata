@@ -53,7 +53,7 @@ public partial class QuickMenuWindow : Window
         if (OperatingSystem.IsWindows())
         {
             var handle = TryGetPlatformHandle();
-            if (handle != null)
+            if (handle is not null)
             {
                 NativeMethods.SetWindowPos(
                     handle.Handle,
