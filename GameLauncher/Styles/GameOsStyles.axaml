@@ -373,4 +373,70 @@
         <Setter Property="Foreground" Value="White"/>
     </Style>
 
+    <!-- ─── Themeable shell/dashboard surfaces ─── -->
+    <Style Selector="Window.main-window-shell">
+        <Setter Property="Background" Value="#0d1117"/>
+    </Style>
+
+    <Style Selector="Border.main-content-surface">
+        <Setter Property="Background" Value="#0d1117"/>
+    </Style>
+
+    <Style Selector="Border.detail-overlay-surface">
+        <Setter Property="Background" Value="#0d1117"/>
+    </Style>
+
+    <Style Selector="Border.friend-profile-topbar">
+        <Setter Property="Background" Value="#161b22"/>
+    </Style>
+
+    <Style Selector="Border.sync-overlay-panel">
+        <Setter Property="Background" Value="#161b22"/>
+        <Setter Property="BorderBrush" Value="#30363d"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="UserControl.dashboard-root">
+        <Setter Property="Background" Value="#0d1117"/>
+    </Style>
+
+    <Style Selector="Border.featured-hero-banner">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Color="#0a1628" Offset="0"/>
+                    <GradientStop Color="#1a3a6e" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style Selector="Border.hero-feature-badge">
+        <Setter Property="Background" Value="#1f6feb"/>
+    </Style>
+
+    <Style Selector="Border.hero-platform-badge">
+        <Setter Property="Background" Value="#0d2137"/>
+    </Style>
+
+    <Style Selector="TextBlock.hero-platform-badge-text">
+        <Setter Property="Foreground" Value="#58a6ff"/>
+    </Style>
+
+    <Style Selector="Border.game-platform-pill">
+        <Setter Property="Background" Value="#1f6feb"/>
+    </Style>
+
+    <Style Selector="TextBlock.game-playtime-meta">
+        <Setter Property="Foreground" Value="#0ea5e9"/>
+    </Style>
+
+    <Style Selector="Border.empty-state-card">
+        <Setter Property="Background" Value="#161b22"/>
+    </Style>
+
+    <Style Selector="Border.achievement-icon-card">
+        <Setter Property="Background" Value="#2d2000"/>
+    </Style>
+
 </Styles>

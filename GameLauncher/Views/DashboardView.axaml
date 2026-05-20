@@ -5,7 +5,7 @@
              xmlns:models="using:GameLauncher.Models"
              x:Class="GameLauncher.Views.DashboardView"
              x:DataType="vm:DashboardViewModel"
-             Background="#0d1117">
+             Classes="dashboard-root">
 
     <StackPanel Margin="32,28,32,28" Spacing="0">
 
@@ -48,17 +48,11 @@
         </StackPanel>
 
         <!-- Hero Featured Game / Last Played -->
-        <Border Classes="hero-banner" Margin="0,0,0,24" Cursor="Hand"
+        <Border Classes="hero-banner featured-hero-banner" Margin="0,0,0,24" Cursor="Hand"
                 IsVisible="{Binding FeaturedGame, Converter={x:Static ObjectConverters.IsNotNull}}">
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                    <GradientStop Color="#0a1628" Offset="0"/>
-                    <GradientStop Color="#1a3a6e" Offset="1"/>
-                </LinearGradientBrush>
-            </Border.Background>
             <Grid ColumnDefinitions="*,Auto" Margin="32,28,32,28">
                 <StackPanel Grid.Column="0" Spacing="10" VerticalAlignment="Center">
-                    <Border Background="#1f6feb" CornerRadius="4"
+                    <Border Classes="hero-feature-badge" CornerRadius="4"
                             Padding="8,3" HorizontalAlignment="Left">
                         <TextBlock Text="{Binding FeaturedBadgeText}" FontSize="11"
                                    FontWeight="Bold" Foreground="White"/>
@@ -68,11 +62,12 @@
                                IsVisible="{Binding FeaturedGame.Description,
                                    Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                     <!-- Show platform badge for last-played game (no description/price) -->
-                    <Border CornerRadius="4" Padding="8,3" Background="#0d2137"
+                    <Border Classes="hero-platform-badge" CornerRadius="4" Padding="8,3"
                             HorizontalAlignment="Left"
                             IsVisible="{Binding IsFeaturedLastPlayed}">
                         <TextBlock Text="{Binding FeaturedGame.Platform}"
-                                   FontSize="11" Foreground="#58a6ff"/>
+                                   Classes="hero-platform-badge-text"
+                                   FontSize="11"/>
                     </Border>
                     <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,8,0,0"
                                 IsVisible="{Binding !IsFeaturedLastPlayed}">
@@ -147,7 +142,7 @@
                                                        Classes="game-card-title"/>
                                             <StackPanel Orientation="Horizontal" Spacing="4">
                                                 <Border CornerRadius="3" Padding="5,2"
-                                                        Background="#1f6feb" HorizontalAlignment="Left">
+                                                        Classes="game-platform-pill" HorizontalAlignment="Left">
                                                     <TextBlock Text="{Binding Platform}"
                                                                FontSize="10" FontWeight="Bold"
                                                                Foreground="White"/>
@@ -161,7 +156,8 @@
                                                 </Border>
                                             </StackPanel>
                                             <TextBlock Text="{Binding PlaytimeLabel}"
-                                                       FontSize="10" Foreground="#0ea5e9"
+                                                       Classes="game-playtime-meta"
+                                                       FontSize="10"
                                                        IsVisible="{Binding PlaytimeLabel,
                                                            Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                                         </StackPanel>
@@ -174,7 +170,7 @@
             </StackPanel>
             <!-- Empty state: no games played yet -->
             <Border IsVisible="{Binding !HasRecentLocalGames}"
-                    Background="#161b22" CornerRadius="10"
+                    Classes="empty-state-card" CornerRadius="10"
                     Padding="24,20" Margin="0,4,0,0">
                 <StackPanel HorizontalAlignment="Center" Spacing="8">
                     <TextBlock Text="🎮" FontSize="32" HorizontalAlignment="Center"/>
@@ -199,7 +195,7 @@
                     <Border Classes="achievement-card">
                         <Grid ColumnDefinitions="40,*">
                             <Border Grid.Column="0" Width="36" Height="36"
-                                    CornerRadius="8" Background="#2d2000">
+                                    Classes="achievement-icon-card" CornerRadius="8">
                                 <TextBlock Text="🏆" FontSize="18"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"/>
