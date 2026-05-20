@@ -88,6 +88,17 @@
                 </Button>
 
                 <Button Classes="settings-nav-item"
+                        Classes.active="{Binding IsDesignSection}"
+                        HorizontalAlignment="Stretch"
+                        Command="{Binding SelectSectionCommand}"
+                        CommandParameter="design">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="🟢" FontSize="16" VerticalAlignment="Center"/>
+                        <TextBlock Text="Design" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Classes="settings-nav-item"
                         Classes.active="{Binding IsSystemSection}"
                         HorizontalAlignment="Stretch"
                         Command="{Binding SelectSectionCommand}"
@@ -742,6 +753,44 @@
                                               VerticalAlignment="Center"
                                               Margin="16,0,0,0"/>
                             </Grid>
+
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" Spacing="16" Margin="0,0,0,24">
+                        <Button Classes="btn-primary"
+                                Content="💾  Save Settings"
+                                Command="{Binding SaveCommand}"
+                                Width="180"/>
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   Foreground="#3fb950"
+                                   FontSize="13"
+                                   VerticalAlignment="Center"
+                                   IsVisible="{Binding IsSaveSuccess}"/>
+                    </StackPanel>
+
+                </StackPanel>
+
+                <!-- ── Design ── -->
+                <StackPanel IsVisible="{Binding IsDesignSection}" Spacing="0">
+
+                    <TextBlock Text="Design" Classes="page-title" Margin="0,0,0,4"/>
+                    <TextBlock Text="Choose the launcher theme."
+                               Classes="page-subtitle" Margin="0,0,0,24"/>
+
+                    <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,24">
+                        <StackPanel Spacing="16">
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="Theme"
+                                           FontSize="13" Foreground="#e6edf3"/>
+                                <ComboBox Classes="form-input"
+                                          ItemsSource="{Binding AvailableDesignThemes}"
+                                          SelectedItem="{Binding DesignTheme}"
+                                          Width="220"/>
+                                <TextBlock Text="Default uses the standard Game.OS dashboard style. XB360 applies an Xbox 360 inspired dashboard look."
+                                           FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                            </StackPanel>
 
                         </StackPanel>
                     </Border>

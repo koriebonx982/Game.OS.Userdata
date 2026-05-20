@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Markup.Xaml.Styling;
 using AvaloniaWebView;
 using GameLauncher.Models;
 using GameLauncher.Services;
@@ -14,6 +15,11 @@ namespace GameLauncher;
 
 public partial class App : Application
 {
+    private const string DefaultDesignTheme = "Default";
+    private const string Xb360DesignTheme = "XB360";
+    private const string Xb360ThemeSource = "avares://GameLauncher/Styles/Xb360Theme.axaml";
+    private StyleInclude? _designThemeStyle;
+
     // Default intro video location — mirrors the PS5 OS reference:
     // the user places Intro.mp4 in {AppDir}/Data/Intro/Intro.mp4.
     private static readonly string DefaultIntroPath =
@@ -47,6 +53,7 @@ public partial class App : Application
             //   1. Default fixed location  — Data/Intro/Intro.mp4 (matches PS5 OS reference)
             //   2. User override           — IntroVideoPath from settings (if set and exists)
             var settings   = AppSettingsService.Load();
+            ApplyDesignTheme(settings.DesignTheme);
             string? introPath = ResolveIntroPath(settings);
 
             DevLogService.Log($"[App] ShowIntroVideo={settings.ShowIntroVideo}  " +
@@ -119,5 +126,27 @@ public partial class App : Application
             return DefaultIntroPath;
 
         return null;
+    }
+
+    public void ApplyDesignTheme(string designTheme)
+    {
+        string normalised = string.Equals(designTheme?.Trim(), Xb360DesignTheme, StringComparison.OrdinalIgnoreCase)
+            ? Xb360DesignTheme
+            : DefaultDesignTheme;
+
+        if (_designThemeStyle != null)
+        {
+            Styles.Remove(_designThemeStyle);
+            _designThemeStyle = null;
+        }
+
+        if (string.Equals(normalised, Xb360DesignTheme, StringComparison.Ordinal))
+        {
+            _designThemeStyle = new StyleInclude(new Uri("avares://GameLauncher/App.axaml"))
+            {
+                Source = new Uri(Xb360ThemeSource),
+            };
+            Styles.Add(_designThemeStyle);
+        }
     }
 }

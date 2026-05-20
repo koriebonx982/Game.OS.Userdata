@@ -80,7 +80,7 @@ public sealed class GameScannerService : IDisposable
             }
 
             // Always do a fresh scan to stay current
-            await ScanAllDrivesAsync(ct);
+            await ScanAllDrivesAsync(ct).ConfigureAwait(false);
             StartWatchers();
 
             // Kick off the periodic rescan loop (uses the lifetime CTS so it stops on Dispose).

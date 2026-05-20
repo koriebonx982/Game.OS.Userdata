@@ -3945,7 +3945,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             shouldPost = force ||
                          !string.Equals(_lastCacheLabelText, label, StringComparison.Ordinal) ||
-                         elapsed >= 160;
+                         elapsed >= 500;
             if (!shouldPost) return;
 
             _lastCacheLabelText = label;

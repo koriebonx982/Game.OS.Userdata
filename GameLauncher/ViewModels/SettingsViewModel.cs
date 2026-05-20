@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GameLauncher.Models;
@@ -96,6 +97,10 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private bool _compatibilityOverlayMode = false;
     /// <summary>Prefer cached local metadata first for installed games and offline sessions.</summary>
     [ObservableProperty] private bool _preferOfflineCachedMetadata = true;
+    /// <summary>Selected launcher design theme.</summary>
+    [ObservableProperty] private string _designTheme = "Default";
+    /// <summary>Available launcher design themes for Settings → Design.</summary>
+    public IReadOnlyList<string> AvailableDesignThemes { get; } = new[] { "Default", "XB360" };
 
     /// <summary>
     /// Wired by MainViewModel: invoked when "Import Steam Library" is clicked.
@@ -185,6 +190,7 @@ public partial class SettingsViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(IsSyncSection))]
     [NotifyPropertyChangedFor(nameof(IsAccountSection))]
     [NotifyPropertyChangedFor(nameof(IsCustomiseSection))]
+    [NotifyPropertyChangedFor(nameof(IsDesignSection))]
     [NotifyPropertyChangedFor(nameof(IsSystemSection))]
     [NotifyPropertyChangedFor(nameof(IsNotificationsSection))]
     [NotifyPropertyChangedFor(nameof(IsDeveloperSection))]
@@ -196,6 +202,7 @@ public partial class SettingsViewModel : ViewModelBase
     public bool IsSyncSection          => SelectedSection == "sync";
     public bool IsAccountSection       => SelectedSection == "account";
     public bool IsCustomiseSection     => SelectedSection == "customise";
+    public bool IsDesignSection        => SelectedSection == "design";
     public bool IsSystemSection        => SelectedSection == "system";
     public bool IsNotificationsSection => SelectedSection == "notifications";
     public bool IsDeveloperSection     => SelectedSection == "developer";
@@ -311,6 +318,7 @@ public partial class SettingsViewModel : ViewModelBase
         EnableGlobalQuickMenuHotkey = appSettings.EnableGlobalQuickMenuHotkey;
         CompatibilityOverlayMode   = appSettings.CompatibilityOverlayMode;
         PreferOfflineCachedMetadata = appSettings.PreferOfflineCachedMetadata;
+        DesignTheme                = NormaliseDesignTheme(appSettings.DesignTheme);
         LogGamesScanner           = appSettings.LogGamesScanner;
         LogGamesScannerAdvanced   = appSettings.LogGamesScannerAdvanced;
         LogRomsScanner            = appSettings.LogRomsScanner;
@@ -495,6 +503,7 @@ public partial class SettingsViewModel : ViewModelBase
             EnableGlobalQuickMenuHotkey = EnableGlobalQuickMenuHotkey,
             CompatibilityOverlayMode   = CompatibilityOverlayMode,
             PreferOfflineCachedMetadata = PreferOfflineCachedMetadata,
+            DesignTheme                = NormaliseDesignTheme(DesignTheme),
             LogGamesScanner           = LogGamesScanner,
             LogGamesScannerAdvanced   = LogGamesScannerAdvanced,
             LogRomsScanner            = LogRomsScanner,
@@ -516,6 +525,8 @@ public partial class SettingsViewModel : ViewModelBase
         StatusMessage = "✅ Settings saved!";
         IsSaveSuccess = true;
         ExophaseProfileId = NormaliseExophaseProfileId(ExophaseProfileId);
+        DesignTheme = NormaliseDesignTheme(DesignTheme);
+        (Application.Current as App)?.ApplyDesignTheme(DesignTheme);
         SettingsApplied?.Invoke();
 
         // Link Steam ID to the current account in the background (prevents duplicate SteamID).
@@ -584,6 +595,13 @@ public partial class SettingsViewModel : ViewModelBase
         var trimmed = (value ?? "").Trim();
         if (string.IsNullOrEmpty(trimmed)) return "";
         return trimmed.StartsWith("#", StringComparison.Ordinal) ? trimmed : $"#{trimmed}";
+    }
+
+    private static string NormaliseDesignTheme(string value)
+    {
+        return string.Equals((value ?? "").Trim(), "XB360", StringComparison.OrdinalIgnoreCase)
+            ? "XB360"
+            : "Default";
     }
 }
 

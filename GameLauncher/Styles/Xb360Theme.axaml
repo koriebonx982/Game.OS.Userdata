@@ -1,0 +1,261 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Xbox 360 (Kinect dashboard inspired) override theme -->
+
+    <Style Selector="Window.main-window-shell">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#09130c" Offset="0"/>
+                    <GradientStop Color="#040a06" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style Selector="Border.main-content-surface">
+        <Setter Property="Background" Value="#08120c"/>
+    </Style>
+
+    <Style Selector="Border.detail-overlay-surface">
+        <Setter Property="Background" Value="#07110b"/>
+    </Style>
+
+    <Style Selector="Border.friend-profile-topbar">
+        <Setter Property="Background" Value="#0f2417"/>
+        <Setter Property="BorderBrush" Value="#3f8e54"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    </Style>
+
+    <Style Selector="Border.sync-overlay-panel">
+        <Setter Property="Background" Value="#10291a"/>
+        <Setter Property="BorderBrush" Value="#5fce7d"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="UserControl.dashboard-root">
+        <Setter Property="Background" Value="#08120c"/>
+    </Style>
+
+    <Style Selector="Border.featured-hero-banner">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#1e512f" Offset="0"/>
+                    <GradientStop Color="#0f2e1c" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderBrush" Value="#76d747"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="Border.hero-feature-badge">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#b7f06d" Offset="0"/>
+                    <GradientStop Color="#69c839" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style Selector="Border.hero-platform-badge">
+        <Setter Property="Background" Value="#163d27"/>
+        <Setter Property="BorderBrush" Value="#60c87c"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="TextBlock.hero-platform-badge-text">
+        <Setter Property="Foreground" Value="#b6ff91"/>
+    </Style>
+
+    <Style Selector="Border.game-platform-pill">
+        <Setter Property="Background" Value="#68c53d"/>
+    </Style>
+
+    <Style Selector="TextBlock.game-playtime-meta">
+        <Setter Property="Foreground" Value="#9af069"/>
+    </Style>
+
+    <Style Selector="Border.empty-state-card">
+        <Setter Property="Background" Value="#10291a"/>
+        <Setter Property="BorderBrush" Value="#3a8d53"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="Border.achievement-icon-card">
+        <Setter Property="Background" Value="#2d4d15"/>
+    </Style>
+
+    <Style Selector="Border.nav-sidebar">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#0e2c17" Offset="0"/>
+                    <GradientStop Color="#081d10" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style Selector="Border.nav-logo-area">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#bdf06d" Offset="0"/>
+                    <GradientStop Color="#66c935" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderBrush" Value="#d8ff9d"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    </Style>
+
+    <Style Selector="TextBlock.nav-logo-text">
+        <Setter Property="Foreground" Value="#0d2714"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+    </Style>
+
+    <Style Selector="Button.nav-item">
+        <Setter Property="Foreground" Value="#dff8dc"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Margin" Value="0,1"/>
+        <Setter Property="Padding" Value="20,16"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="#1f5a33"/>
+    </Style>
+
+    <Style Selector="Button.nav-item /template/ ContentPresenter">
+        <Setter Property="Background" Value="#123521"/>
+        <Setter Property="CornerRadius" Value="0"/>
+    </Style>
+
+    <Style Selector="Button.nav-item:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#1f6a39"/>
+    </Style>
+
+    <Style Selector="Button.nav-item.active /template/ ContentPresenter">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#9eee58" Offset="0"/>
+                    <GradientStop Color="#64c938" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style Selector="Button.nav-item.active">
+        <Setter Property="Foreground" Value="#0f2414"/>
+        <Setter Property="BorderBrush" Value="#c7ff7d"/>
+    </Style>
+
+    <Style Selector="TextBlock.page-title">
+        <Setter Property="Foreground" Value="#edffe0"/>
+    </Style>
+
+    <Style Selector="TextBlock.page-subtitle">
+        <Setter Property="Foreground" Value="#9ec2a3"/>
+    </Style>
+
+    <Style Selector="Border.stat-tile">
+        <Setter Property="Background" Value="#102a1b"/>
+        <Setter Property="BorderBrush" Value="#2a7442"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="Border.game-card">
+        <Setter Property="Background" Value="#112d1d"/>
+        <Setter Property="BorderBrush" Value="#2a7442"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="Button.game-card-btn /template/ ContentPresenter">
+        <Setter Property="Background" Value="#112d1d"/>
+        <Setter Property="BorderBrush" Value="#2a7442"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="Button.game-card-btn:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#184329"/>
+    </Style>
+
+    <Style Selector="Border.store-card">
+        <Setter Property="Background" Value="#112d1d"/>
+        <Setter Property="BorderBrush" Value="#2a7442"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <Style Selector="Button.btn-primary">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#a0f05a" Offset="0"/>
+                    <GradientStop Color="#63c63b" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Foreground" Value="#0f2614"/>
+        <Setter Property="CornerRadius" Value="3"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="#c8ff86"/>
+    </Style>
+
+    <Style Selector="Button.btn-primary:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#8de44f"/>
+    </Style>
+
+    <Style Selector="Button.btn-secondary">
+        <Setter Property="Foreground" Value="#def8dc"/>
+        <Setter Property="BorderBrush" Value="#4eb86b"/>
+        <Setter Property="CornerRadius" Value="3"/>
+    </Style>
+
+    <Style Selector="Button.btn-secondary:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#1d5632"/>
+    </Style>
+
+    <Style Selector="TextBox.form-input">
+        <Setter Property="Background" Value="#0d2417"/>
+        <Setter Property="BorderBrush" Value="#45a75f"/>
+        <Setter Property="Foreground" Value="#f0ffec"/>
+    </Style>
+
+    <Style Selector="Button.settings-nav-item">
+        <Setter Property="Foreground" Value="#ddf8da"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Margin" Value="0,1"/>
+        <Setter Property="Padding" Value="18,12"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="BorderBrush" Value="#1f5a33"/>
+    </Style>
+
+    <Style Selector="Button.settings-nav-item /template/ ContentPresenter">
+        <Setter Property="Background" Value="#123521"/>
+        <Setter Property="CornerRadius" Value="0"/>
+    </Style>
+
+    <Style Selector="Button.settings-nav-item:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#1f6a39"/>
+    </Style>
+
+    <Style Selector="Button.settings-nav-item.active /template/ ContentPresenter">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#9eee58" Offset="0"/>
+                    <GradientStop Color="#64c938" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style Selector="Button.settings-nav-item.active">
+        <Setter Property="Foreground" Value="#0f2414"/>
+        <Setter Property="BorderBrush" Value="#c7ff7d"/>
+    </Style>
+
+</Styles>

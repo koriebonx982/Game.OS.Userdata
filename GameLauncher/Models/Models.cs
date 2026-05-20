@@ -403,6 +403,11 @@ namespace GameLauncher.Models
         [JsonPropertyName("introVideoPath")] public string IntroVideoPath { get; set; } = "";
 
         /// <summary>
+        /// Selected launcher design theme. Supported values: <c>Default</c> and <c>XB360</c>.
+        /// </summary>
+        [JsonPropertyName("designTheme")] public string DesignTheme { get; set; } = "Default";
+
+        /// <summary>
         /// When <see langword="true"/>, Game.OS reads the Ryujinx log file after each
         /// Switch game session and displays any relevant output in the launcher.
         /// </summary>

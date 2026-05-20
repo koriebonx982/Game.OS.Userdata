@@ -4,11 +4,11 @@
         xmlns:views="using:GameLauncher.Views"
         x:Class="GameLauncher.Views.MainWindow"
         x:DataType="vm:MainViewModel"
+        Classes="main-window-shell"
         Title="Game.OS Launcher"
         Width="1280" Height="800"
         MinWidth="900" MinHeight="600"
         WindowState="FullScreen"
-        Background="#0d1117"
         Icon="/Assets/avalonia-logo.ico">
 
     <Grid>
@@ -21,7 +21,7 @@
         <Panel IsVisible="{Binding ShowMain}">
 
             <!-- Content area (full width) -->
-            <Border Background="#0d1117">
+            <Border Classes="main-content-surface">
                 <Grid RowDefinitions="Auto,*">
                     <!-- Offline mode banner (shown at the top of the content area) -->
                     <Border Grid.Row="0"
@@ -68,15 +68,15 @@
                     </ScrollViewer>
 
                     <!-- Game detail overlay -->
-                    <Border IsVisible="{Binding ShowDetail}" Background="#0d1117">
+                    <Border IsVisible="{Binding ShowDetail}" Classes="detail-overlay-surface">
                         <views:GameDetailView DataContext="{Binding DetailVm}"/>
                     </Border>
 
                     <!-- Friend profile overlay -->
-                    <Border IsVisible="{Binding ShowFriendProfile}" Background="#0d1117">
+                    <Border IsVisible="{Binding ShowFriendProfile}" Classes="detail-overlay-surface">
                         <Grid RowDefinitions="Auto,*">
                             <!-- Back bar -->
-                            <Border Grid.Row="0" Background="#161b22" Padding="20,14">
+                            <Border Grid.Row="0" Classes="friend-profile-topbar" Padding="20,14">
                                 <Grid ColumnDefinitions="Auto,*">
                                     <Button Grid.Column="0"
                                             Classes="btn-secondary"
@@ -109,10 +109,8 @@
                             VerticalAlignment="Bottom"
                             Margin="0,0,16,16"
                             ZIndex="200"
+                            Classes="sync-overlay-panel"
                             IsVisible="{Binding IsCachingGames}"
-                            Background="#161b22"
-                            BorderBrush="#30363d"
-                            BorderThickness="1"
                             CornerRadius="10"
                             Padding="14,10">
                         <StackPanel Orientation="Vertical" Spacing="4" MinWidth="220">
