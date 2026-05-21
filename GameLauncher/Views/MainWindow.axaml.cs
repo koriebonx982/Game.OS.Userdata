@@ -402,7 +402,8 @@ public partial class MainWindow : Window
                 achievements:         _boundVm.DetailVm.Achievements,
                 recentGames:          _boundVm.DashboardVm.Ps5RecentGames.ToList(),
                 activePageKey:        _boundVm.ActivePage,
-                pendingDownloadCount: _boundVm.LibraryVm.ReadyToInstall.Count);
+                pendingDownloadCount: _boundVm.LibraryVm.ReadyToInstall.Count,
+                quickMenuTheme:       _boundVm.SettingsVm.QuickMenuTheme);
 
             if (_quickMenuWindow == null)
             {

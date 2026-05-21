@@ -32,6 +32,12 @@ public partial class QuickMenuViewModel : ViewModelBase
     [ObservableProperty] private string _menuTitle = "Home";
     [ObservableProperty] private string _menuSubtitle = "Return to the home screen.";
 
+    // ── Visual style selection ───────────────────────────────────────────────
+    [ObservableProperty] private string _quickMenuTheme = "PS5";
+    public bool IsPs5Theme => string.Equals(QuickMenuTheme, "PS5", StringComparison.OrdinalIgnoreCase);
+    public bool IsXb360Theme => string.Equals(QuickMenuTheme, "XB360", StringComparison.OrdinalIgnoreCase);
+    public bool IsGameOsTheme => string.Equals(QuickMenuTheme, "GameOS", StringComparison.OrdinalIgnoreCase);
+
     // ── Hub page state ──────────────────────────────────────────────────────
     [ObservableProperty] private string _activePage = "home";
     [ObservableProperty] private int _selectedHubIndex;
@@ -112,6 +118,12 @@ public partial class QuickMenuViewModel : ViewModelBase
     }
 
     partial void OnPendingDownloadCountChanged(int value) => OnPropertyChanged(nameof(HasPendingDownloads));
+    partial void OnQuickMenuThemeChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsPs5Theme));
+        OnPropertyChanged(nameof(IsXb360Theme));
+        OnPropertyChanged(nameof(IsGameOsTheme));
+    }
 
     partial void OnActivePageChanged(string value)
     {
@@ -453,8 +465,10 @@ public partial class QuickMenuViewModel : ViewModelBase
         System.Collections.Generic.IReadOnlyList<Achievement> achievements,
         System.Collections.Generic.IReadOnlyList<LocalGameCardVm>? recentGames,
         string activePageKey,
-        int pendingDownloadCount)
+        int pendingDownloadCount,
+        string quickMenuTheme)
     {
+        QuickMenuTheme = NormaliseQuickMenuTheme(quickMenuTheme);
         CurrentUsername = currentUsername ?? "";
         IsPlayingGame = !string.IsNullOrEmpty(currentGameTitle);
         CurrentGameTitle = currentGameTitle ?? "";
@@ -524,6 +538,14 @@ public partial class QuickMenuViewModel : ViewModelBase
         }
         HasAchievements = Achievements.Count > 0;
         MediaStatusLabel = "Media controls are ready.";
+    }
+
+    private static string NormaliseQuickMenuTheme(string value)
+    {
+        var v = (value ?? "").Trim();
+        if (string.Equals(v, "XB360", StringComparison.OrdinalIgnoreCase)) return "XB360";
+        if (string.Equals(v, "GameOS", StringComparison.OrdinalIgnoreCase)) return "GameOS";
+        return "PS5";
     }
 
     private void AddSwitcher(string pageKey, string title, string subtitle, string activePageKey)

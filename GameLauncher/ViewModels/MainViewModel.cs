@@ -1669,7 +1669,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             achievements:          DetailVm.Achievements,
             recentGames:           DashboardVm.Ps5RecentGames.ToList(),
             activePageKey:         ActivePage,
-            pendingDownloadCount:  LibraryVm.ReadyToInstall.Count);
+            pendingDownloadCount:  LibraryVm.ReadyToInstall.Count,
+            quickMenuTheme:        SettingsVm.QuickMenuTheme);
 
         ShowQuickMenu = true;
     }

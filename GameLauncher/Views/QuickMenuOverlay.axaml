@@ -4,20 +4,68 @@
              xmlns:models="using:GameLauncher.Models"
              xmlns:views="using:GameLauncher.Views"
              x:Class="GameLauncher.Views.QuickMenuOverlay"
-             x:DataType="vm:QuickMenuViewModel">
+             x:DataType="vm:QuickMenuViewModel"
+             Classes.qm-theme-ps5="{Binding IsPs5Theme}"
+             Classes.qm-theme-gameos="{Binding IsGameOsTheme}"
+             Classes.qm-theme-xb360="{Binding IsXb360Theme}">
+
+    <UserControl.Styles>
+        <Style Selector="Border.qm-overlay-backdrop">
+            <Setter Property="Background" Value="#AA000000"/>
+        </Style>
+        <Style Selector="Border.qm-center-panel">
+            <Setter Property="Background" Value="#CC222222"/>
+            <Setter Property="CornerRadius" Value="18"/>
+        </Style>
+        <Style Selector="Border.qm-bottom-shell">
+            <Setter Property="Background" Value="#CC222222"/>
+            <Setter Property="CornerRadius" Value="24"/>
+        </Style>
+
+        <Style Selector="UserControl.qm-theme-gameos Border.qm-center-panel">
+            <Setter Property="Background" Value="#E0161b22"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="BorderBrush" Value="#30363d"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="UserControl.qm-theme-gameos Border.qm-bottom-shell">
+            <Setter Property="Background" Value="#E0161b22"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="BorderBrush" Value="#30363d"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <Style Selector="UserControl.qm-theme-xb360 Border.qm-overlay-backdrop">
+            <Setter Property="Background" Value="#AA061109"/>
+        </Style>
+        <Style Selector="UserControl.qm-theme-xb360 Border.qm-center-panel">
+            <Setter Property="Background" Value="#EE0d2316"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="BorderBrush" Value="#5fce7d"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="UserControl.qm-theme-xb360 Border.qm-bottom-shell">
+            <Setter Property="Background" Value="#EE0d2316"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="BorderBrush" Value="#5fce7d"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="UserControl.qm-theme-xb360 Button.qm-hub-btn">
+            <Setter Property="BorderBrush" Value="#5fce7d"/>
+        </Style>
+    </UserControl.Styles>
 
     <Grid>
-        <Border Background="#AA000000"/>
+        <Border Classes="qm-overlay-backdrop"/>
 
         <Grid RowDefinitions="*,Auto">
             <!-- Center overlays -->
             <Grid Grid.Row="0" Margin="24,24,24,12">
-                <Border IsVisible="{Binding IsHomePage}"
+                <Border Classes="qm-center-panel"
+                        IsVisible="{Binding IsHomePage}"
                         Width="540"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Background="#CC222222"
-                        CornerRadius="18"
                         Padding="18">
                     <StackPanel Spacing="12">
                         <TextBlock Text="Current Session" FontSize="20" FontWeight="SemiBold" Foreground="White"/>
@@ -42,12 +90,11 @@
                     </StackPanel>
                 </Border>
 
-                <Border IsVisible="{Binding IsSwitcherPage}"
+                <Border Classes="qm-center-panel"
+                        IsVisible="{Binding IsSwitcherPage}"
                         Width="540"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Background="#CC222222"
-                        CornerRadius="18"
                         Padding="18">
                     <StackPanel Spacing="10">
                         <TextBlock Text="Switcher" FontSize="20" FontWeight="SemiBold" Foreground="White"/>
@@ -76,12 +123,11 @@
                     </StackPanel>
                 </Border>
 
-                <Border IsVisible="{Binding IsRecentGamesPage}"
+                <Border Classes="qm-center-panel"
+                        IsVisible="{Binding IsRecentGamesPage}"
                         Width="640"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Background="#CC222222"
-                        CornerRadius="18"
                         Padding="18">
                     <StackPanel Spacing="10">
                         <TextBlock Text="Recent Games" FontSize="20" FontWeight="SemiBold" Foreground="White"/>
@@ -115,12 +161,11 @@
                     </StackPanel>
                 </Border>
 
-                <Border IsVisible="{Binding IsNotificationsPage}"
+                <Border Classes="qm-center-panel"
+                        IsVisible="{Binding IsNotificationsPage}"
                         Width="480"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Background="#CC222222"
-                        CornerRadius="18"
                         Padding="18">
                     <StackPanel Spacing="10">
                         <TextBlock Text="Notifications" FontSize="20" FontWeight="SemiBold" Foreground="White"/>
@@ -130,12 +175,11 @@
                     </StackPanel>
                 </Border>
 
-                <Border IsVisible="{Binding IsDownloadsPage}"
+                <Border Classes="qm-center-panel"
+                        IsVisible="{Binding IsDownloadsPage}"
                         Width="480"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Background="#CC222222"
-                        CornerRadius="18"
                         Padding="18">
                     <StackPanel Spacing="10">
                         <TextBlock Text="Downloads" FontSize="20" FontWeight="SemiBold" Foreground="White"/>
@@ -144,12 +188,11 @@
                     </StackPanel>
                 </Border>
 
-                <Border IsVisible="{Binding IsFriendsPage}"
+                <Border Classes="qm-center-panel"
+                        IsVisible="{Binding IsFriendsPage}"
                         Width="560"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Background="#CC222222"
-                        CornerRadius="18"
                         Padding="18">
                     <StackPanel Spacing="10">
                         <TextBlock Text="Friends" FontSize="20" FontWeight="SemiBold" Foreground="White"/>
@@ -187,12 +230,11 @@
                     </StackPanel>
                 </Border>
 
-                <Border IsVisible="{Binding IsInboxPage}"
+                <Border Classes="qm-center-panel"
+                        IsVisible="{Binding IsInboxPage}"
                         Width="520"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Background="#CC222222"
-                        CornerRadius="18"
                         Padding="18">
                     <StackPanel Spacing="10">
                         <TextBlock Text="Inbox" FontSize="20" FontWeight="SemiBold" Foreground="White"/>
@@ -202,12 +244,11 @@
                     </StackPanel>
                 </Border>
 
-                <Border IsVisible="{Binding IsMediaPage}"
+                <Border Classes="qm-center-panel"
+                        IsVisible="{Binding IsMediaPage}"
                         Width="520"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Background="#CC222222"
-                        CornerRadius="18"
                         Padding="18">
                     <StackPanel Spacing="12">
                         <TextBlock Text="Media Controls" FontSize="20" FontWeight="SemiBold" Foreground="White"/>
@@ -220,12 +261,11 @@
                     </StackPanel>
                 </Border>
 
-                <Border IsVisible="{Binding IsPowerPage}"
+                <Border Classes="qm-center-panel"
+                        IsVisible="{Binding IsPowerPage}"
                         Width="420"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Background="#CC222222"
-                        CornerRadius="18"
                         Padding="18">
                     <StackPanel Spacing="10">
                         <TextBlock Text="Power" FontSize="20" FontWeight="SemiBold" Foreground="White"/>
@@ -235,12 +275,11 @@
                     </StackPanel>
                 </Border>
 
-                <Border IsVisible="{Binding IsAchievementsPage}"
+                <Border Classes="qm-center-panel"
+                        IsVisible="{Binding IsAchievementsPage}"
                         Width="560"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Background="#CC222222"
-                        CornerRadius="18"
                         Padding="18">
                     <StackPanel Spacing="10">
                         <TextBlock Text="Achievements" FontSize="20" FontWeight="SemiBold" Foreground="White"/>
@@ -266,8 +305,7 @@
 
             <!-- Bottom quick menu bar -->
             <Border Grid.Row="1"
-                    Background="#CC222222"
-                    CornerRadius="24"
+                    Classes="qm-bottom-shell"
                     Height="260"
                     Margin="0,0,0,24"
                     Padding="18,12">
