@@ -241,6 +241,18 @@
         <Setter Property="Foreground" Value="White"/>
     </Style>
 
+    <Style Selector="TextBlock.stat-number-achievements">
+        <Setter Property="Foreground" Value="#f1c40f"/>
+    </Style>
+
+    <Style Selector="TextBlock.stat-number-platforms">
+        <Setter Property="Foreground" Value="#3fb950"/>
+    </Style>
+
+    <Style Selector="TextBlock.stat-number-playtime">
+        <Setter Property="Foreground" Value="#0ea5e9"/>
+    </Style>
+
     <Style Selector="TextBlock.stat-label">
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="Foreground" Value="#8b949e"/>
@@ -263,6 +275,16 @@
     <Style Selector="TextBlock.achievement-desc">
         <Setter Property="FontSize" Value="11"/>
         <Setter Property="Foreground" Value="#8b949e"/>
+    </Style>
+
+    <Style Selector="TextBlock.achievement-meta">
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="Foreground" Value="#8b949e"/>
+    </Style>
+
+    <Style Selector="TextBlock.achievement-divider">
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="Foreground" Value="#30363d"/>
     </Style>
 
     <!-- ─── Store card ─── -->
@@ -400,6 +422,14 @@
         <Setter Property="Background" Value="#0d1117"/>
     </Style>
 
+    <Style Selector="Border.dashboard-xb360-layout">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+
+    <Style Selector="StackPanel.dashboard-default-layout">
+        <Setter Property="IsVisible" Value="True"/>
+    </Style>
+
     <Style Selector="Border.featured-hero-banner">
         <Setter Property="Background">
             <Setter.Value>
@@ -433,6 +463,14 @@
 
     <Style Selector="Border.empty-state-card">
         <Setter Property="Background" Value="#161b22"/>
+    </Style>
+
+    <Style Selector="TextBlock.empty-state-title">
+        <Setter Property="Foreground" Value="#8b949e"/>
+    </Style>
+
+    <Style Selector="TextBlock.empty-state-subtitle">
+        <Setter Property="Foreground" Value="#484f58"/>
     </Style>
 
     <Style Selector="Border.achievement-icon-card">

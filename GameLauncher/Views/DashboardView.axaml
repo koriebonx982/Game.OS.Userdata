@@ -7,14 +7,175 @@
              x:DataType="vm:DashboardViewModel"
              Classes="dashboard-root">
 
-    <StackPanel Margin="32,28,32,28" Spacing="0">
+    <Grid>
+    <Border Classes="dashboard-xb360-layout">
+        <Grid Margin="36,22,36,22"
+              RowDefinitions="Auto,Auto,*"
+              ColumnDefinitions="*">
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="0,0,0,18">
+                <Border Width="52" Height="52" Classes="xb360-avatar-tile">
+                    <TextBlock Text="🙂" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="22"/>
+                </Border>
+                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Greeting}" Classes="xb360-header-title"/>
+                    <TextBlock Text="signed in" Classes="xb360-header-subtitle"/>
+                </StackPanel>
+            </Grid>
+
+            <StackPanel Grid.Row="1"
+                        Orientation="Horizontal"
+                        Spacing="0"
+                        Margin="0,0,0,16"
+                        Classes="xb360-blade-tabs">
+                <TextBlock Text="Home" Classes="xb360-blade-tab xb360-blade-tab-active"/>
+                <TextBlock Text="Social" Classes="xb360-blade-tab"/>
+                <TextBlock Text="Games" Classes="xb360-blade-tab"/>
+                <TextBlock Text="Video" Classes="xb360-blade-tab"/>
+                <TextBlock Text="Music" Classes="xb360-blade-tab"/>
+                <TextBlock Text="Apps" Classes="xb360-blade-tab"/>
+                <TextBlock Text="Settings" Classes="xb360-blade-tab"/>
+            </StackPanel>
+
+            <Grid Grid.Row="2" ColumnDefinitions="300,*,340" ColumnSpacing="14">
+                <StackPanel Grid.Column="0" Spacing="10">
+                    <Border Classes="xb360-metro-tile xb360-metro-stat">
+                        <StackPanel>
+                            <TextBlock Text="Games" Classes="xb360-metro-label"/>
+                            <TextBlock Text="{Binding GamesCount}" Classes="xb360-metro-value"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="xb360-metro-tile xb360-metro-stat">
+                        <StackPanel>
+                            <TextBlock Text="Achievements" Classes="xb360-metro-label"/>
+                            <TextBlock Text="{Binding AchievementsCount}" Classes="xb360-metro-value"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="xb360-metro-tile xb360-metro-stat">
+                        <StackPanel>
+                            <TextBlock Text="Playtime" Classes="xb360-metro-label"/>
+                            <TextBlock Text="{Binding TotalPlaytimeLabel}" Classes="xb360-metro-value"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="xb360-metro-tile xb360-metro-stat">
+                        <StackPanel>
+                            <TextBlock Text="Platforms" Classes="xb360-metro-label"/>
+                            <TextBlock Text="{Binding PlatformsCount}" Classes="xb360-metro-value"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Spacing="10">
+                    <Border Classes="xb360-metro-tile xb360-featured-tile"
+                            IsVisible="{Binding FeaturedGame, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <Grid ColumnDefinitions="2*,Auto" RowDefinitions="Auto,*" Margin="16">
+                            <TextBlock Grid.ColumnSpan="2"
+                                       Text="{Binding FeaturedBadgeText}"
+                                       Classes="xb360-featured-badge"/>
+                            <StackPanel Grid.Row="1" Spacing="8" VerticalAlignment="Bottom">
+                                <TextBlock Text="{Binding FeaturedGame.Title}" Classes="xb360-featured-title"/>
+                                <TextBlock Text="{Binding FeaturedGame.Platform}" Classes="xb360-featured-subtitle"/>
+                                <Button Classes="btn-primary xb360-featured-button"
+                                        Width="190"
+                                        Command="{Binding ContinuePlayingCommand}"
+                                        IsVisible="{Binding IsFeaturedLastPlayed}">
+                                    ▶ Continue Playing
+                                </Button>
+                                <Button Classes="btn-primary xb360-featured-button"
+                                        Width="170"
+                                        Command="{Binding OpenFeaturedDetailCommand}"
+                                        IsVisible="{Binding !IsFeaturedLastPlayed}">
+                                    View Details
+                                </Button>
+                            </StackPanel>
+                            <Border Grid.Row="1" Grid.Column="1" Width="170" Height="170"
+                                    Margin="14,0,0,0"
+                                    Classes="xb360-featured-cover">
+                                <views:CoverImage
+                                    ImageUrl="{Binding FeaturedGame.CoverUrl}"
+                                    FallbackText="{Binding FeaturedGame.Title}"
+                                    FallbackGradient="{Binding FeaturedGame.CoverGradient}"
+                                    SubText="{Binding FeaturedGame.Genre}"
+                                    LetterFontSize="72"
+                                    ImageCornerRadius="0"
+                                    Width="170" Height="170"/>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel>
+                        <TextBlock Text="Recently Played" Classes="xb360-strip-header"/>
+                        <ItemsControl ItemsSource="{Binding RecentLocalGames}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:LocalGameCardVm">
+                                    <Button Classes="game-card-btn xb360-recent-card-btn"
+                                            Command="{Binding $parent[UserControl].DataContext.OpenLocalGameDetailCommand}"
+                                            CommandParameter="{Binding}">
+                                        <StackPanel>
+                                            <Border Height="100" ClipToBounds="True">
+                                                <views:CoverImage
+                                                    ImageUrl="{Binding CoverUrl}"
+                                                    FallbackText="{Binding EffectiveTitle}"
+                                                    FallbackGradient="{Binding CoverGradient}"
+                                                    SubText="{Binding Platform}"
+                                                    LetterFontSize="38"
+                                                    ImageCornerRadius="0"
+                                                    Height="100"/>
+                                            </Border>
+                                            <Border Padding="8,8,8,10">
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Text="{Binding EffectiveTitle}" Classes="xb360-recent-title"/>
+                                                    <TextBlock Text="{Binding Platform}" Classes="xb360-recent-platform"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Spacing="10">
+                    <TextBlock Text="Recent Achievements" Classes="xb360-strip-header"/>
+                    <ItemsControl ItemsSource="{Binding RecentAchievements}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:Achievement">
+                                <Border Classes="xb360-metro-tile xb360-achievement-tile">
+                                    <Grid ColumnDefinitions="42,*" Margin="8">
+                                        <Border Grid.Column="0" Classes="xb360-achievement-icon">
+                                            <TextBlock Text="🏆" FontSize="18"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Margin="10,0,0,0" Spacing="2">
+                                            <TextBlock Text="{Binding Name}" Classes="xb360-achievement-title"/>
+                                            <TextBlock Text="{Binding Description}" Classes="xb360-achievement-desc"/>
+                                            <TextBlock Text="{Binding GameTitle}" Classes="xb360-achievement-meta"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+
+    <StackPanel Margin="32,28,32,28" Spacing="0" Classes="dashboard-default-layout">
 
         <!-- Greeting -->
         <TextBlock Text="{Binding Greeting}"
-                   FontSize="30" FontWeight="Bold"
-                   Foreground="White" Margin="0,0,0,4"/>
+                   Classes="page-title"
+                   Margin="0,0,0,4"/>
         <TextBlock Text="Welcome back to Game.OS"
-                   FontSize="14" Foreground="#8b949e" Margin="0,0,0,24"/>
+                   Classes="page-subtitle"
+                   Margin="0,0,0,24"/>
 
         <!-- Stats row -->
         <StackPanel Orientation="Horizontal" Margin="0,0,0,28" Spacing="0">
@@ -27,21 +188,21 @@
             <Border Classes="stat-tile">
                 <StackPanel Spacing="2">
                     <TextBlock Text="{Binding AchievementsCount}"
-                               Classes="stat-number" Foreground="#f1c40f"/>
+                               Classes="stat-number stat-number-achievements"/>
                     <TextBlock Text="Achievements" Classes="stat-label"/>
                 </StackPanel>
             </Border>
             <Border Classes="stat-tile">
                 <StackPanel Spacing="2">
                     <TextBlock Text="{Binding PlatformsCount}"
-                               Classes="stat-number" Foreground="#3fb950"/>
+                               Classes="stat-number stat-number-platforms"/>
                     <TextBlock Text="Platforms" Classes="stat-label"/>
                 </StackPanel>
             </Border>
             <Border Classes="stat-tile">
                 <StackPanel Spacing="2">
                     <TextBlock Text="{Binding TotalPlaytimeLabel}"
-                               Classes="stat-number" Foreground="#0ea5e9"/>
+                               Classes="stat-number stat-number-playtime"/>
                     <TextBlock Text="Playtime" Classes="stat-label"/>
                 </StackPanel>
             </Border>
@@ -176,9 +337,9 @@
                     <TextBlock Text="🎮" FontSize="32" HorizontalAlignment="Center"/>
                     <TextBlock Text="No games played yet"
                                FontSize="14" FontWeight="SemiBold"
-                               Foreground="#8b949e" HorizontalAlignment="Center"/>
+                               Classes="empty-state-title" HorizontalAlignment="Center"/>
                     <TextBlock Text="Launch a game to see it here"
-                               FontSize="12" Foreground="#484f58"
+                               FontSize="12" Classes="empty-state-subtitle"
                                HorizontalAlignment="Center"/>
                 </StackPanel>
             </Border>
@@ -208,10 +369,10 @@
                                            Classes="achievement-desc"/>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{Binding GameTitle}"
-                                               FontSize="10" Foreground="#8b949e"/>
-                                    <TextBlock Text="|" FontSize="10" Foreground="#30363d"/>
+                                               Classes="achievement-meta"/>
+                                    <TextBlock Text="|" Classes="achievement-divider"/>
                                     <TextBlock Text="{Binding Platform}"
-                                               FontSize="10" Foreground="#8b949e"/>
+                                               Classes="achievement-meta"/>
                                 </StackPanel>
                             </StackPanel>
                         </Grid>
@@ -221,4 +382,5 @@
         </ItemsControl>
 
     </StackPanel>
+    </Grid>
 </UserControl>
