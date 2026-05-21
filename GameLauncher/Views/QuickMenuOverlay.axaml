@@ -53,12 +53,81 @@
         <Style Selector="UserControl.qm-theme-xb360 Button.qm-hub-btn">
             <Setter Property="BorderBrush" Value="#5fce7d"/>
         </Style>
+
+        <!-- GameOS compact panel -->
+        <Style Selector="Border.qm-gameos-panel">
+            <Setter Property="Background" Value="#E8161b22"/>
+            <Setter Property="BorderBrush" Value="#30363d"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="16"/>
+        </Style>
     </UserControl.Styles>
 
     <Grid>
         <Border Classes="qm-overlay-backdrop"/>
 
-        <Grid RowDefinitions="*,Auto">
+        <!-- GameOS quick panel (replaces PS5 hub bar for GameOS theme) -->
+        <Border Classes="qm-gameos-panel"
+                IsVisible="{Binding IsGameOsTheme}"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Margin="0,24,24,0"
+                Width="290">
+            <StackPanel Spacing="10">
+                <!-- Header -->
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="2">
+                        <TextBlock Text="Quick Menu" FontWeight="Bold" FontSize="15" Foreground="White"/>
+                        <TextBlock Text="{Binding CurrentSessionLabel}" FontSize="11" Foreground="#8b949e"/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="btn-secondary" Command="{Binding DismissCommand}"
+                            Width="32" Height="32" Padding="0" VerticalContentAlignment="Center" HorizontalContentAlignment="Center">✕</Button>
+                </Grid>
+                <Rectangle Height="1" Fill="#30363d"/>
+                <!-- Navigation items -->
+                <ItemsControl ItemsSource="{Binding SwitcherItems}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:QuickMenuSwitcherItemVm">
+                            <Button Classes="btn-secondary"
+                                    Classes.active="{Binding IsActive}"
+                                    Command="{Binding $parent[UserControl].DataContext.OpenPageFromSwitcherCommand}"
+                                    CommandParameter="{Binding}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left"
+                                    Margin="0,1">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Grid.Column="0" Spacing="1">
+                                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                                   Foreground="#e6edf3" FontSize="13"/>
+                                        <TextBlock Text="{Binding Subtitle}" Foreground="#8b949e" FontSize="10"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="✓"
+                                               IsVisible="{Binding IsActive}"
+                                               Foreground="#58a6ff" VerticalAlignment="Center"
+                                               FontWeight="Bold" Margin="8,0,0,0"/>
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Rectangle Height="1" Fill="#30363d"/>
+                <!-- Exit game shortcut when playing -->
+                <Button Classes="btn-primary"
+                        IsVisible="{Binding IsPlayingGame}"
+                        Command="{Binding ExitGameCommand}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="⏹" FontSize="13"/>
+                        <TextBlock Text="Exit Game" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <!-- PS5 / XB360 hub layout (hidden for GameOS theme) -->
+        <Grid RowDefinitions="*,Auto" IsVisible="{Binding !IsGameOsTheme}">
             <!-- Center overlays -->
             <Grid Grid.Row="0" Margin="24,24,24,12">
                 <Border Classes="qm-center-panel"
