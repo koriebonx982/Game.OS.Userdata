@@ -16,8 +16,10 @@ namespace GameLauncher;
 public partial class App : Application
 {
     private const string DefaultDesignTheme = "Default";
-    private const string Xb360DesignTheme = "XB360";
-    private const string Xb360ThemeSource = "avares://GameLauncher/Styles/Xb360Theme.axaml";
+    private const string Xb360DesignTheme   = "XB360";
+    private const string Ps5DesignTheme     = "PS5";
+    private const string Xb360ThemeSource   = "avares://GameLauncher/Styles/Xb360Theme.axaml";
+    private const string Ps5ThemeSource     = "avares://GameLauncher/Styles/Ps5Theme.axaml";
     private StyleInclude? _designThemeStyle;
 
     // Default intro video location — mirrors the PS5 OS reference:
@@ -130,9 +132,14 @@ public partial class App : Application
 
     public void ApplyDesignTheme(string designTheme)
     {
-        string normalised = string.Equals(designTheme?.Trim(), Xb360DesignTheme, StringComparison.OrdinalIgnoreCase)
-            ? Xb360DesignTheme
-            : DefaultDesignTheme;
+        var trimmed = (designTheme ?? "").Trim();
+        string normalised;
+        if (string.Equals(trimmed, Xb360DesignTheme, StringComparison.OrdinalIgnoreCase))
+            normalised = Xb360DesignTheme;
+        else if (string.Equals(trimmed, Ps5DesignTheme, StringComparison.OrdinalIgnoreCase))
+            normalised = Ps5DesignTheme;
+        else
+            normalised = DefaultDesignTheme;
 
         if (_designThemeStyle != null)
         {
@@ -140,11 +147,18 @@ public partial class App : Application
             _designThemeStyle = null;
         }
 
-        if (string.Equals(normalised, Xb360DesignTheme, StringComparison.Ordinal))
+        string? themeSource = normalised switch
+        {
+            Xb360DesignTheme => Xb360ThemeSource,
+            Ps5DesignTheme   => Ps5ThemeSource,
+            _                => null,
+        };
+
+        if (themeSource != null)
         {
             _designThemeStyle = new StyleInclude(new Uri("avares://GameLauncher/App.axaml"))
             {
-                Source = new Uri(Xb360ThemeSource),
+                Source = new Uri(themeSource),
             };
             Styles.Add(_designThemeStyle);
         }

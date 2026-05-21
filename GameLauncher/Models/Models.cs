@@ -403,7 +403,7 @@ namespace GameLauncher.Models
         [JsonPropertyName("introVideoPath")] public string IntroVideoPath { get; set; } = "";
 
         /// <summary>
-        /// Selected launcher design theme. Supported values: <c>Default</c> and <c>XB360</c>.
+        /// Selected launcher design theme. Supported values: <c>Default</c>, <c>XB360</c>, and <c>PS5</c>.
         /// </summary>
         [JsonPropertyName("designTheme")] public string DesignTheme { get; set; } = "Default";
 

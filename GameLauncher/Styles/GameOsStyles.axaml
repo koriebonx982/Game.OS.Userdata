@@ -426,6 +426,10 @@
         <Setter Property="IsVisible" Value="False"/>
     </Style>
 
+    <Style Selector="Border.dashboard-ps5-layout">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+
     <Style Selector="StackPanel.dashboard-default-layout">
         <Setter Property="IsVisible" Value="True"/>
     </Style>

@@ -100,7 +100,7 @@ public partial class SettingsViewModel : ViewModelBase
     /// <summary>Selected launcher design theme.</summary>
     [ObservableProperty] private string _designTheme = "Default";
     /// <summary>Available launcher design themes for Settings → Design.</summary>
-    public IReadOnlyList<string> AvailableDesignThemes { get; } = new[] { "Default", "XB360" };
+    public IReadOnlyList<string> AvailableDesignThemes { get; } = new[] { "Default", "XB360", "PS5" };
 
     /// <summary>
     /// Wired by MainViewModel: invoked when "Import Steam Library" is clicked.
@@ -599,9 +599,10 @@ public partial class SettingsViewModel : ViewModelBase
 
     private static string NormaliseDesignTheme(string value)
     {
-        return string.Equals((value ?? "").Trim(), "XB360", StringComparison.OrdinalIgnoreCase)
-            ? "XB360"
-            : "Default";
+        var trimmed = (value ?? "").Trim();
+        if (string.Equals(trimmed, "XB360", StringComparison.OrdinalIgnoreCase)) return "XB360";
+        if (string.Equals(trimmed, "PS5",   StringComparison.OrdinalIgnoreCase)) return "PS5";
+        return "Default";
     }
 }
 
