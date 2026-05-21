@@ -168,7 +168,7 @@
         </Grid>
     </Border>
 
-    <!-- ══ PS5 Dashboard Layout (ported from REf.PS5.OS/Dashboard.xaml) ══ -->
+    <!-- ══ PS5 Dashboard Layout (ported from Ref.PS5.OS/Dashboard.xaml) ══ -->
     <Border Classes="dashboard-ps5-layout">
         <Grid RowDefinitions="Auto,180,Auto,Auto,*,Auto">
 
@@ -307,7 +307,7 @@
                 <StackPanel Width="380">
                     <DockPanel Margin="0,0,0,8" LastChildFill="True">
                         <TextBlock DockPanel.Dock="Left"
-                                   Text="{Binding AchievementsCount, StringFormat='{}{0} trophies'}"
+                                   Text="{Binding AchievementsCount, StringFormat='{}{0} Trophies'}"
                                    Foreground="#E6E6E6"
                                    FontSize="12"
                                    FontWeight="SemiBold"/>
