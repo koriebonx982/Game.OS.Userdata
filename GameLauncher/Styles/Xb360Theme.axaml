@@ -2,6 +2,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- Xbox 360 (Kinect dashboard inspired) override theme -->
+    <Styles.Resources>
+        <Thickness x:Key="Xb360StatTilePadding">24,22</Thickness>
+        <x:Double x:Key="Xb360StatTileMinWidth">190</x:Double>
+        <x:Double x:Key="Xb360StatTileMinHeight">126</x:Double>
+        <x:Double x:Key="Xb360GameCardTileWidth">212</x:Double>
+        <Thickness x:Key="Xb360GameCardTileMargin">0,0,14,14</Thickness>
+    </Styles.Resources>
 
     <Style Selector="Window.main-window-shell">
         <Setter Property="Background">
@@ -221,9 +228,9 @@
         <Setter Property="BorderBrush" Value="#2a7442"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="0"/>
-        <Setter Property="Padding" Value="24,22"/>
-        <Setter Property="MinWidth" Value="190"/>
-        <Setter Property="MinHeight" Value="126"/>
+        <Setter Property="Padding" Value="{StaticResource Xb360StatTilePadding}"/>
+        <Setter Property="MinWidth" Value="{StaticResource Xb360StatTileMinWidth}"/>
+        <Setter Property="MinHeight" Value="{StaticResource Xb360StatTileMinHeight}"/>
     </Style>
 
     <Style Selector="Border.game-card">
@@ -242,8 +249,8 @@
 
     <Style Selector="Button.game-card-btn">
         <Setter Property="CornerRadius" Value="0"/>
-        <Setter Property="Width" Value="212"/>
-        <Setter Property="Margin" Value="0,0,14,14"/>
+        <Setter Property="Width" Value="{StaticResource Xb360GameCardTileWidth}"/>
+        <Setter Property="Margin" Value="{StaticResource Xb360GameCardTileMargin}"/>
     </Style>
 
     <Style Selector="Button.game-card-btn:pointerover /template/ ContentPresenter">
