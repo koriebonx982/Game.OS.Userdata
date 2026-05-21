@@ -104,6 +104,27 @@ public partial class MainWindow : Window
             return;
         }
 
+        // While quick menu is open, prioritize PS5-style hub navigation.
+        if (vm.ShowQuickMenu)
+        {
+            switch (e.Key)
+            {
+                case Key.Left:
+                    vm.QuickMenuVm.MoveHubSelection(-1);
+                    e.Handled = true;
+                    return;
+                case Key.Right:
+                    vm.QuickMenuVm.MoveHubSelection(1);
+                    e.Handled = true;
+                    return;
+                case Key.Enter:
+                case Key.Space:
+                    vm.QuickMenuVm.ActivateSelectedHub();
+                    e.Handled = true;
+                    return;
+            }
+        }
+
         switch (e.Key)
         {
             // Navigate back from a detail or friend-profile overlay
@@ -112,7 +133,8 @@ public partial class MainWindow : Window
             case Key.BrowserBack:
                 if (vm.ShowQuickMenu)
                 {
-                    vm.ShowQuickMenu = false;
+                    if (!vm.QuickMenuVm.HandleBackNavigation())
+                        vm.ShowQuickMenu = false;
                     e.Handled = true;
                 }
                 else if (vm.ShowDetail)
@@ -304,11 +326,17 @@ public partial class MainWindow : Window
                         Status = f.Status
                     })
                     .ToList(),
-                unreadCount:          0,
-                lastMessage:          null,
+                unreadCount:          _boundVm.InboxVm.PendingInvites.Count,
+                lastMessage:          _boundVm.InboxVm.Conversations
+                    .OrderByDescending(c => c.LastMessageAt)
+                    .Select(c => c.LastMessage)
+                    .FirstOrDefault(),
                 unlockedAchievements: _boundVm.DetailVm.HasAchievements ? _boundVm.DetailVm.Achievements.Count(a => a.IsUnlocked) : 0,
                 totalAchievements:    _boundVm.DetailVm.HasAchievements ? _boundVm.DetailVm.Achievements.Count : 0,
-                achievements:         _boundVm.DetailVm.Achievements);
+                achievements:         _boundVm.DetailVm.Achievements,
+                recentGames:          _boundVm.DashboardVm.Ps5RecentGames.ToList(),
+                activePageKey:        _boundVm.ActivePage,
+                pendingDownloadCount: _boundVm.LibraryVm.ReadyToInstall.Count);
 
             if (_quickMenuWindow == null)
             {

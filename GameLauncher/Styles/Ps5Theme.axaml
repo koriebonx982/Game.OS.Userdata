@@ -269,6 +269,16 @@
         <Setter Property="Background" Value="#2A2A2A"/>
     </Style>
 
+    <Style Selector="Button.btn-secondary.active /template/ ContentPresenter">
+        <Setter Property="Background" Value="#00439C"/>
+        <Setter Property="BorderBrush" Value="#FFD400"/>
+        <Setter Property="BorderThickness" Value="2"/>
+    </Style>
+
+    <Style Selector="Button.btn-secondary.active">
+        <Setter Property="Foreground" Value="#FFFFFF"/>
+    </Style>
+
     <!-- ── Form inputs ── -->
     <Style Selector="TextBox.form-input">
         <Setter Property="Background" Value="#1E1E1E"/>

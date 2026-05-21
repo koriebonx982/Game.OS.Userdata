@@ -19,6 +19,7 @@ namespace GameLauncher.ViewModels;
 /// </summary>
 public partial class MainViewModel : ViewModelBase, IDisposable
 {
+    private const string DefaultBrowserUrl = "https://www.google.com";
     private readonly GameOsClient            _client;
     private readonly GameScannerService      _scanner;
     private readonly SessionCacheService     _sessionCache;
@@ -223,6 +224,34 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             await _client.SendMessageAsync(friendUsername, text);
             return true;
         };
+        QuickMenuVm.OnNavigatePage = page =>
+        {
+            if (string.IsNullOrWhiteSpace(page)) return;
+            Navigate(page);
+        };
+        QuickMenuVm.OnLaunchRecentGame = card =>
+        {
+            if (card == null) return;
+            LaunchFromCard(card);
+        };
+        QuickMenuVm.OnOpenBrowser = () =>
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = DefaultBrowserUrl,
+                    UseShellExecute = true
+                });
+            }
+            catch { }
+        };
+        QuickMenuVm.OnSignOut = () => SignOutCommand.Execute(null);
+        QuickMenuVm.OnSwitchAccount = () => SwitchAccountCommand.Execute(null);
+        QuickMenuVm.OnExitApplication = () => ExitAppCommand.Execute(null);
+        QuickMenuVm.OnMediaPrevious = SendMediaPrevious;
+        QuickMenuVm.OnMediaPlayPause = SendMediaPlayPause;
+        QuickMenuVm.OnMediaNext = SendMediaNext;
 
         // Wire Settings → SyncNow so the Resync button triggers TryRefreshUserDataAsync
         SettingsVm.SyncNowAction = RequestManualSyncAsync;
@@ -1615,6 +1644,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             total    = DetailVm.Achievements.Count;
         }
 
+        int unreadCount = InboxVm.PendingInvites.Count;
+        string? lastMessage = InboxVm.Conversations
+            .OrderByDescending(c => c.LastMessageAt)
+            .Select(c => c.LastMessage)
+            .FirstOrDefault();
+
         QuickMenuVm.Refresh(
             currentUsername:       _profile.Username,
             currentGameTitle:      DetailVm.IsGameRunning ? DetailVm.Title : null,
@@ -1624,13 +1659,37 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 : null,
             onlineFriends:         onlineFriends,
             allFriends:            allFriends,
-            unreadCount:           0,
-            lastMessage:           null,
+            unreadCount:           unreadCount,
+            lastMessage:           lastMessage,
             unlockedAchievements:  unlocked,
             totalAchievements:     total,
-            achievements:          DetailVm.Achievements);
+            achievements:          DetailVm.Achievements,
+            recentGames:           DashboardVm.Ps5RecentGames.ToList(),
+            activePageKey:         ActivePage,
+            pendingDownloadCount:  LibraryVm.ReadyToInstall.Count);
 
         ShowQuickMenu = true;
+    }
+
+    private static void SendMediaPrevious()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try { Services.NativeMethods.SendMediaKey(Services.NativeMethods.VK_MEDIA_PREV_TRACK); }
+        catch { }
+    }
+
+    private static void SendMediaPlayPause()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try { Services.NativeMethods.SendMediaKey(Services.NativeMethods.VK_MEDIA_PLAY_PAUSE); }
+        catch { }
+    }
+
+    private static void SendMediaNext()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try { Services.NativeMethods.SendMediaKey(Services.NativeMethods.VK_MEDIA_NEXT_TRACK); }
+        catch { }
     }
 
     private async Task LoadFriendProfileAsync(string friendUsername)
