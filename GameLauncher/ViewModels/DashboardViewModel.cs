@@ -31,6 +31,8 @@ public partial class DashboardViewModel : ViewModelBase
     // ── Constants ────────────────────────────────────────────────────────────
     /// <summary>Maximum number of games shown in "Continue Playing" and hero last-played lookup.</summary>
     private const int MaxRecentGames = 8;
+    /// <summary>Maximum number of local cards shown in the XB360 "Games Library" strip.</summary>
+    private const int MaxLibraryGames = 12;
     /// <summary>Default card gradient used for cloud/activity-only game cards without a cover image.</summary>
     private const string DefaultCloudCardGradient = "#0d2137,#163d5e";
 
@@ -39,6 +41,9 @@ public partial class DashboardViewModel : ViewModelBase
     /// <summary>True when there are recently detected local ROMs or installed games to show.</summary>
     [ObservableProperty] private bool _hasRecentLocalGames;
     public ObservableCollection<LocalGameCardVm> RecentLocalGames { get; } = new();
+    /// <summary>True when there are local Game.OS games available for the XB360 "Games Library" strip.</summary>
+    [ObservableProperty] private bool _hasLocalLibraryGames;
+    public ObservableCollection<LocalGameCardVm> LocalLibraryGames { get; } = new();
 
     // Recent achievements
     public ObservableCollection<Achievement> RecentAchievements { get; } = new();
@@ -275,6 +280,19 @@ public partial class DashboardViewModel : ViewModelBase
         }
 
         HasRecentLocalGames = RecentLocalGames.Count > 0;
+
+        LocalLibraryGames.Clear();
+        if (localCards != null)
+        {
+            foreach (var c in localCards
+                .OrderByDescending(c => PlaytimeService.GetLastPlayedAt(c.Platform, c.EffectiveTitle))
+                .ThenBy(c => c.EffectiveTitle)
+                .Take(MaxLibraryGames))
+            {
+                LocalLibraryGames.Add(c);
+            }
+        }
+        HasLocalLibraryGames = LocalLibraryGames.Count > 0;
 
         // ── Hero / Featured ───────────────────────────────────────────────────
         // Show the most recently played game (local, cloud library, or activity-only)

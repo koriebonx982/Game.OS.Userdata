@@ -69,7 +69,7 @@
                             IsVisible="{Binding FeaturedGame, Converter={x:Static ObjectConverters.IsNotNull}}">
                         <Grid ColumnDefinitions="2*,Auto" RowDefinitions="Auto,*" Margin="16">
                             <TextBlock Grid.ColumnSpan="2"
-                                       Text="{Binding FeaturedBadgeText}"
+                                       Text="Open Tray"
                                        Classes="xb360-featured-badge"/>
                             <StackPanel Grid.Row="1" Spacing="8" VerticalAlignment="Bottom">
                                 <TextBlock Text="{Binding FeaturedGame.Title}" Classes="xb360-featured-title"/>
@@ -77,14 +77,8 @@
                                 <Button Classes="btn-primary xb360-featured-button"
                                         Width="190"
                                         Command="{Binding ContinuePlayingCommand}"
-                                        IsVisible="{Binding IsFeaturedLastPlayed}">
-                                    ▶ Continue Playing
-                                </Button>
-                                <Button Classes="btn-primary xb360-featured-button"
-                                        Width="170"
-                                        Command="{Binding OpenFeaturedDetailCommand}"
-                                        IsVisible="{Binding !IsFeaturedLastPlayed}">
-                                    View Details
+                                        IsVisible="{Binding FeaturedGame, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                    Open Tray
                                 </Button>
                             </StackPanel>
                             <Border Grid.Row="1" Grid.Column="1" Width="170" Height="170"
@@ -103,8 +97,9 @@
                     </Border>
 
                     <StackPanel>
-                        <TextBlock Text="Recently Played" Classes="xb360-strip-header"/>
-                        <ItemsControl ItemsSource="{Binding RecentLocalGames}">
+                        <TextBlock Text="Games Library" Classes="xb360-strip-header"/>
+                        <ItemsControl ItemsSource="{Binding LocalLibraryGames}"
+                                      IsVisible="{Binding HasLocalLibraryGames}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <WrapPanel/>
@@ -137,6 +132,12 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <Border Classes="xb360-metro-tile xb360-achievement-tile"
+                                IsVisible="{Binding !HasLocalLibraryGames}">
+                            <TextBlock Text="No local games found in Game.OS library"
+                                       Classes="xb360-achievement-desc"
+                                       Margin="12,8"/>
+                        </Border>
                     </StackPanel>
                 </StackPanel>
 
