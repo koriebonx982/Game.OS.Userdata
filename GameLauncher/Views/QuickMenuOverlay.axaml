@@ -126,8 +126,8 @@
             </StackPanel>
         </Border>
 
-        <!-- PS5 / XB360 hub layout (hidden for GameOS theme) -->
-        <Grid RowDefinitions="*,Auto" IsVisible="{Binding !IsGameOsTheme}">
+        <!-- PS5 hub layout (PS5 theme only) -->
+        <Grid RowDefinitions="*,Auto" IsVisible="{Binding IsPs5Theme}">
             <!-- Center overlays -->
             <Grid Grid.Row="0" Margin="24,24,24,12">
                 <Border Classes="qm-center-panel"
@@ -404,6 +404,360 @@
                         <Button Classes="btn-secondary qm-hub-btn" Command="{Binding OpenBrowserCommand}" Width="72" Height="56">🌐</Button>
                         <Button Classes="btn-secondary qm-hub-btn" Classes.active="{Binding IsPowerPage}" Command="{Binding SelectPowerCommand}" Width="72" Height="56">⏻</Button>
                     </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- XB360 Xbox Guide layout -->
+        <Grid IsVisible="{Binding IsXb360Theme}"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+            <Grid.Styles>
+                <!-- Item button: default state -->
+                <Style Selector="Button.xb-item">
+                    <Setter Property="Background" Value="#E5E5E5"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Setter Property="CornerRadius" Value="0"/>
+                    <Setter Property="Padding" Value="0"/>
+                    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                </Style>
+                <Style Selector="Button.xb-item TextBlock">
+                    <Setter Property="Foreground" Value="#111111"/>
+                </Style>
+                <Style Selector="Button.xb-item:pointerover /template/ ContentPresenter">
+                    <Setter Property="Background" Value="#D0D0D0"/>
+                </Style>
+                <!-- Active / selected item: Xbox green -->
+                <Style Selector="Button.xb-item.active /template/ ContentPresenter">
+                    <Setter Property="Background" Value="#107C10"/>
+                </Style>
+                <Style Selector="Button.xb-item.active TextBlock">
+                    <Setter Property="Foreground" Value="White"/>
+                </Style>
+                <!-- Tab strip buttons -->
+                <Style Selector="Button.xb-tab">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Setter Property="Padding" Value="0"/>
+                    <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                    <Setter Property="VerticalAlignment" Value="Stretch"/>
+                </Style>
+            </Grid.Styles>
+
+            <Border Width="720"
+                    Background="#111111">
+                <Grid RowDefinitions="52,*,44">
+
+                    <!-- ── Header: Xbox Guide | avatar | time ── -->
+                    <Border Grid.Row="0" Background="#080808" Padding="16,0">
+                        <Grid ColumnDefinitions="*,Auto,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="Xbox Guide"
+                                       Foreground="White"
+                                       FontSize="17"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                            <Border Grid.Column="1"
+                                    Width="36" Height="36"
+                                    CornerRadius="18"
+                                    Background="#555"
+                                    ClipToBounds="True"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,10,0">
+                                <TextBlock Text="{Binding Xb360AvatarInitial}"
+                                           Foreground="White"
+                                           FontSize="15"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding Xb360TimeLabel}"
+                                       Foreground="White"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- ── Main panel ── -->
+                    <Grid Grid.Row="1" ColumnDefinitions="52,44,*,52,52">
+
+                        <!-- Games & Apps tab (left) -->
+                        <Border Grid.Column="0" Background="#3A3A3A"
+                                BorderBrush="#555" BorderThickness="0,0,1,0">
+                            <Button Classes="xb-tab" Command="{Binding OpenLibraryCommand}">
+                                <LayoutTransformControl HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center">
+                                    <LayoutTransformControl.LayoutTransform>
+                                        <RotateTransform Angle="-90"/>
+                                    </LayoutTransformControl.LayoutTransform>
+                                    <TextBlock Text="Games &amp; Apps"
+                                               Foreground="#CCCCCC"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"/>
+                                </LayoutTransformControl>
+                            </Button>
+                        </Border>
+
+                        <!-- Username column -->
+                        <Border Grid.Column="1" Background="#2A2A2A"
+                                BorderBrush="#444" BorderThickness="0,0,1,0">
+                            <LayoutTransformControl HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center">
+                                <LayoutTransformControl.LayoutTransform>
+                                    <RotateTransform Angle="-90"/>
+                                </LayoutTransformControl.LayoutTransform>
+                                <TextBlock Text="{Binding CurrentUsername}"
+                                           Foreground="White"
+                                           FontSize="13"
+                                           FontWeight="Bold"
+                                           MaxWidth="180"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </LayoutTransformControl>
+                        </Border>
+
+                        <!-- Item list -->
+                        <Border Grid.Column="2" Background="#E5E5E5" ClipToBounds="True">
+                            <StackPanel Spacing="0">
+
+                                <!-- Game OS Home -->
+                                <Button Classes="xb-item"
+                                        Classes.active="{Binding IsHomePage}"
+                                        Command="{Binding OpenDashboardCommand}">
+                                    <Grid ColumnDefinitions="*,Auto,38" Height="63" Margin="16,0">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Game OS Home"
+                                                   FontSize="21"
+                                                   FontWeight="Light"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="🏠"
+                                                   FontSize="18"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Rectangle Height="1" Fill="#BBBBBB"/>
+
+                                <!-- Friends -->
+                                <Button Classes="xb-item"
+                                        Classes.active="{Binding IsFriendsPage}"
+                                        Command="{Binding OpenFriendsPageCommand}">
+                                    <Grid ColumnDefinitions="*,Auto,38" Height="63" Margin="16,0">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Friends"
+                                                   FontSize="21"
+                                                   FontWeight="Light"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding OnlineFriends.Count}"
+                                                   FontSize="21"
+                                                   FontWeight="Light"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,8,0"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="👤"
+                                                   FontSize="18"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Rectangle Height="1" Fill="#BBBBBB"/>
+
+                                <!-- Messages -->
+                                <Button Classes="xb-item"
+                                        Classes.active="{Binding IsInboxPage}"
+                                        Command="{Binding OpenInboxPageCommand}">
+                                    <Grid ColumnDefinitions="*,Auto,38" Height="63" Margin="16,0">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Messages"
+                                                   FontSize="21"
+                                                   FontWeight="Light"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding UnreadMessageCount}"
+                                                   FontSize="21"
+                                                   FontWeight="Light"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,8,0"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="✉"
+                                                   FontSize="18"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Rectangle Height="1" Fill="#BBBBBB"/>
+
+                                <!-- Activity -->
+                                <Button Classes="xb-item"
+                                        Classes.active="{Binding IsNotificationsPage}"
+                                        Command="{Binding OpenNotificationsPageCommand}">
+                                    <Grid ColumnDefinitions="*,Auto,38" Height="63" Margin="16,0">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Activity"
+                                                   FontSize="21"
+                                                   FontWeight="Light"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="⚡"
+                                                   FontSize="18"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Rectangle Height="1" Fill="#BBBBBB"/>
+
+                                <!-- Recent Games -->
+                                <Button Classes="xb-item"
+                                        Classes.active="{Binding IsRecentGamesPage}"
+                                        Command="{Binding OpenLibraryCommand}">
+                                    <Grid ColumnDefinitions="*,Auto,38" Height="63" Margin="16,0">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Recent Games"
+                                                   FontSize="21"
+                                                   FontWeight="Light"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding RecentGames.Count}"
+                                                   FontSize="21"
+                                                   FontWeight="Light"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,8,0"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="🎮"
+                                                   FontSize="18"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Rectangle Height="1" Fill="#BBBBBB"/>
+
+                                <!-- Downloads -->
+                                <Button Classes="xb-item"
+                                        Classes.active="{Binding IsDownloadsPage}"
+                                        Command="{Binding OpenDownloadsPageCommand}">
+                                    <Grid ColumnDefinitions="*,Auto,38" Height="63" Margin="16,0">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Downloads"
+                                                   FontSize="21"
+                                                   FontWeight="Light"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding PendingDownloadCount}"
+                                                   FontSize="21"
+                                                   FontWeight="Light"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,8,0"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="⬇"
+                                                   FontSize="18"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+                                <Rectangle Height="1" Fill="#BBBBBB"/>
+
+                                <!-- Sign Out -->
+                                <Button Classes="xb-item"
+                                        Classes.active="{Binding IsPowerPage}"
+                                        Command="{Binding PowerSignOutCommand}">
+                                    <Grid ColumnDefinitions="*,Auto,38" Height="63" Margin="16,0">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Sign Out"
+                                                   FontSize="21"
+                                                   FontWeight="Light"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="⏻"
+                                                   FontSize="18"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Center"/>
+                                    </Grid>
+                                </Button>
+
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Media tab (right) -->
+                        <Border Grid.Column="3" Background="#484848"
+                                BorderBrush="#555" BorderThickness="1,0,0,0">
+                            <Button Classes="xb-tab" Command="{Binding SelectMediaCommand}">
+                                <LayoutTransformControl HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center">
+                                    <LayoutTransformControl.LayoutTransform>
+                                        <RotateTransform Angle="-90"/>
+                                    </LayoutTransformControl.LayoutTransform>
+                                    <TextBlock Text="Media"
+                                               Foreground="#AAAAAA"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"/>
+                                </LayoutTransformControl>
+                            </Button>
+                        </Border>
+
+                        <!-- Settings tab (right) -->
+                        <Border Grid.Column="4" Background="#484848"
+                                BorderBrush="#555" BorderThickness="1,0,0,0">
+                            <Button Classes="xb-tab" Command="{Binding OpenSettingsCommand}">
+                                <LayoutTransformControl HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center">
+                                    <LayoutTransformControl.LayoutTransform>
+                                        <RotateTransform Angle="-90"/>
+                                    </LayoutTransformControl.LayoutTransform>
+                                    <TextBlock Text="Settings"
+                                               Foreground="#AAAAAA"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"/>
+                                </LayoutTransformControl>
+                            </Button>
+                        </Border>
+
+                    </Grid>
+
+                    <!-- ── Bottom action hints ── -->
+                    <Border Grid.Row="2" Background="#080808" Padding="20,0">
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Spacing="32">
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Border Width="24" Height="24" CornerRadius="12" Background="#107C10">
+                                    <TextBlock Text="A" FontSize="10" FontWeight="Bold"
+                                               Foreground="White"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="Select" Foreground="White" FontSize="13" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Border Width="24" Height="24" CornerRadius="12" Background="#CC1118">
+                                    <TextBlock Text="B" FontSize="10" FontWeight="Bold"
+                                               Foreground="White"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="Back" Foreground="White" FontSize="13" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Border Width="24" Height="24" CornerRadius="12" Background="#2D6EC6">
+                                    <TextBlock Text="X" FontSize="10" FontWeight="Bold"
+                                               Foreground="White"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="Sign Out" Foreground="White" FontSize="13" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                <Border Width="24" Height="24" CornerRadius="12" Background="#D4A012">
+                                    <TextBlock Text="Y" FontSize="10" FontWeight="Bold"
+                                               Foreground="White"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBlock Text="Game OS Home" Foreground="White" FontSize="13" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
                 </Grid>
             </Border>
         </Grid>

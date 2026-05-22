@@ -28,6 +28,11 @@ public partial class QuickMenuViewModel : ViewModelBase
     [ObservableProperty] private bool _isPlayingGame;
     [ObservableProperty] private string _currentUsername = "";
 
+    // ── XB360 guide header ───────────────────────────────────────────────────
+    [ObservableProperty] private string _xb360TimeLabel = "";
+    public string Xb360AvatarInitial =>
+        string.IsNullOrEmpty(CurrentUsername) ? "?" : CurrentUsername[0].ToString().ToUpper();
+
     // ── Header text (center panel text from PS5 ref) ───────────────────────
     [ObservableProperty] private string _menuTitle = "Home";
     [ObservableProperty] private string _menuSubtitle = "Return to the home screen.";
@@ -118,6 +123,7 @@ public partial class QuickMenuViewModel : ViewModelBase
     }
 
     partial void OnPendingDownloadCountChanged(int value) => OnPropertyChanged(nameof(HasPendingDownloads));
+    partial void OnCurrentUsernameChanged(string value) => OnPropertyChanged(nameof(Xb360AvatarInitial));
     partial void OnQuickMenuThemeChanged(string value)
     {
         OnPropertyChanged(nameof(IsPs5Theme));
@@ -318,6 +324,27 @@ public partial class QuickMenuViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void OpenDashboard()
+    {
+        OnNavigatePage?.Invoke("dashboard");
+        OnDismiss?.Invoke();
+    }
+
+    [RelayCommand]
+    private void OpenLibrary()
+    {
+        OnNavigatePage?.Invoke("library");
+        OnDismiss?.Invoke();
+    }
+
+    [RelayCommand]
+    private void OpenSettings()
+    {
+        OnNavigatePage?.Invoke("settings");
+        OnDismiss?.Invoke();
+    }
+
+    [RelayCommand]
     private void PowerSignOut()
     {
         OnSignOut?.Invoke();
@@ -470,6 +497,7 @@ public partial class QuickMenuViewModel : ViewModelBase
     {
         QuickMenuTheme = NormaliseQuickMenuTheme(quickMenuTheme);
         CurrentUsername = currentUsername ?? "";
+        Xb360TimeLabel = DateTime.Now.ToString("h:mm tt").ToUpper();
         IsPlayingGame = !string.IsNullOrEmpty(currentGameTitle);
         CurrentGameTitle = currentGameTitle ?? "";
         ActivePage = "home";
