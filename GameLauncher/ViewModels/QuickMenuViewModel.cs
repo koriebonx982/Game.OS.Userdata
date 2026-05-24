@@ -11,7 +11,7 @@ namespace GameLauncher.ViewModels;
 
 /// <summary>
 /// PS5-style quick menu view model. Provides module pages and actions:
-/// Home / Switcher / Recent / Notifications / Downloads / Friends / Inbox / Media / Browser / Power.
+/// Home / Switcher / Recent / Notifications / Downloads / Friends / Inbox / Achievements / Media / Browser / Power.
 /// </summary>
 public partial class QuickMenuViewModel : ViewModelBase
 {
@@ -189,11 +189,7 @@ public partial class QuickMenuViewModel : ViewModelBase
     {
         if (SelectedHubIndex < 0 || SelectedHubIndex >= HubOrder.Length) return;
         ActivePage = HubOrder[SelectedHubIndex];
-        if (IsBrowserSelected)
-            OpenBrowser();
     }
-
-    private bool IsBrowserSelected => HubOrder[Math.Clamp(SelectedHubIndex, 0, HubOrder.Length - 1)] == "browser";
 
     private void UpdateMenuHeader(string page)
     {
