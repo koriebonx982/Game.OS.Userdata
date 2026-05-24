@@ -1,0 +1,117 @@
+
+> gameos-backend@1.0.0 test
+> node test-exophase.js --fixture
+
+🔧 Running fixture tests (no network request)
+
+  ✅  Xbox 360 (ul.achievement): 50 entries OK
+  ✅  PS3     (ul.trophy): 5 entries OK
+  ✅  plural  (ul.trophies): 5 entries OK
+
+✅  All fixture tests passed.
+
+✅ Scraped 50 achievements:
+
+    1. Welcome to Port Carverton (93.4% earned)
+       Complete the tutorial.
+    2. Ramp It Up (72.1% earned)
+       Build a skate spot using the spot creator.
+    3. Own the City (11.2% earned)
+       Own every spot in Port Carverton.
+    4. Team Player (68.5% earned)
+       Create a skate team and recruit two skaters.
+    5. Spreading the Stoke (55.3% earned)
+       Film and upload a skate video.
+    6. Board Breaking (41.7% earned)
+       Destroy 100 boards.
+    7. Hall of Meat Gold [HIDDEN] (18.9% earned)
+       Earn a gold medal in any Hall of Meat competition.
+    8. Monster Mash (33.6% earned)
+       Win a team event with your skate team.
+    9. Campus Life (61% earned)
+       Find and skate all the on-campus gaps.
+   10. Port Carverton Locals Only (28.4% earned)
+       Play a game of S.K.A.T.E. against a local skater.
+   11. Beastly (9.7% earned)
+       Land a manual combo over 500,000 points.
+   12. Film Director (44.2% earned)
+       Upload 10 videos to the Skate.Reel.
+   13. Best In Show (22.8% earned)
+       Win any best trick competition.
+   14. Road to Nowhere (82.5% earned)
+       Skate 5 miles total.
+   15. Big Air (61% earned)
+       Land a jump of at least 50 feet.
+   16. Hall of Meat [HIDDEN] (12.3% earned)
+       Wreck yourself for 1,000,000 points of pain.
+   17. Spot Wrecker (36.9% earned)
+       Destroy every destructible object in the school.
+   18. Filmbot (53.1% earned)
+       Earn a photo sponsorship.
+   19. Skate Nation (15.4% earned)
+       Have 20 people join your skate team.
+   20. Hometown Hero (48.7% earned)
+       Complete all amateur events in your hometown.
+   21. Go Big or Go Home (31.2% earned)
+       Pull off a mega grab over 75 feet.
+   22. Photogenic (57.8% earned)
+       Get your photo taken for a magazine cover.
+   23. Street Credible (39.4% earned)
+       Own 10 street spots.
+   24. Style Points (25.6% earned)
+       Score over 750,000 points in a best trick event.
+   25. Team Build (62.3% earned)
+       Fully upgrade your team's skate park.
+   26. Mogul (7.8% earned)
+       Earn $1,000,000 in the in-game economy.
+   27. Transition King (20.1% earned)
+       Win every vert competition in Port Carverton.
+   28. Sick Lines (17.6% earned)
+       Link 10 grinds in a single combo.
+   29. Wrecking Crew (43.5% earned)
+       Team-destroy 500 objects.
+   30. Community Service (66.9% earned)
+       Complete 20 community missions.
+   31. Drop In (78.4% earned)
+       Successfully drop in from the highest point in each district.
+   32. Legendary [HIDDEN] (4.2% earned)
+       Complete the entire pro career.
+   33. Backyard Bliss (50% earned)
+       Complete all challenges in the school skate park.
+   34. Gapped (35.8% earned)
+       Find and land 50 unique gaps.
+   35. Night Rider (29.3% earned)
+       Skate for one full in-game night without stopping.
+   36. Popped Off (46.1% earned)
+       Get kicked out of 10 locations.
+   37. Viral [HIDDEN] (14.7% earned)
+       Have your video viewed 10,000 times in the game.
+   38. Slappy's Legacy (58.2% earned)
+       Grind the rail at the Slappy's memorial.
+   39. Concrete Jungle (23.5% earned)
+       Own all spots in the downtown district.
+   40. Half Pipe Hero (19% earned)
+       Score over 200,000 points on any half-pipe.
+   41. Bail Artist (37.6% earned)
+       Rack up 50 bails in Hall of Meat mode.
+   42. Spot Builder (54.4% earned)
+       Build 5 custom skate spots.
+   43. Grind King (48.9% earned)
+       Grind a total of 10 miles.
+   44. The Ripper (32.1% earned)
+       Complete all the demo crew challenges.
+   45. Old School Cool (27.8% earned)
+       Land an old-school combo worth 500,000 points.
+   46. Sponsor Me (71.3% earned)
+       Earn your first skateboard sponsorship.
+   47. Frequent Flyer (42.6% earned)
+       Complete 30 airline challenges.
+   48. Top of the World [HIDDEN] (6.5% earned)
+       Reach the highest accessible point in every district.
+   49. Photo Op (64.7% earned)
+       Take 25 screenshots of your skater in action.
+   50. Legend [HIDDEN] (2.3% earned)
+       Achieve 100% game completion.
+
+📄 Full JSON written to: /tmp/exophase-test-output.json
+📊 HTML results page written to: /tmp/exophase-test-results.html

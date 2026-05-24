@@ -126,7 +126,7 @@
             </StackPanel>
         </Border>
 
-        <!-- PS5 / XB360 hub layout (hidden for GameOS theme) -->
+        <!-- PS5 hub layout (hidden for GameOS theme) -->
         <Grid RowDefinitions="*,Auto" IsVisible="{Binding !IsGameOsTheme}">
             <!-- Center overlays -->
             <Grid Grid.Row="0" Margin="24,24,24,12">

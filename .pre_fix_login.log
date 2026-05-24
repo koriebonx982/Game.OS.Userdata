@@ -1,0 +1,133 @@
+═══════════════════════════════════════════════════════════════════
+  Game.OS — Login Authentication Tests (C# Launcher)
+  Verifies: C# auth ≡ JavaScript web frontend auth
+═══════════════════════════════════════════════════════════════════
+
+
+  ── 1. PBKDF2 Hash Parity  (C# ≡ JavaScript hashPassword())
+  ─────────────────────────────────────────────────────────────────
+  ✅  username=testuser     → hash matches reference vector ✓
+  ✅  username=Admin.GameOS → hash matches reference vector ✓
+  ✅  username=Koriebonx98 → len=64 deterministic=True
+
+  ── 1b. Koriebonx98 Real-Account Hash Parity  (C# hash = Node.js reference)
+  ─────────────────────────────────────────────────────────────────
+  ✅  Reference hash is valid 64-char hex: True
+  ⚠  GAMEOS_TEST_PASSWORD not set — skipping live hash-match check.
+       To verify: GAMEOS_TEST_PASSWORD=<password> dotnet run
+
+  ── 2. PBKDF2 Salt Case-Insensitivity  (username lowercased for salt)
+  ─────────────────────────────────────────────────────────────────
+  ✅  hash(Koriebonx98) == hash(koriebonx98) == hash(KORIEBONX98): True
+
+  ── 3. Bcrypt Hash Detection  (accounts created via Node.js backend)
+  ─────────────────────────────────────────────────────────────────
+  ✅  BCrypt.Verify(correct password) = True
+  ✅  BCrypt.Verify(wrong password)   = False (expect false)
+  ✅  bcrypt hash starts with $2      = True
+
+  ── 4. Dual-Hash Login Flow  (PBKDF2 and bcrypt paths exercised)
+  ─────────────────────────────────────────────────────────────────
+  ✅  PBKDF2 path — correct password accepted: True
+  ✅  PBKDF2 path — wrong password rejected: True
+  ✅  bcrypt path — correct password accepted: True
+  ✅  bcrypt path — wrong password rejected:   True
+  ✅  PBKDF2 hash correctly identified as NOT bcrypt: True
+  ✅  bcrypt hash correctly identified as bcrypt:     True
+
+  ── 5. Live Backend Test  (requires GAMEOS_GITHUB_TOKEN)
+  ─────────────────────────────────────────────────────────────────
+  ⚠  Skipped — GAMEOS_GITHUB_TOKEN not set.
+       To run: GAMEOS_GITHUB_TOKEN=<pat> GAMEOS_TEST_USERNAME=<user> GAMEOS_TEST_PASSWORD=<pass> dotnet run
+
+  ── 6. Live Backend REST API Test  (requires GAMEOS_BACKEND_URL)
+  ─────────────────────────────────────────────────────────────────
+  ⚠  Skipped — GAMEOS_BACKEND_URL not set.
+       To run: GAMEOS_BACKEND_URL=<url> GAMEOS_TEST_USERNAME=<user> GAMEOS_TEST_PASSWORD=<pass> dotnet run
+       This test exercises the same REST API path the web frontend uses.
+       No GitHub PAT required — just point to the deployed backend server.
+
+  ── 7. Backend API Login — Admin.GameOS  (requires GAMEOS_BACKEND_URL)
+  ─────────────────────────────────────────────────────────────────
+  ⚠  Skipped — GAMEOS_BACKEND_URL not set.
+       Start the backend server and set GAMEOS_BACKEND_URL to run this test.
+       Example: GAMEOS_BACKEND_URL=http://localhost:3000 dotnet run
+
+  ── 8. OfflineDataCacheService  (save → load round-trip)
+  ─────────────────────────────────────────────────────────────────
+  ✅  No cache before first save: True
+  ✅  Cache exists after save: True
+  ✅  Load returns non-null: True
+  ✅  Profile.Username matches: True
+  ✅  Games count = 2: True
+  ✅  Achievements count = 1: True
+  ✅  CachedAt is set: True
+  ✅  IsFresh = true immediately after save: True
+  ✅  Cache cleared after test: True
+
+  ── 9. PendingChangesService  (offline changes queue)
+  ─────────────────────────────────────────────────────────────────
+  ✅  No pending changes initially: True
+  ✅  HasPending = true after AddGame: True
+  ✅  Queue has 2 pending changes: True
+  ✅  First change is AddGame: True
+  ✅  Second change is RemoveGame: True
+  ✅  AddGame has correct title: True
+  ✅  RemoveGame has correct title: True
+  ✅  Queue cleared after test: True
+
+  ── 10. PlatformHelper.NormalizePlatform  (abbreviated and full names)
+  ─────────────────────────────────────────────────────────────────
+  ✅  NormalizePlatform("S                           ") → "Switch"
+  ✅  NormalizePlatform("2                           ") → "PS2"
+  ✅  NormalizePlatform("3                           ") → "PS3"
+  ✅  NormalizePlatform("4                           ") → "PS4"
+  ✅  NormalizePlatform("5                           ") → "PS5"
+  ✅  NormalizePlatform("PC                          ") → "PC"
+  ✅  NormalizePlatform("Switch                      ") → "Switch"
+  ✅  NormalizePlatform("PS1                         ") → "PS1"
+  ✅  NormalizePlatform("PS2                         ") → "PS2"
+  ✅  NormalizePlatform("PS3                         ") → "PS3"
+  ✅  NormalizePlatform("PS4                         ") → "PS4"
+  ✅  NormalizePlatform("PS5                         ") → "PS5"
+  ✅  NormalizePlatform("PSP                         ") → "PSP"
+  ✅  NormalizePlatform("PS Vita                     ") → "PS Vita"
+  ✅  NormalizePlatform("Xbox 360                    ") → "Xbox 360"
+  ✅  NormalizePlatform("Xbox One                    ") → "Xbox One"
+  ✅  NormalizePlatform("vita                        ") → "PS Vita"
+  ✅  NormalizePlatform("xbox360                     ") → "Xbox 360"
+  ✅  NormalizePlatform("xbone                       ") → "Xbox One"
+  ✅  NormalizePlatform("Microsoft - Xbox 360        ") → "Xbox 360"
+  ✅  NormalizePlatform("Nintendo - Switch           ") → "Switch"
+  ✅  NormalizePlatform("Sony - PlayStation 4        ") → "PS4"
+  ✅  NormalizePlatform("Sony - PlayStation 3        ") → "PS3"
+  ✅  NormalizePlatform("Sony - PSP                  ") → "PSP"
+  ✅  NormalizePlatform("Unknown Platform            ") → "Unknown Platform"
+
+  ── 11. OfflineDataCacheService.EnumerateAllCachedUsers  (multi-profile discovery)
+  ─────────────────────────────────────────────────────────────────
+  ✅  User1 not present before save: True
+  ✅  User2 not present before save: True
+  ✅  User1 found in enumeration after save: True
+  ✅  User2 found in enumeration after save: True
+  ✅  User1 gone after clear: True
+  ✅  User2 still present after clearing User1: True
+
+  ── 12. Reconnect Logic  (GamesListEqual change-detection helper)
+  ─────────────────────────────────────────────────────────────────
+  ✅  Identical game lists are equal: True
+  ✅  Lists with different counts are not equal: True
+  ✅  Same-count lists with different content are not equal: True
+  ✅  Two empty lists are equal: True
+  ✅  Game list comparison is case-insensitive: True
+
+  ── 13. GitHub-direct Achievement Mirror Sync
+  ─────────────────────────────────────────────────────────────────
+  ✅  Canonical mirror created at titleId path: accounts/testuser/Achievements/Switch/0100152000022000/achievements.json
+  ✅  Root achievements.json contains both unlocks: count=2
+  ✅  Canonical mirror contains both unlocks: count=2
+  ✅  Canonical mirror contains the new achievement ID
+
+═══════════════════════════════════════════════════════════════════
+  ✅  ALL TESTS PASSED — C# login logic matches web frontend exactly!
+═══════════════════════════════════════════════════════════════════

@@ -1,0 +1,12 @@
+  Determining projects to restore...
+  Restored /tmp/workspace/Koriebonx98/Game.OS.Userdata/GameLauncher/GameLauncher.csproj (in 314 ms).
+/tmp/workspace/Koriebonx98/Game.OS.Userdata/GameLauncher/Views/IntroWindow.axaml : Avalonia warning AVLN3001: XAML resource "avares://GameLauncher/Views/IntroWindow.axaml" won't be reachable via runtime loader, as no public constructor was found [/tmp/workspace/Koriebonx98/Game.OS.Userdata/GameLauncher/GameLauncher.csproj]
+  GameLauncher -> /tmp/workspace/Koriebonx98/Game.OS.Userdata/GameLauncher/bin/Debug/net8.0/GameLauncher.dll
+
+Build succeeded.
+
+/tmp/workspace/Koriebonx98/Game.OS.Userdata/GameLauncher/Views/IntroWindow.axaml : Avalonia warning AVLN3001: XAML resource "avares://GameLauncher/Views/IntroWindow.axaml" won't be reachable via runtime loader, as no public constructor was found [/tmp/workspace/Koriebonx98/Game.OS.Userdata/GameLauncher/GameLauncher.csproj]
+    1 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:08.13

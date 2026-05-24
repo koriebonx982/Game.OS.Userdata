@@ -363,10 +363,11 @@ public partial class MainWindow : Window
 
         bool gameIsRunning = _boundVm.DetailVm.IsGameRunning;
         bool launcherMinimized = WindowState == WindowState.Minimized;
+        bool launcherUnfocused = !IsActive;
 
-        // If a game is running (or the launcher is minimized), use the separate overlay
-        // window so we never steal focus from the game.
-        if (gameIsRunning || launcherMinimized)
+        // If a game is running, the launcher is minimized, or the launcher is unfocused,
+        // use the separate overlay window so we never steal focus from another app.
+        if (gameIsRunning || launcherMinimized || launcherUnfocused)
         {
             _boundVm.QuickMenuVm.Refresh(
                 currentUsername:     _boundVm.ProfileVm.Username,

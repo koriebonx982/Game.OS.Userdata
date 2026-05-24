@@ -1,0 +1,169 @@
+═══════════════════════════════════════════════════════════════
+  Game.OS — GameScannerService Detection Test
+═══════════════════════════════════════════════════════════════
+  Scanning TestData root: /tmp/workspace/Koriebonx98/Game.OS.Userdata/TestData
+
+📀 Detected Games (5):
+───────────────────────────────────────────────────────────────
+  ✅  FakeGame1             [exe]  ../../../../../home/runner/Games/FakeGame1/FakeGame.exe
+  ✅  FakeGame2             [app]  ../../../../../home/runner/Games/FakeGame2/FakeGame2.app
+  ✅  FakeGame3             [elf]  ../../../../../home/runner/Games/FakeGame3/FakeGame
+  ✅  FakeGame4             [exe]  ../../../../../home/runner/Games/FakeGame4/FakeGame4.exe
+  ✅  FakeGame5             [elf]  ../../../../../home/runner/Games/FakeGame5/FakeGame5
+
+📦 Detected Repacks (7):
+───────────────────────────────────────────────────────────────
+  ✅  A Way Out                            [zip   ]  5 B
+  ✅  FakeGame1                            [zip   ]  5 B
+  ✅  FakeGame3WithUpdate / setup.zip      [zip   ]  5 B
+  ✅  FakeRepack                           [rar   ]  7 B
+  ✅  FakeRepack                           [zip   ]  10 B
+  ✅  FakeRepack1 / FakeRepack1.zip        [zip   ]  3 B
+  ✅  FakeRepack2 / FakeRepack2.7z         [7z    ]  8 B
+
+🕹️  Detected ROMs (11):
+───────────────────────────────────────────────────────────────
+  ✅  [GBA       ]  FakeGBAGame                [gba  ]  13 B
+  ✅  [PS2       ]  FakePS2Flat                [iso  ]  18 B
+  ✅  [PS2       ]  FakePS2Sub                 [iso  ]  17 B
+  ✅  [PS3       ]  FakePS3Game                [iso  ]  13 B
+  ✅  [PS4       ]  Blood Borne                [bin  ]  14 B
+  ✅  [SNES      ]  FakeSNESGame               [snes ]  24 B  regions=[Europe,USA]  +2 more
+  ✅  [Switch    ]  Nintendo - Switch          [nca  ]  0 B
+  ✅  [Switch    ]  Super Mario Odyssey        [nca  ]  0 B  regions=[USA]  +1 more
+  ✅  [Xbox 360  ]  Halo 2                     [iso  ]  0 B  regions=[USA]
+  ✅  [Xbox 360  ]  Halo 3                     [iso  ]  0 B  regions=[USA]
+  ✅  [Xbox 360  ]  Shadow the Hedgehog        [chd  ]  0 B  regions=[USA,En,Ja,Fr,De,Es,It]
+
+🌐 ROM Comma-Separated Language Tag Parsing:
+───────────────────────────────────────────────────────────────
+  ✅  'Shadow the Hedgehog (USA) (En,Ja,Fr,De,Es,It).chd' → title="Shadow the Hedgehog"  regions=[USA,En,Ja,Fr,De,Es,It]
+
+🗂️  Platform Name Normalisation:
+───────────────────────────────────────────────────────────────
+  ✅  Roms/Microsoft - Xbox 360/ → Platform="Xbox 360"
+  ✅  Roms/Nintendo - Switch/ → Platform="Switch"
+  ✅  Switch .nca ROM detected: "Nintendo - Switch" (TitleId=01007EF00011E000)
+
+™  Trademark Symbol Stripping (ParseRomTitle):
+───────────────────────────────────────────────────────────────
+  ✅  "Super Mario Odyssey™" → "Super Mario Odyssey" (™ stripped)
+  ✅  No detected ROM title contains a trademark/copyright symbol
+
+🔧 Archive Title Normalisation:
+───────────────────────────────────────────────────────────────
+  ✅  A-Way-Out-SteamRIP.zip → "A Way Out"
+
+📂 Repack + Update Detection:
+───────────────────────────────────────────────────────────────
+  ✅  FakeGame3WithUpdate has Update: /home/runner/Repacks/FakeGame3WithUpdate/Update
+
+🏷️  IsInstalledGame Detection:
+───────────────────────────────────────────────────────────────
+  ✅  FakeGame1.zip is marked IsInstalledGame=true (also in Games/)
+
+🎮 PS2 Platform Normalisation (Sony - PlayStation 2 → PS2):
+───────────────────────────────────────────────────────────────
+  ✅  FakePS2Flat (flat in Games/)  → Platform="PS2"
+  ✅  FakePS2Sub (in Games/FakePS2Sub/) → Platform="PS2"
+
+📋 ROM Copy/Move Destination Pattern (Roms/{Platform}/Games/...):
+───────────────────────────────────────────────────────────────
+  ✅  [SNES      ] FakeSNESGame              → .../SNES/Games/FakeSNESGame (Europe).snes
+  ✅  [Xbox 360  ] Halo 2                    → .../Microsoft - Xbox 360/Games/Halo 2 (USA).iso
+  ✅  [Switch    ] Nintendo - Switch         → .../Nintendo - Switch/Games/The Legend of Zelda Tears of the Kingdom [01007EF00011E000][v0].nca
+  ✅  [Switch    ] Super Mario Odyssey       → .../Nintendo - Switch/Games/Super Mario Odyssey™.nca
+  ✅  [GBA       ] FakeGBAGame               → .../GBA/Games/FakeGBAGame/FakeGBAGame.gba
+  ✅  [Xbox 360  ] Halo 3                    → .../Xbox 360/Games/Halo 3 (USA).iso
+  ✅  [Xbox 360  ] Shadow the Hedgehog       → .../Xbox 360/Games/Shadow the Hedgehog (USA) (En,Ja,Fr,De,Es,It).chd
+  ✅  [PS2       ] FakePS2Flat               → .../Sony - PlayStation 2/Games/FakePS2Flat.iso
+  ✅  [PS2       ] FakePS2Sub                → .../Sony - PlayStation 2/Games/FakePS2Sub/FakePS2Sub.iso
+  ✅  [PS3       ] FakePS3Game               → .../PS3/Games/FakePS3Game/FakePS3Game.iso
+  ✅  [PS4       ] Blood Borne               → .../Sony - Playstation 4/Games/Blood Borne/CUSA00207/game.bin
+  ✅  All ROM copy/move destinations are in the correct scanner layout.
+
+🏪 Storefront Scanner (Steam/Epic/GOG/EA/Ubisoft/Xbox):
+───────────────────────────────────────────────────────────────
+  ℹ  SteamGameLinux not detected (ELF exec bit may not be set in tmp — non-fatal)
+  ✅  ScanStorefrontDirs and ParseSteamLibraryFolders ran without exception
+
+🎮 Epic Games Manifest (.item file) Detection:
+───────────────────────────────────────────────────────────────
+  ✅  Game 1 (root exe):  DisplayName="Epic Game From Manifest 1"  Source=Epic  exe=EpicGameFromManifest1.exe
+  ✅  Game 2 (nested exe): DisplayName="Epic Game Sub Dir"  Source=Epic  exe=Binaries/Win64/EpicGameFromManifest2.exe
+  ✅  Incomplete install manifest correctly skipped
+  ✅  Non-existent InstallLocation manifest correctly skipped
+  ✅  All 2 manifest-detected games have Source="Epic"
+
+🎮 Steam ACF Manifest Detection:
+───────────────────────────────────────────────────────────────
+  ✅  Game 1 (top-level exe):  Title="Steam ACF Game One"  Source=Steam  exe=game1.exe
+  ✅  Game 2 (nested exe):    Title="Steam ACF Game Two"  Source=Steam  exe=...older/Binaries/Win64/game2.exe
+  ✅  Partial download (StateFlags=2) correctly skipped
+  ✅  Game 4 (StateFlags=6, installed+update required): included
+  ✅  Game 5 (StateFlags=516, installed+update paused): included
+  ✅  All 4 ACF-detected game(s) have Source="Steam"
+
+🎮 Steam VDF Library Folder Detection:
+───────────────────────────────────────────────────────────────
+  ✅  Steam VDF: library 1 parsed → /tmp/GameOS_SteamVdfTest_of2kfxiq.1dc/SteamLib1
+  ✅  Steam VDF: library 2 parsed → /tmp/GameOS_SteamVdfTest_of2kfxiq.1dc/SteamLib2
+  ✅  Steam VDF parser returned 2 library path(s)
+
+📝 Game Title Normalization (" - " → ":"):
+───────────────────────────────────────────────────────────────
+  ✅  "Call of Duty - Ghosts" → "Call of Duty: Ghosts"
+  ✅  "Mass Effect - Andromeda" → "Mass Effect: Andromeda"
+  ✅  "The Elder Scrolls V - Skyrim" → "The Elder Scrolls V: Skyrim"
+  ✅  "Deadpool" → "Deadpool"
+  ✅  "LEGO® Harry Potter™ Collection" → "LEGO® Harry Potter™ Collection"
+  ✅  "God of War - Ragnarok" → "God of War: Ragnarok"
+
+🏷️  Steam ACF Name Priority (ACF name overrides folder name):
+───────────────────────────────────────────────────────────────
+  ✅  [StateFlags=516] Exactly 1 entry (no duplicate): "LEGO Harry Potter Collection"
+  ✅  [StateFlags=516] Title from ACF manifest: "LEGO Harry Potter Collection" (not raw "LHPCR")
+  ✅  [StateFlags=2] ACF scan correctly skipped game (bit 4 not set)
+  ✅  [StateFlags=2] BuildAcfInstallDirNames returns proper name: "LEGO Harry Potter Collection"
+  ✅  [StateFlags=2] Folder-scan fallback uses ACF name: "LEGO Harry Potter Collection" (not raw "LHPCR")
+
+🔍 Games Folder Deep Exe Detection (exe in subdirectory):
+───────────────────────────────────────────────────────────────
+  ✅  DeadpoolGame detected with exe in subdirectory: exe/Deadpool.exe
+
+🔄 Repack Dedup with Fuzzy Title Matching:
+───────────────────────────────────────────────────────────────
+  ✅  "LEGO® Harry Potter™ Collection [FitGirl Repack]" correctly matches installed "LEGO Harry Potter Collection"
+  ✅  "Call of Duty - Ghosts [DODI Repack]" correctly matches installed "Call of Duty: Ghosts"
+  ✅  "Deadpool" correctly matches installed "Deadpool"
+  ✅  "Grand Theft Auto V [Repack]" correctly matches installed "Grand Theft Auto V"
+  ✅  "Forza Horizon 4 [ElAmigos Repack]" correctly not matched "Forza Horizon 5"
+
+📄 .gameos-title metadata file (ReadGameOsTitle):
+───────────────────────────────────────────────────────────────
+  ✅  Folder with .gameos-title: title read correctly as real display name
+  ✅  Folder without .gameos-title: returns null (falls back to folder name)
+  ✅  Folder with whitespace-only .gameos-title: returns null
+
+🚫 Steam Non-Game Folder Filter (acfNamesOnly blocks utility folders):
+───────────────────────────────────────────────────────────────
+  ✅  Real game detected: "God of War Ragnarök"
+  ✅  "Steamworks Common Redistributables" correctly excluded (no ACF entry)
+  ✅  "SteamVR" correctly excluded (no ACF entry)
+  ✅  "steam_settings" correctly excluded (no ACF entry)
+  ✅  Exactly 1 game in results (utility folders filtered out)
+
+🏁 Switch Achievement Detection (MK8D race condition):
+───────────────────────────────────────────────────────────────
+  ✅  "Test" unlocked from: get 1st as Mario on "Mario Kart Stadium"
+  ✅  "Test" unlocked with title "Mario Kart™ 8 Deluxe" (™ normalised)
+
+📋 Switch Log Parsing (ReadRaceResultsFromNewContent):
+───────────────────────────────────────────────────────────────
+  ✅  Race result parsed: Course=Gu_FirstCircuit Driver=Mario Rank=1 FinishReason=Finish CoinNum=10
+  ✅  No GP results (as expected — no gp_result block in log)
+  ✅  End-to-end: "Test" achievement unlocked from parsed log
+
+═══════════════════════════════════════════════════════════════
+  ✅  ALL CHECKS PASSED — Game detection is working correctly!
+═══════════════════════════════════════════════════════════════
