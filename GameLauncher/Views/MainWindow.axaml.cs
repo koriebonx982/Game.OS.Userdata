@@ -104,19 +104,32 @@ public partial class MainWindow : Window
             return;
         }
 
-        // While quick menu is open, prioritize PS5-style hub navigation.
+        // While quick menu is open, prioritize quick-menu navigation.
         if (vm.ShowQuickMenu)
         {
             bool textInputFocused = IsTextInputFocused();
+            bool isXb360QuickMenu = vm.QuickMenuVm.IsXb360Theme;
             switch (e.Key)
             {
                 case Key.Left:
                     if (textInputFocused) return;
+                    if (isXb360QuickMenu) return;
                     vm.QuickMenuVm.MoveHubSelection(-1);
                     e.Handled = true;
                     return;
                 case Key.Right:
                     if (textInputFocused) return;
+                    if (isXb360QuickMenu) return;
+                    vm.QuickMenuVm.MoveHubSelection(1);
+                    e.Handled = true;
+                    return;
+                case Key.Up:
+                    if (textInputFocused || !isXb360QuickMenu) return;
+                    vm.QuickMenuVm.MoveHubSelection(-1);
+                    e.Handled = true;
+                    return;
+                case Key.Down:
+                    if (textInputFocused || !isXb360QuickMenu) return;
                     vm.QuickMenuVm.MoveHubSelection(1);
                     e.Handled = true;
                     return;
