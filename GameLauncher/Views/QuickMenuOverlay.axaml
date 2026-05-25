@@ -375,7 +375,7 @@
 
                             <Button Classes="xb360-guide-item"
                                     Classes.active="{Binding IsFriendsPage}"
-                                    Command="{Binding SelectFriendsCommand}">
+                                    Command="{Binding OpenFriendsPageCommand}">
                                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                                     <TextBlock Grid.Column="0" Text="Friends" Classes="xb360-guide-row-text" VerticalAlignment="Center"/>
                                     <TextBlock Grid.Column="1" Text="{Binding Xb360FriendsCount}" Classes="xb360-guide-row-value" VerticalAlignment="Center"/>
@@ -386,7 +386,7 @@
 
                             <Button Classes="xb360-guide-item"
                                     Classes.active="{Binding IsInboxPage}"
-                                    Command="{Binding SelectInboxCommand}">
+                                    Command="{Binding OpenInboxPageCommand}">
                                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                                     <TextBlock Grid.Column="0" Text="Messages" Classes="xb360-guide-row-text" VerticalAlignment="Center"/>
                                     <TextBlock Grid.Column="1" Text="{Binding Xb360MessagesCount}" Classes="xb360-guide-row-value" VerticalAlignment="Center"/>
@@ -397,7 +397,7 @@
 
                             <Button Classes="xb360-guide-item"
                                     Classes.active="{Binding IsNotificationsPage}"
-                                    Command="{Binding SelectNotificationsCommand}">
+                                    Command="{Binding OpenNotificationsPageCommand}">
                                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                                     <TextBlock Grid.Column="0" Text="Activity" Classes="xb360-guide-row-text" VerticalAlignment="Center"/>
                                     <TextBlock Grid.Column="2" Text="⚡" Classes="xb360-guide-row-value" VerticalAlignment="Center"/>
@@ -418,7 +418,7 @@
 
                             <Button Classes="xb360-guide-item"
                                     Classes.active="{Binding IsDownloadsPage}"
-                                    Command="{Binding SelectDownloadsCommand}">
+                                    Command="{Binding OpenDownloadsPageCommand}">
                                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                                     <TextBlock Grid.Column="0" Text="Downloads" Classes="xb360-guide-row-text" VerticalAlignment="Center"/>
                                     <TextBlock Grid.Column="1" Text="{Binding Xb360DownloadsCount}" Classes="xb360-guide-row-value" VerticalAlignment="Center"/>

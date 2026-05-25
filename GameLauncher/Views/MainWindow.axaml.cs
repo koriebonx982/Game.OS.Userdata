@@ -120,13 +120,11 @@ public partial class MainWindow : Window
             {
                 case Key.Left:
                     if (textInputFocused) return;
-                    if (isXb360QuickMenu) { e.Handled = true; return; }
                     vm.QuickMenuVm.MoveHubSelection(-1);
                     e.Handled = true;
                     return;
                 case Key.Right:
                     if (textInputFocused) return;
-                    if (isXb360QuickMenu) { e.Handled = true; return; }
                     vm.QuickMenuVm.MoveHubSelection(1);
                     e.Handled = true;
                     return;
@@ -396,13 +394,11 @@ public partial class MainWindow : Window
         var vm = _boundVm.QuickMenuVm;
         HandleOverlayKeyState(Services.NativeMethods.VK_LEFT, ref _overlayLeftLatched, () =>
         {
-            if (!vm.IsXb360Theme)
-                vm.MoveHubSelection(-1);
+            vm.MoveHubSelection(-1);
         });
         HandleOverlayKeyState(Services.NativeMethods.VK_RIGHT, ref _overlayRightLatched, () =>
         {
-            if (!vm.IsXb360Theme)
-                vm.MoveHubSelection(1);
+            vm.MoveHubSelection(1);
         });
         HandleOverlayKeyState(Services.NativeMethods.VK_UP, ref _overlayUpLatched, () =>
         {

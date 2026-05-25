@@ -25,7 +25,7 @@ public partial class QuickMenuViewModel : ViewModelBase
     };
     private static readonly string[] Xb360GuideOrder =
     {
-        "home", "friends", "inbox", "notifications", "recent", "downloads", "power", "media", "settings"
+        "home", "media", "settings", "friends", "inbox", "notifications", "recent", "downloads", "power"
     };
 
     // ── Current game/session ────────────────────────────────────────────────
@@ -368,7 +368,12 @@ public partial class QuickMenuViewModel : ViewModelBase
     [RelayCommand] private void SelectPower() => ActivePage = "power";
     [RelayCommand] private void OpenAchievements() => ActivePage = "achievements";
     [RelayCommand] private void BackToHome() => ActivePage = "home";
-    [RelayCommand] private void OpenSettingsPage() { OnNavigatePage?.Invoke("settings"); OnDismiss?.Invoke(); }
+    [RelayCommand] private void OpenSettingsPage()
+    {
+        OnNavigatePage?.Invoke("settings");
+        OnRequestLauncherForeground?.Invoke();
+        OnDismiss?.Invoke();
+    }
     [RelayCommand] private void GoToGameOsHome()
     {
         OnNavigatePage?.Invoke("dashboard");
@@ -381,6 +386,7 @@ public partial class QuickMenuViewModel : ViewModelBase
     {
         if (item == null || string.IsNullOrWhiteSpace(item.PageKey)) return;
         OnNavigatePage?.Invoke(item.PageKey);
+        OnRequestLauncherForeground?.Invoke();
         OnDismiss?.Invoke();
     }
 
@@ -396,6 +402,7 @@ public partial class QuickMenuViewModel : ViewModelBase
     private void OpenNotificationsPage()
     {
         OnNavigatePage?.Invoke("inbox");
+        OnRequestLauncherForeground?.Invoke();
         OnDismiss?.Invoke();
     }
 
@@ -403,6 +410,7 @@ public partial class QuickMenuViewModel : ViewModelBase
     private void OpenDownloadsPage()
     {
         OnNavigatePage?.Invoke("library");
+        OnRequestLauncherForeground?.Invoke();
         OnDismiss?.Invoke();
     }
 
@@ -410,6 +418,7 @@ public partial class QuickMenuViewModel : ViewModelBase
     private void OpenInboxPage()
     {
         OnNavigatePage?.Invoke("inbox");
+        OnRequestLauncherForeground?.Invoke();
         OnDismiss?.Invoke();
     }
 
@@ -417,6 +426,7 @@ public partial class QuickMenuViewModel : ViewModelBase
     private void OpenFriendsPage()
     {
         OnNavigatePage?.Invoke("friends");
+        OnRequestLauncherForeground?.Invoke();
         OnDismiss?.Invoke();
     }
 
