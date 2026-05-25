@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GameLauncher.Models;
@@ -15,6 +16,7 @@ namespace GameLauncher.ViewModels;
 /// </summary>
 public partial class QuickMenuViewModel : ViewModelBase
 {
+    private readonly DispatcherTimer _xb360ClockTimer;
     private const int MaxRecentGames = 5;
     private static readonly string[] HubOrder =
     {
@@ -84,8 +86,14 @@ public partial class QuickMenuViewModel : ViewModelBase
     public int Xb360OnlineFriendsCount => OnlineFriends.Count;
     public int Xb360MessagesCount => UnreadMessageCount;
     public int Xb360DownloadsCount => PendingDownloadCount;
-    public string Xb360UserInitial =>
-        string.IsNullOrWhiteSpace(CurrentUsername) ? "?" : CurrentUsername.Trim()[0].ToString().ToUpperInvariant();
+    public string Xb360UserInitial
+    {
+        get
+        {
+            var trimmed = (CurrentUsername ?? "").Trim();
+            return trimmed.Length == 0 ? "?" : trimmed[0].ToString().ToUpperInvariant();
+        }
+    }
 
     // ── Achievements ────────────────────────────────────────────────────────
     [ObservableProperty] private int _achievementsUnlocked;
@@ -124,6 +132,17 @@ public partial class QuickMenuViewModel : ViewModelBase
 
     public QuickMenuViewModel()
     {
+        _xb360ClockTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(30)
+        };
+        _xb360ClockTimer.Tick += (_, _) =>
+        {
+            if (IsXb360Theme)
+                Xb360CurrentTimeLabel = DateTime.Now.ToString("h:mm tt");
+        };
+        _xb360ClockTimer.Start();
+
         RecentGames.CollectionChanged += OnCollectionsChanged;
         SwitcherItems.CollectionChanged += OnCollectionsChanged;
     }

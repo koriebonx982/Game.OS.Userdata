@@ -113,13 +113,13 @@ public partial class MainWindow : Window
             {
                 case Key.Left:
                     if (textInputFocused) return;
-                    if (isXb360QuickMenu) return;
+                    if (isXb360QuickMenu) { e.Handled = true; return; }
                     vm.QuickMenuVm.MoveHubSelection(-1);
                     e.Handled = true;
                     return;
                 case Key.Right:
                     if (textInputFocused) return;
-                    if (isXb360QuickMenu) return;
+                    if (isXb360QuickMenu) { e.Handled = true; return; }
                     vm.QuickMenuVm.MoveHubSelection(1);
                     e.Handled = true;
                     return;
