@@ -77,10 +77,22 @@ public partial class QuickMenuWindow : Window
         switch (e.Key)
         {
             case Key.Left:
+                if (vm.IsXb360Theme) { e.Handled = true; return; }
                 vm.MoveHubSelection(-1);
                 e.Handled = true;
                 return;
             case Key.Right:
+                if (vm.IsXb360Theme) { e.Handled = true; return; }
+                vm.MoveHubSelection(1);
+                e.Handled = true;
+                return;
+            case Key.Up:
+                if (!vm.IsXb360Theme) return;
+                vm.MoveHubSelection(-1);
+                e.Handled = true;
+                return;
+            case Key.Down:
+                if (!vm.IsXb360Theme) return;
                 vm.MoveHubSelection(1);
                 e.Handled = true;
                 return;

@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GameLauncher.Models;
@@ -15,11 +16,16 @@ namespace GameLauncher.ViewModels;
 /// </summary>
 public partial class QuickMenuViewModel : ViewModelBase
 {
+    private readonly DispatcherTimer _xb360ClockTimer;
     private const int MaxRecentGames = 5;
     private static readonly string[] HubOrder =
     {
         "home", "switcher", "recent", "notifications", "downloads",
         "friends", "inbox", "achievements", "media", "browser", "power"
+    };
+    private static readonly string[] Xb360GuideOrder =
+    {
+        "home", "friends", "inbox", "notifications", "recent", "downloads", "power", "media"
     };
 
     // ── Current game/session ────────────────────────────────────────────────
@@ -27,6 +33,7 @@ public partial class QuickMenuViewModel : ViewModelBase
     [ObservableProperty] private string _currentSessionLabel = "Not playing";
     [ObservableProperty] private bool _isPlayingGame;
     [ObservableProperty] private string _currentUsername = "";
+    [ObservableProperty] private string _xb360CurrentTimeLabel = "";
 
     // ── Header text (center panel text from PS5 ref) ───────────────────────
     [ObservableProperty] private string _menuTitle = "Home";
@@ -40,7 +47,8 @@ public partial class QuickMenuViewModel : ViewModelBase
     public bool IsWiiTheme => string.Equals(QuickMenuTheme, "Wii", StringComparison.OrdinalIgnoreCase);
     public bool IsSwitchTheme => string.Equals(QuickMenuTheme, "Switch", StringComparison.OrdinalIgnoreCase);
     public bool IsSteamBpmTheme => string.Equals(QuickMenuTheme, "SteamBPM", StringComparison.OrdinalIgnoreCase);
-    public bool UsesHubLayout => !IsGameOsTheme && !IsWiiTheme;
+    public bool UsesHubLayout => !IsGameOsTheme && !IsWiiTheme && !IsXb360Theme;
+    public bool UsesXb360GuideLayout => IsXb360Theme;
 
     // ── Hub page state ──────────────────────────────────────────────────────
     [ObservableProperty] private string _activePage = "home";
@@ -74,6 +82,18 @@ public partial class QuickMenuViewModel : ViewModelBase
     public bool HasRecentGames => RecentGames.Count > 0;
     public bool HasSwitcherItems => SwitcherItems.Count > 0;
     public bool HasPendingDownloads => PendingDownloadCount > 0;
+    public int Xb360RecentGamesCount => RecentGames.Count;
+    public int Xb360OnlineFriendsCount => OnlineFriends.Count;
+    public int Xb360MessagesCount => UnreadMessageCount;
+    public int Xb360DownloadsCount => PendingDownloadCount;
+    public string Xb360UserInitial
+    {
+        get
+        {
+            var trimmed = (CurrentUsername ?? "").Trim();
+            return trimmed.Length == 0 ? "?" : trimmed[0].ToString().ToUpperInvariant();
+        }
+    }
 
     // ── Achievements ────────────────────────────────────────────────────────
     [ObservableProperty] private int _achievementsUnlocked;
@@ -112,6 +132,17 @@ public partial class QuickMenuViewModel : ViewModelBase
 
     public QuickMenuViewModel()
     {
+        _xb360ClockTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(30)
+        };
+        _xb360ClockTimer.Tick += (_, _) =>
+        {
+            if (IsXb360Theme)
+                Xb360CurrentTimeLabel = DateTime.Now.ToString("h:mm tt");
+        };
+        _xb360ClockTimer.Start();
+
         RecentGames.CollectionChanged += OnCollectionsChanged;
         SwitcherItems.CollectionChanged += OnCollectionsChanged;
     }
@@ -120,9 +151,18 @@ public partial class QuickMenuViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(HasRecentGames));
         OnPropertyChanged(nameof(HasSwitcherItems));
+        OnPropertyChanged(nameof(Xb360RecentGamesCount));
+        OnPropertyChanged(nameof(Xb360OnlineFriendsCount));
     }
 
-    partial void OnPendingDownloadCountChanged(int value) => OnPropertyChanged(nameof(HasPendingDownloads));
+    partial void OnPendingDownloadCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(HasPendingDownloads));
+        OnPropertyChanged(nameof(Xb360DownloadsCount));
+    }
+
+    partial void OnCurrentUsernameChanged(string value) => OnPropertyChanged(nameof(Xb360UserInitial));
+    partial void OnUnreadMessageCountChanged(int value) => OnPropertyChanged(nameof(Xb360MessagesCount));
     partial void OnQuickMenuThemeChanged(string value)
     {
         OnPropertyChanged(nameof(IsPs5Theme));
@@ -132,6 +172,7 @@ public partial class QuickMenuViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsSwitchTheme));
         OnPropertyChanged(nameof(IsSteamBpmTheme));
         OnPropertyChanged(nameof(UsesHubLayout));
+        OnPropertyChanged(nameof(UsesXb360GuideLayout));
     }
 
     partial void OnActivePageChanged(string value)
@@ -149,21 +190,25 @@ public partial class QuickMenuViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsAchievementsPage));
         UpdateMenuHeader(value);
 
-        int idx = Array.IndexOf(HubOrder, value);
+        var navigationOrder = GetCurrentNavigationOrder();
+        int idx = Array.IndexOf(navigationOrder, value);
         if (idx >= 0 && idx != SelectedHubIndex)
             SelectedHubIndex = idx;
     }
 
     partial void OnSelectedHubIndexChanged(int value)
     {
-        int idx = Math.Clamp(value, 0, HubOrder.Length - 1);
+        var navigationOrder = GetCurrentNavigationOrder();
+        if (navigationOrder.Length == 0) return;
+
+        int idx = Math.Clamp(value, 0, navigationOrder.Length - 1);
         if (idx != value)
         {
             SelectedHubIndex = idx;
             return;
         }
 
-        var page = HubOrder[idx];
+        var page = navigationOrder[idx];
         if (!string.Equals(ActivePage, page, StringComparison.Ordinal))
             ActivePage = page;
     }
@@ -187,16 +232,24 @@ public partial class QuickMenuViewModel : ViewModelBase
 
     public void MoveHubSelection(int delta)
     {
-        if (HubOrder.Length == 0) return;
+        var navigationOrder = GetCurrentNavigationOrder();
+        if (navigationOrder.Length == 0) return;
         // Wrap in both directions so negative deltas cycle from first -> last.
-        int next = ((SelectedHubIndex + delta) % HubOrder.Length + HubOrder.Length) % HubOrder.Length;
+        int next = ((SelectedHubIndex + delta) % navigationOrder.Length + navigationOrder.Length) % navigationOrder.Length;
         SelectedHubIndex = next;
     }
 
     public void ActivateSelectedHub()
     {
-        if (SelectedHubIndex < 0 || SelectedHubIndex >= HubOrder.Length) return;
-        ActivePage = HubOrder[SelectedHubIndex];
+        var navigationOrder = GetCurrentNavigationOrder();
+        if (SelectedHubIndex < 0 || SelectedHubIndex >= navigationOrder.Length) return;
+        var page = navigationOrder[SelectedHubIndex];
+        if (IsXb360Theme && string.Equals(page, "power", StringComparison.Ordinal))
+        {
+            PowerSignOutCommand.Execute(null);
+            return;
+        }
+        ActivePage = page;
     }
 
     private void UpdateMenuHeader(string page)
@@ -276,6 +329,8 @@ public partial class QuickMenuViewModel : ViewModelBase
     [RelayCommand] private void SelectPower() => ActivePage = "power";
     [RelayCommand] private void OpenAchievements() => ActivePage = "achievements";
     [RelayCommand] private void BackToHome() => ActivePage = "home";
+    [RelayCommand] private void OpenSettingsPage() { OnNavigatePage?.Invoke("settings"); OnDismiss?.Invoke(); }
+    [RelayCommand] private void GoToGameOsHome() { OnNavigatePage?.Invoke("dashboard"); OnDismiss?.Invoke(); }
 
     [RelayCommand]
     private void OpenPageFromSwitcher(QuickMenuSwitcherItemVm? item)
@@ -481,6 +536,7 @@ public partial class QuickMenuViewModel : ViewModelBase
     {
         QuickMenuTheme = NormaliseQuickMenuTheme(quickMenuTheme);
         CurrentUsername = currentUsername ?? "";
+        Xb360CurrentTimeLabel = DateTime.Now.ToString("h:mm tt");
         IsPlayingGame = !string.IsNullOrEmpty(currentGameTitle);
         CurrentGameTitle = currentGameTitle ?? "";
         ActivePage = "home";
@@ -550,6 +606,8 @@ public partial class QuickMenuViewModel : ViewModelBase
         HasAchievements = Achievements.Count > 0;
         MediaStatusLabel = "Media controls are ready.";
     }
+
+    private string[] GetCurrentNavigationOrder() => IsXb360Theme ? Xb360GuideOrder : HubOrder;
 
     private static string NormaliseQuickMenuTheme(string value)
     {
