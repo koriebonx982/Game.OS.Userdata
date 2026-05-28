@@ -32,6 +32,10 @@ public partial class IntroWindow : Window
     // Safety timeout: if VLC hasn't started playback within 8 s, proceed to main window.
     private CancellationTokenSource? _timeoutCts;
 
+    /// <summary>
+    /// Parameterless constructor kept so Avalonia's XAML compiler/runtime can resolve
+    /// the view type without emitting the missing-public-constructor warning.
+    /// </summary>
     public IntroWindow() : this(string.Empty) { }
 
     /// <param name="videoPath">Absolute path to the intro video file.</param>

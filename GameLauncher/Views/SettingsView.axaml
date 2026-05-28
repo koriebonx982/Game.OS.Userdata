@@ -159,7 +159,7 @@
                                        FontSize="16"
                                        FontWeight="Bold"
                                        Foreground="White"/>
-                            <TextBlock Text="This looks like a new Game.OS install. Review your app preferences, emulator paths, quick-menu behaviour, and startup apps, then save once to finish setup on this device."
+                            <TextBlock Text="This looks like a new Game.OS install. Review your app preferences, emulator paths, quick-menu behavior, and startup apps, then save once to finish setup on this device."
                                        FontSize="12"
                                        Foreground="#c9d1d9"
                                        TextWrapping="Wrap"/>
