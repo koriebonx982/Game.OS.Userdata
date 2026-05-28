@@ -393,19 +393,16 @@ jobs:
           retention-days: 90
           if-no-files-found: warn
 
-      # ── Publish standalone Windows exe ────────────────────────────────────
-      # Produces a single self-contained GameLauncher.exe for Windows x64.
-      # The gameos-backend.url and gameos-token.dat files are automatically
-      # bundled in the publish output (CopyToOutputDirectory=Always) so users
-      # can run the exe immediately without any configuration.
+      # ── Publish Windows x64 app folder ────────────────────────────────────
+      # Keep sidecar native media files in output so intro/trailer playback
+      # works reliably on Windows release builds.
       - name: Publish Windows x64 standalone exe
         run: |
           dotnet publish GameLauncher/GameLauncher.csproj \
             -c Release \
             -r win-x64 \
             --self-contained true \
-            -p:PublishSingleFile=true \
-            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:PublishSingleFile=false \
             -o /tmp/GameOS-Launcher-win-x64
           echo "✅ Windows exe published to /tmp/GameOS-Launcher-win-x64"
           echo "   Included files:"

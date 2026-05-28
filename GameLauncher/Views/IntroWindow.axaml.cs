@@ -4,8 +4,10 @@ using Avalonia.Controls;
 using GameLauncher.Services;
 using LibVLCSharp.Shared;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -30,6 +32,12 @@ public partial class IntroWindow : Window
 
     // Safety timeout: if VLC hasn't started playback within 8 s, proceed to main window.
     private CancellationTokenSource? _timeoutCts;
+
+    /// <summary>
+    /// Parameterless constructor required so Avalonia's XAML compiler/runtime can
+    /// resolve the view type; runtime playback still uses <see cref="IntroWindow(string)"/>.
+    /// </summary>
+    public IntroWindow() : this(string.Empty) { }
 
     /// <param name="videoPath">Absolute path to the intro video file.</param>
     public IntroWindow(string videoPath)
@@ -73,17 +81,16 @@ public partial class IntroWindow : Window
         {
             if (!_vlcCoreInitialized)
             {
-                var appDir = AppContext.BaseDirectory;
-                if (!string.IsNullOrEmpty(appDir) &&
-                    File.Exists(Path.Combine(appDir, "libvlc.dll")))
+                string? vlcDir = FindBundledLibVlcDirectory();
+                if (!string.IsNullOrEmpty(vlcDir))
                 {
-                    Core.Initialize(appDir);
-                    DevLogService.Log($"[IntroWindow] Core.Initialize(appDir) succeeded.");
+                    Core.Initialize(vlcDir);
+                    DevLogService.Log($"[IntroWindow] Core.Initialize('{vlcDir}') succeeded.");
                 }
                 else
                 {
                     Core.Initialize();
-                    DevLogService.Log("[IntroWindow] Core.Initialize() succeeded (default search).");
+                    DevLogService.Log($"[IntroWindow] Core.Initialize() succeeded (default search on {GetCurrentPlatformLabel()}).");
                 }
                 _vlcCoreInitialized = true;
             }
@@ -191,5 +198,139 @@ public partial class IntroWindow : Window
         _media = null;
         _libVlc?.Dispose();
         _libVlc = null;
+    }
+
+    private static string? FindBundledLibVlcDirectory()
+    {
+        string baseDir = AppContext.BaseDirectory;
+        var candidates = new List<string>();
+
+        if (OperatingSystem.IsWindows())
+            candidates.Add(baseDir);
+
+        string? preferredRuntimeId = GetPreferredLibVlcRuntimeId();
+        if (!string.IsNullOrEmpty(preferredRuntimeId))
+        {
+            candidates.Add(Path.Combine(baseDir, "libvlc", preferredRuntimeId));
+            candidates.Add(Path.Combine(baseDir, "runtimes", preferredRuntimeId, "native"));
+        }
+
+        foreach (var runtimeId in GetLibVlcRuntimeIds())
+        {
+            candidates.Add(Path.Combine(baseDir, "libvlc", runtimeId));
+            candidates.Add(Path.Combine(baseDir, "runtimes", runtimeId, "native"));
+        }
+
+        candidates.AddRange(GetSystemLibVlcDirectories());
+
+        foreach (var candidate in candidates)
+        {
+            if (Directory.Exists(candidate) && DirectoryContainsLibVlc(candidate))
+                return candidate;
+        }
+
+        return null;
+    }
+
+    private static string? GetPreferredLibVlcRuntimeId()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return RuntimeInformation.ProcessArchitecture switch
+            {
+                Architecture.X64   => "win-x64",
+                Architecture.X86   => "win-x86",
+                Architecture.Arm64 => "win-arm64",
+                _                  => null
+            };
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            return RuntimeInformation.ProcessArchitecture switch
+            {
+                Architecture.X64   => "linux-x64",
+                Architecture.Arm64 => "linux-arm64",
+                _                  => null
+            };
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            return RuntimeInformation.ProcessArchitecture switch
+            {
+                Architecture.X64   => "osx-x64",
+                Architecture.Arm64 => "osx-arm64",
+                _                  => null
+            };
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> GetLibVlcRuntimeIds()
+    {
+        if (OperatingSystem.IsWindows())
+            return new[] { "win-x64", "win-x86", "win-arm64" };
+        if (OperatingSystem.IsLinux())
+            return new[] { "linux-x64", "linux-arm64" };
+        if (OperatingSystem.IsMacOS())
+            return new[] { "osx-x64", "osx-arm64" };
+        return Array.Empty<string>();
+    }
+
+    private static IEnumerable<string> GetSystemLibVlcDirectories()
+    {
+        if (OperatingSystem.IsLinux())
+        {
+            return
+            [
+                "/usr/lib",
+                "/usr/lib64",
+                "/usr/lib/vlc",
+                "/usr/lib/x86_64-linux-gnu",
+                "/usr/lib/aarch64-linux-gnu",
+                "/snap/vlc/current/usr/lib",
+            ];
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            string userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            return
+            [
+                "/Applications/VLC.app/Contents/MacOS/lib",
+                Path.Combine(userHome, "Applications", "VLC.app", "Contents", "MacOS", "lib"),
+            ];
+        }
+
+        return Array.Empty<string>();
+    }
+
+    private static bool DirectoryContainsLibVlc(string directory)
+    {
+        foreach (var fileName in GetExpectedLibVlcFileNames())
+            if (File.Exists(Path.Combine(directory, fileName)))
+                return true;
+        return false;
+    }
+
+    private static IEnumerable<string> GetExpectedLibVlcFileNames()
+    {
+        if (OperatingSystem.IsWindows())
+            return new[] { "libvlc.dll" };
+        if (OperatingSystem.IsLinux())
+            return new[] { "libvlc.so", "libvlc.so.5" };
+        if (OperatingSystem.IsMacOS())
+            return new[] { "libvlc.dylib" };
+        return Array.Empty<string>();
+    }
+
+    private static string GetCurrentPlatformLabel()
+    {
+        if (OperatingSystem.IsWindows()) return "Windows";
+        if (OperatingSystem.IsLinux()) return "Linux";
+        if (OperatingSystem.IsMacOS()) return "macOS";
+        return Environment.OSVersion.Platform.ToString();
     }
 }

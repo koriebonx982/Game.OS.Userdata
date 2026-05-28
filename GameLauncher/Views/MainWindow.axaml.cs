@@ -536,7 +536,8 @@ public partial class MainWindow : Window
             }
             else
             {
-                _quickMenuWindow.ShowOverGame();
+                bool activateOverlay = _boundVm.SettingsVm.CompatibilityOverlayMode;
+                _quickMenuWindow.ShowOverGame(activateOverlay);
             }
             return;
         }

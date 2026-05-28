@@ -93,10 +93,12 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private string _exophaseProfileId = "";
     /// <summary>Enable a system-wide quick-menu hotkey on Windows.</summary>
     [ObservableProperty] private bool _enableGlobalQuickMenuHotkey = false;
-    /// <summary>Use a top-most quick-menu fallback for problematic fullscreen games.</summary>
+    /// <summary>Use the older activating quick-menu overlay behaviour.</summary>
     [ObservableProperty] private bool _compatibilityOverlayMode = false;
     /// <summary>Prefer cached local metadata first for installed games and offline sessions.</summary>
     [ObservableProperty] private bool _preferOfflineCachedMetadata = true;
+    /// <summary>True when the local device has not completed the initial setup flow yet.</summary>
+    [ObservableProperty] private bool _showFirstRunSetupBanner;
     /// <summary>Selected launcher design theme.</summary>
     [ObservableProperty] private string _designTheme = "Default";
     /// <summary>Available launcher design themes for Settings → Design.</summary>
@@ -323,6 +325,7 @@ public partial class SettingsViewModel : ViewModelBase
         EnableGlobalQuickMenuHotkey = appSettings.EnableGlobalQuickMenuHotkey;
         CompatibilityOverlayMode   = appSettings.CompatibilityOverlayMode;
         PreferOfflineCachedMetadata = appSettings.PreferOfflineCachedMetadata;
+        ShowFirstRunSetupBanner      = !appSettings.HasCompletedFirstRunSetup;
         DesignTheme                = NormaliseDesignTheme(appSettings.DesignTheme);
         QuickMenuTheme             = NormaliseQuickMenuTheme(appSettings.QuickMenuTheme);
         LogGamesScanner           = appSettings.LogGamesScanner;
@@ -492,6 +495,7 @@ public partial class SettingsViewModel : ViewModelBase
             AutoUpdate            = AutoUpdate,
             ShowIntroVideo        = ShowIntroVideo,
             IntroVideoPath        = IntroVideoPath,
+            HasCompletedFirstRunSetup = true,
             ReadSwitchLog         = ReadSwitchLog,
             DevLogs               = DevLogs,
             MinimizeOnGameLaunch  = MinimizeOnGameLaunch,
@@ -531,6 +535,7 @@ public partial class SettingsViewModel : ViewModelBase
 
         StatusMessage = "✅ Settings saved!";
         IsSaveSuccess = true;
+        ShowFirstRunSetupBanner = false;
         ExophaseProfileId = NormaliseExophaseProfileId(ExophaseProfileId);
         DesignTheme = NormaliseDesignTheme(DesignTheme);
         (Application.Current as App)?.ApplyDesignTheme(DesignTheme);

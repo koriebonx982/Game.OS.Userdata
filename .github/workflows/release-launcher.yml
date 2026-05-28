@@ -128,8 +128,7 @@ jobs:
             -c Release \
             -r win-x64 \
             --self-contained true \
-            -p:PublishSingleFile=true \
-            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:PublishSingleFile=false \
             -o /tmp/GameOS-Launcher-win-x64
 
           echo "✅ Published to /tmp/GameOS-Launcher-win-x64"
@@ -207,11 +206,8 @@ jobs:
       - name: Create release zip (Windows)
         run: |
           cd /tmp/GameOS-Launcher-win-x64
-          # Include the exe and both config files (one or both will have content)
-          zip -j /tmp/GameOS-Launcher-win-x64.zip \
-            GameLauncher.exe \
-            gameos-backend.url \
-            gameos-token.dat
+          # Include full app folder (native media dependencies + config files).
+          zip -r /tmp/GameOS-Launcher-win-x64.zip .
           echo "✅ Packaged: /tmp/GameOS-Launcher-win-x64.zip"
           ls -lh /tmp/GameOS-Launcher-win-x64.zip
 

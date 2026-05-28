@@ -757,6 +757,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ShowLogin = false;
         ShowMain  = true;
         ActivePage = "dashboard";
+        OpenFirstRunSetupIfNeeded();
 
         if (string.Equals(Environment.GetEnvironmentVariable("GAMEOS_DEMO_SHOW_QUICKMENU"), "1", StringComparison.Ordinal))
             ToggleQuickMenu();
@@ -1249,10 +1250,21 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ShowLogin = false;
         ShowMain  = true;
         ActivePage = "dashboard";
+        OpenFirstRunSetupIfNeeded();
         DevLogService.Log("[MainViewModel] Login flow complete — showing dashboard.");
 
         // Launch any enabled startup apps (Settings › System › Startup)
         RunStartupApps();
+    }
+
+    private void OpenFirstRunSetupIfNeeded()
+    {
+        if (!SettingsVm.ShowFirstRunSetupBanner)
+            return;
+
+        Navigate("settings");
+        SettingsVm.SelectedSection = "app";
+        DevLogService.Log("[MainViewModel] First run detected — opening Settings for initial setup.");
     }
 
     /// <summary>

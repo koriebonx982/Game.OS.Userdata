@@ -403,6 +403,12 @@ namespace GameLauncher.Models
         [JsonPropertyName("introVideoPath")] public string IntroVideoPath { get; set; } = "";
 
         /// <summary>
+        /// True once the player has completed the initial device setup flow and reviewed
+        /// the launcher's local preferences at least once.
+        /// </summary>
+        [JsonPropertyName("hasCompletedFirstRunSetup")] public bool HasCompletedFirstRunSetup { get; set; } = false;
+
+        /// <summary>
         /// Selected launcher design theme. Supported values: <c>Default</c>, <c>XB360</c>, and <c>PS5</c>.
         /// </summary>
         [JsonPropertyName("designTheme")] public string DesignTheme { get; set; } = "Default";
@@ -507,8 +513,9 @@ namespace GameLauncher.Models
         [JsonPropertyName("enableGlobalQuickMenuHotkey")] public bool EnableGlobalQuickMenuHotkey { get; set; } = false;
 
         /// <summary>
-        /// When enabled, the launcher temporarily raises its quick-menu window as a
-        /// top-most full-screen overlay and then minimizes back after dismissal.
+        /// When enabled, the quick-menu overlay uses the legacy activating behaviour,
+        /// which can help on some systems but may pull exclusive fullscreen games out
+        /// of the foreground.
         /// </summary>
         [JsonPropertyName("compatibilityOverlayMode")] public bool CompatibilityOverlayMode { get; set; } = false;
 
