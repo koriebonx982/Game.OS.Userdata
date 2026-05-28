@@ -88,7 +88,7 @@ public partial class QuickMenuViewModel : ViewModelBase
     // Blade-active booleans — used by XAML to highlight the Left/Right blade tab.
     public bool Xb360GamesBladeActive    => IsXb360Theme && Xb360BladeId == "games";
     public bool Xb360ProfileBladeActive  => IsXb360Theme && Xb360BladeId == "profile";
-    public bool Xb360MainBladeActive     => IsXb360Theme && (Xb360BladeId == "main" || !IsXb360Theme);
+    public bool Xb360MainBladeActive     => IsXb360Theme && Xb360BladeId == "main";
     public bool Xb360MediaBladeActive    => IsXb360Theme && Xb360BladeId == "media";
     public bool Xb360SettingsBladeActive => IsXb360Theme && Xb360BladeId == "settings";
 

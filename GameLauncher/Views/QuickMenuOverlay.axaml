@@ -570,7 +570,7 @@
                                 <Button Classes="xb360-sub-action-btn" Command="{Binding OpenProfilePageCommand}">View Profile</Button>
                             </StackPanel>
 
-                            <!-- Games &amp; Apps blade panel -->
+                            <!-- Games & Apps blade panel -->
                             <StackPanel IsVisible="{Binding Xb360GamesBladeActive}"
                                         VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
                                 <TextBlock Text="Games &amp; Apps" FontWeight="SemiBold" FontSize="20" Foreground="#1a1a1a" HorizontalAlignment="Center"/>
