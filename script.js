@@ -3450,12 +3450,13 @@ function isAdminUser() {
 // ============================================================
 
 function _gamesDbHeaders() {
-    return {
-        'Authorization': `Bearer ${GAMES_DB_TOKEN}`,
-        'Accept':        'application/vnd.github+json',
+    const h = {
+        'Accept':              'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28',
-        'Content-Type':  'application/json'
+        'Content-Type':        'application/json'
     };
+    if (GAMES_DB_TOKEN && GAMES_DB_TOKEN.trim()) h['Authorization'] = `Bearer ${GAMES_DB_TOKEN}`;
+    return h;
 }
 
 /**
@@ -3478,7 +3479,7 @@ async function _gamesDbWriteFile(platform, content, message) {
     );
     if (!refResp.ok) {
         if (refResp.status === 401 || refResp.status === 403)
-            throw new Error('GAMES_DB_TOKEN is invalid, expired, or lacks write permission. Update the repository secret and re-deploy.');
+            throw new Error('GAMES_DB_TOKEN is invalid, expired, or lacks Contents permission. Update the repository secret and re-deploy.');
         throw new Error(`Cannot read ref: ${refResp.status}`);
     }
     const ref         = await refResp.json();
@@ -3612,7 +3613,7 @@ async function _gamesDbWriteAchievementsFile(path, content, message) {
     );
     if (!writeResp.ok) {
         if (writeResp.status === 401 || writeResp.status === 403)
-            throw new Error('GAMES_DB_TOKEN is invalid, expired, or lacks write permission. Update the repository secret and re-deploy.');
+            throw new Error('GAMES_DB_TOKEN is invalid, expired, or lacks Contents permission. Update the repository secret and re-deploy.');
         const err = await writeResp.json().catch(() => ({}));
         throw new Error(err.message || `Cannot write file: ${writeResp.status}`);
     }
@@ -4374,7 +4375,11 @@ async function handleAdminEditSave() {
                 `https://api.github.com/repos/Koriebonx98/Games.Database/contents/${encodeURIComponent(platFile)}`,
                 { headers: _gamesDbHeaders() }
             );
-            if (!contentsResp.ok) throw new Error(`Failed to fetch ${platFile} (HTTP ${contentsResp.status})`);
+            if (!contentsResp.ok) {
+                if (contentsResp.status === 401 || contentsResp.status === 403)
+                    throw new Error('GAMES_DB_TOKEN is invalid, expired, or lacks Contents permission. Update the repository secret and re-deploy.');
+                throw new Error(`Failed to fetch ${platFile} (HTTP ${contentsResp.status})`);
+            }
             const fileMeta = await contentsResp.json();
             // Inline base64 content for files < 1 MB; download_url for larger files
             const fileData = fileMeta.content
@@ -4562,7 +4567,11 @@ async function handleAdminDeleteGame() {
             `https://api.github.com/repos/Koriebonx98/Games.Database/contents/${encodeURIComponent(platFile)}`,
             { headers: _gamesDbHeaders() }
         );
-        if (!contentsResp.ok) throw new Error(`Failed to fetch ${platFile} (HTTP ${contentsResp.status})`);
+        if (!contentsResp.ok) {
+            if (contentsResp.status === 401 || contentsResp.status === 403)
+                throw new Error('GAMES_DB_TOKEN is invalid, expired, or lacks Contents permission. Update the repository secret and re-deploy.');
+            throw new Error(`Failed to fetch ${platFile} (HTTP ${contentsResp.status})`);
+        }
         const fileMeta = await contentsResp.json();
         const fileData = fileMeta.content
             ? JSON.parse(atob(fileMeta.content.replace(/\n/g, '')))
@@ -4966,6 +4975,8 @@ async function handleAddPcGameToDb() {
                     gamesArr = fileData;
                 }
             } else if (contentsResp.status !== 404) {
+                if (contentsResp.status === 401 || contentsResp.status === 403)
+                    throw new Error('GAMES_DB_TOKEN is invalid, expired, or lacks Contents permission. Update the repository secret and re-deploy.');
                 throw new Error(`Failed to fetch ${platformFile} (HTTP ${contentsResp.status})`);
             }
 
@@ -5504,6 +5515,8 @@ async function handleAddSteamGameToDb() {
                     gamesArr = fileData;
                 }
             } else if (contentsResp.status !== 404) {
+                if (contentsResp.status === 401 || contentsResp.status === 403)
+                    throw new Error('GAMES_DB_TOKEN is invalid, expired, or lacks Contents permission. Update the repository secret and re-deploy.');
                 throw new Error(`Failed to fetch PC.Games.json (HTTP ${contentsResp.status})`);
             }
 
