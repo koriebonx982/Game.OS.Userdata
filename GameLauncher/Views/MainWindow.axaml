@@ -8,7 +8,7 @@
         Title="Game.OS Launcher"
         Width="1280" Height="800"
         MinWidth="900" MinHeight="600"
-        WindowState="Normal"
+        WindowState="FullScreen"
         Icon="/Assets/avalonia-logo.ico">
 
     <Grid>

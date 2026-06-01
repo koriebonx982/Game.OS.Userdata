@@ -73,6 +73,12 @@ public partial class MainWindow : Window
                 WindowState = _stateBeforeMinimize;
                 Activate();
             };
+            vm.BringToForegroundRequested = () =>
+            {
+                if (WindowState == WindowState.Minimized)
+                    WindowState = _stateBeforeMinimize;
+                Activate();
+            };
             RefreshGlobalHotkeyPolling();
         }
         else

@@ -126,6 +126,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     public Action? RestoreWindowRequested { get; set; }
 
+    /// <summary>
+    /// Invoked when the Quick Menu guide requests the launcher be brought to the foreground
+    /// (e.g. pressing Home).  Unlike <see cref="RestoreWindowRequested"/>, this only
+    /// unminimizes when necessary and never resizes an already-visible fullscreen window.
+    /// </summary>
+    public Action? BringToForegroundRequested { get; set; }
+
     // ── Session data ───────────────────────────────────────────────────────
     private UserProfile     _profile      = new();
     private List<Game>      _library      = new();
@@ -249,7 +256,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         QuickMenuVm.OnSignOut = () => SignOutCommand.Execute(null);
         QuickMenuVm.OnSwitchAccount = () => SwitchAccountCommand.Execute(null);
         QuickMenuVm.OnExitApplication = () => ExitAppCommand.Execute(null);
-        QuickMenuVm.OnRequestLauncherForeground = () => RestoreWindowRequested?.Invoke();
+        QuickMenuVm.OnRequestLauncherForeground = () => BringToForegroundRequested?.Invoke();
         QuickMenuVm.OnMediaPrevious = SendMediaPrevious;
         QuickMenuVm.OnMediaPlayPause = SendMediaPlayPause;
         QuickMenuVm.OnMediaNext = SendMediaNext;
