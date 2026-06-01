@@ -42,6 +42,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _exophasePollers =
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly TimeSpan ExophasePollInterval = TimeSpan.FromMinutes(1);
+    private int _startupBegun;
 
     // ── Sync status (shown in the bottom-right overlay) ────────────────────
     /// <summary>True while any background metadata cache task is running.</summary>
@@ -337,6 +338,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     DetailVm.CurrentTitleId);
             }
         };
+        DetailVm.OnRequestPlaytimeTrackingFallback = (launchTarget, title, platform, baselinePids) =>
+        {
+            _playtimeSvc.TrackProcessFromLaunchSnapshot(
+                title,
+                platform,
+                launchTarget,
+                baselinePids,
+                _library);
+        };
+        DetailVm.OnRequestManualExophaseSyncAsync = RequestManualExophaseSyncAsync;
 
         // Wire Xenia (Xbox 360) achievement unlock: persist newly-unlocked achievements
         // to the cloud so they don't re-fire toast notifications on the next session.
@@ -625,23 +636,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Trigger background metadata caching for the newly found ROMs
             _ = BackgroundCacheLocalGamesAsync();
         };
+    }
+
+    public void BeginStartup()
+    {
+        if (Interlocked.Exchange(ref _startupBegun, 1) == 1)
+            return;
+
+        DevLogService.Log("[MainViewModel] BeginStartup — starting deferred startup tasks.");
+
         DevLogService.Log("[Scanner] Starting background game scanner…");
         _ = _scanner.StartAsync();
 
-        // On startup, check if any cached platform JSON files are outdated and
-        // invalidate stale ones so the next database fetch pulls fresh data.
-        // Mirrors the web app always fetching with ?t=Date.now() cache-busting.
-        // Respects the user's AutoUpdate preference from app settings.
-        if (Services.AppSettingsService.Load().AutoUpdate)
+        var settings = Services.AppSettingsService.Load();
+        if (settings.AutoUpdate)
             _ = Services.GitHubDataService.CheckForUpdatesAsync();
 
-        // Keep the universal Switch translation table in sync with the remote
-        // repository so achievement detection always uses the latest mappings.
         _ = Services.SwitchTranslateService.SyncAsync();
-
-        // Attempt silent auto-login from cached session (mirrors web localStorage restore)
         _ = LoginVm.TryAutoLoginAsync();
-
     }
 
     /// <summary>
@@ -3098,8 +3110,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         if (!_client.IsAuthenticated || string.IsNullOrWhiteSpace(exophaseUrl))
             return;
 
-        var settings = AppSettingsService.Load();
-        if (string.IsNullOrWhiteSpace(settings.ExophaseProfileId))
+        if (string.IsNullOrWhiteSpace(AppSettingsService.Load().ExophaseProfileId))
             return;
 
         string key = $"{platform.ToLowerInvariant()}||{title.ToLowerInvariant()}";
@@ -3127,15 +3138,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                         break;
                     }
 
-                    int changes = await _client.SyncExophaseAchievementsAsync(
+                    int changes = await SyncExophaseNowAsync(
                         exophaseUrl,
                         platform,
                         title,
-                        titleId ?? _library.FirstOrDefault(g =>
-                            string.Equals(g.Platform, platform, StringComparison.OrdinalIgnoreCase) &&
-                            string.Equals(g.Title, title, StringComparison.OrdinalIgnoreCase))
-                            ?.TitleId,
-                        settings.ExophaseProfileId,
+                        titleId,
+                        "poll",
                         cts.Token).ConfigureAwait(false);
 
                     if (changes > 0)
@@ -3155,6 +3163,75 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     removed.Dispose();
             }
         }, cts.Token);
+    }
+
+    private async Task RequestManualExophaseSyncAsync(
+        string exophaseUrl,
+        string platform,
+        string title,
+        string? titleId)
+    {
+        if (string.IsNullOrWhiteSpace(exophaseUrl)) return;
+        int changes = await SyncExophaseNowAsync(
+            exophaseUrl, platform, title, titleId, "manual", CancellationToken.None)
+            .ConfigureAwait(false);
+
+        if (changes > 0)
+        {
+            await TryRefreshUserDataAsync().ConfigureAwait(false);
+            await _client.WriteSyncSignalAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<int> SyncExophaseNowAsync(
+        string exophaseUrl,
+        string platform,
+        string title,
+        string? titleId,
+        string reason,
+        CancellationToken ct)
+    {
+        try
+        {
+            var settings = AppSettingsService.Load();
+            string profileId = (settings.ExophaseProfileId ?? "").Trim();
+            if (string.IsNullOrEmpty(profileId))
+            {
+                DevLogService.Log($"[Exophase] Skipped sync ({reason}) for {title} ({platform}) — profile ID not configured.");
+                return 0;
+            }
+
+            string resolvedTitleId = titleId
+                ?? _library.FirstOrDefault(g =>
+                    string.Equals(g.Platform, platform, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(g.Title, title, StringComparison.OrdinalIgnoreCase))
+                    ?.TitleId
+                ?? "";
+
+            int changes = await _client.SyncExophaseAchievementsAsync(
+                exophaseUrl,
+                platform,
+                title,
+                string.IsNullOrWhiteSpace(resolvedTitleId) ? null : resolvedTitleId,
+                profileId,
+                ct).ConfigureAwait(false);
+
+            if (changes > 0)
+                DevLogService.Log($"[Exophase] Sync succeeded ({reason}) for {title} ({platform}) — {changes} achievement changes.");
+            else
+                DevLogService.Log($"[Exophase] Sync completed ({reason}) for {title} ({platform}) — no changes.");
+
+            return changes;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            DevLogService.Log($"[Exophase] Sync failed ({reason}) for {title} ({platform}): {ex.Message}");
+            return 0;
+        }
     }
 
     private void StopExophasePolling(string platform, string title)

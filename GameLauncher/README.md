@@ -301,8 +301,8 @@ an account created in the browser works in the launcher without any migration.
 ## Build a standalone EXE
 
 ```bash
-# Windows x64 — produces a single .exe file
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+# Windows x64 — keep non-single-file (ships WebView2 + LibVLC runtime assets)
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false
 
 # macOS (Apple Silicon)
 dotnet publish -c Release -r osx-arm64 --self-contained true -p:PublishSingleFile=true
@@ -311,7 +311,8 @@ dotnet publish -c Release -r osx-arm64 --self-contained true -p:PublishSingleFil
 dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true
 ```
 
-The published executable appears in `bin/Release/net8.0/<rid>/publish/`.
+The published output appears in `bin/Release/net8.0/<rid>/publish/`.
+For Windows, distribute the full publish folder (installer or portable bundle), not just `GameLauncher.exe`.
 
 ---
 

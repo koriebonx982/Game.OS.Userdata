@@ -710,6 +710,7 @@
                                 Link your Exophase profile so Game.OS can track achievement unlocks. On game
                                 launch the achievement list is scraped from Exophase and refreshed every 1 minute.
                                 Your Profile ID is stored locally only and is never uploaded to the cloud.
+                                Note: URL fragments (the #... part) are client-side only; sync requests use this saved profile ID explicitly.
                             </TextBlock>
                              <StackPanel Spacing="6">
                                  <TextBlock Text="Exophase Profile ID"
@@ -718,7 +719,7 @@
                                           Text="{Binding ExophaseProfileId}"
                                           Watermark="#2896888"
                                           FontSize="12"/>
-                                 <TextBlock Text="The unique #ID shown in your Exophase game URL (e.g. #2896888). Required for per-user achievement tracking."
+                                 <TextBlock Text="The unique ID shown in your Exophase URL fragment (e.g. #2896888). Save the numeric ID only."
                                             FontSize="10" Foreground="#484f58"
                                             TextWrapping="Wrap"/>
                              </StackPanel>

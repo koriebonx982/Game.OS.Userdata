@@ -152,7 +152,27 @@
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
+                            <Button Classes="btn-secondary"
+                                    Padding="16,12"
+                                    ToolTip.Tip="Open Exophase Achievements"
+                                    Command="{Binding OpenExophasePageCommand}"
+                                    IsVisible="{Binding HasExophaseUrl}">
+                                <TextBlock Text="🏆" FontSize="16" VerticalAlignment="Center"/>
+                            </Button>
+                            <Button Classes="btn-secondary"
+                                    Padding="12,12"
+                                    ToolTip.Tip="Sync Exophase Now"
+                                    Command="{Binding SyncExophaseNowCommand}"
+                                    IsEnabled="{Binding !IsExophaseSyncing}"
+                                    IsVisible="{Binding HasExophaseUrl}">
+                                <TextBlock Text="↻" FontSize="14" VerticalAlignment="Center"/>
+                            </Button>
                         </StackPanel>
+                        <TextBlock Text="{Binding ExophaseSyncStatus}"
+                                   FontSize="12"
+                                   Margin="0,6,0,0"
+                                   Foreground="#58a6ff"
+                                   IsVisible="{Binding ExophaseSyncStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
 
                         <!-- ── Install button when repack available ── -->
                         <StackPanel Margin="0,16,0,0" Spacing="6"

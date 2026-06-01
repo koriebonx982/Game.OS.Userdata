@@ -50,6 +50,8 @@ public partial class GameDetailViewModel : ViewModelBase
     [ObservableProperty] private string  _trailerLabel = "▶  Watch Trailer";
     [ObservableProperty] private string? _exophaseUrl;
     [ObservableProperty] private bool    _hasExophaseUrl;
+    [ObservableProperty] private bool    _isExophaseSyncing;
+    [ObservableProperty] private string  _exophaseSyncStatus = "";
 
     /// <summary>
     /// True when the in-app trailer player overlay is visible.
@@ -90,8 +92,12 @@ public partial class GameDetailViewModel : ViewModelBase
         OnPropertyChanged(nameof(TrailerEmbedUrl));
     }
 
-    partial void OnExophaseUrlChanged(string? value) =>
-        HasExophaseUrl = !string.IsNullOrWhiteSpace(value);
+    partial void OnExophaseUrlChanged(string? value)
+    {
+        HasExophaseUrl    = !string.IsNullOrWhiteSpace(value);
+        ExophaseSyncStatus = "";
+        IsExophaseSyncing  = false;
+    }
 
     /// <summary>
     /// Extracts the YouTube video ID from <c>youtube.com/watch?v=</c>, <c>youtu.be/</c>,
@@ -1094,6 +1100,54 @@ public partial class GameDetailViewModel : ViewModelBase
         catch { /* best-effort */ }
     }
 
+    [RelayCommand]
+    private void OpenExophasePage()
+    {
+        if (string.IsNullOrWhiteSpace(ExophaseUrl)) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName        = ExophaseUrl,
+                UseShellExecute = true,
+            });
+        }
+        catch { /* best-effort */ }
+    }
+
+    [RelayCommand]
+    private async Task SyncExophaseNowAsync()
+    {
+        if (string.IsNullOrWhiteSpace(ExophaseUrl) || IsExophaseSyncing) return;
+        ExophaseSyncStatus = "Syncing Exophase…";
+        IsExophaseSyncing  = true;
+
+        try
+        {
+            if (OnRequestManualExophaseSyncAsync != null)
+            {
+                await OnRequestManualExophaseSyncAsync(
+                    ExophaseUrl!,
+                    Platform,
+                    Title,
+                    CurrentTitleId);
+                ExophaseSyncStatus = "Exophase sync finished.";
+            }
+            else
+            {
+                ExophaseSyncStatus = "Exophase sync unavailable.";
+            }
+        }
+        catch
+        {
+            ExophaseSyncStatus = "Exophase sync failed.";
+        }
+        finally
+        {
+            IsExophaseSyncing = false;
+        }
+    }
+
     /// <summary>Launches the installed game executable.</summary>
     [RelayCommand]
     private void LaunchGame()
@@ -1217,7 +1271,7 @@ public partial class GameDetailViewModel : ViewModelBase
         string? exePath = null;
         string? exeArgs = string.IsNullOrWhiteSpace(saved.ExeArgs) ? null : saved.ExeArgs;
 
-        if (!string.IsNullOrEmpty(saved.ExePath) && System.IO.File.Exists(saved.ExePath))
+        if (!string.IsNullOrEmpty(saved.ExePath) && IsLaunchTargetAvailable(saved.ExePath))
         {
             exePath = saved.ExePath;
         }
@@ -1261,12 +1315,15 @@ public partial class GameDetailViewModel : ViewModelBase
             System.Diagnostics.Process? gameProc = null;
             try
             {
+                var baselinePids = CaptureProcessSnapshot();
+                bool nonFileLaunchTarget = IsNonFileLaunchTarget(exePath);
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName         = exePath,
                     UseShellExecute  = true,
-                    WorkingDirectory = System.IO.Path.GetDirectoryName(exePath) ?? "",
                 };
+                if (!nonFileLaunchTarget)
+                    psi.WorkingDirectory = System.IO.Path.GetDirectoryName(exePath) ?? "";
                 if (!string.IsNullOrEmpty(exeArgs))
                     psi.Arguments = exeArgs;
                 gameProc = System.Diagnostics.Process.Start(psi);
@@ -1278,6 +1335,12 @@ public partial class GameDetailViewModel : ViewModelBase
                     PlayButtonIsResume = false;
                     // Track playtime for PC games
                     OnRequestPlaytimeTracking?.Invoke(gameProc, Title, Platform);
+                }
+                else if (nonFileLaunchTarget)
+                {
+                    IsGameRunning      = true;
+                    PlayButtonIsResume = false;
+                    OnRequestPlaytimeTrackingFallback?.Invoke(exePath, Title, Platform, baselinePids);
                 }
             }
             catch { /* best-effort */ }
@@ -1299,6 +1362,8 @@ public partial class GameDetailViewModel : ViewModelBase
     /// the service (keeps the VM testable).
     /// </summary>
     public Action<System.Diagnostics.Process, string, string>? OnRequestPlaytimeTracking { get; set; }
+    public Action<string, string, string, HashSet<int>>? OnRequestPlaytimeTrackingFallback { get; set; }
+    public Func<string, string, string, string?, System.Threading.Tasks.Task>? OnRequestManualExophaseSyncAsync { get; set; }
 
     /// <summary>
     /// Callback wired by MainViewModel to persist a newly-unlocked achievement
@@ -1383,11 +1448,52 @@ public partial class GameDetailViewModel : ViewModelBase
     /// </summary>
     public Services.GameMetadataCacheService? CacheService { get; set; }
 
+    private static bool IsLaunchTargetAvailable(string path)
+        => System.IO.File.Exists(path) || IsNonFileLaunchTarget(path);
+
+    private static bool IsNonFileLaunchTarget(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        var trimmed = path.Trim();
+        if (trimmed.StartsWith("shell:", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
+            return !uri.IsFile;
+        return false;
+    }
+
+    private static HashSet<int> CaptureProcessSnapshot()
+    {
+        try
+        {
+            return System.Diagnostics.Process.GetProcesses()
+                .Select(p => p.Id)
+                .ToHashSet();
+        }
+        catch
+        {
+            return new HashSet<int>();
+        }
+    }
+
     private static void TryStartProcess(string path, string? args, bool waitForReady = false)
     {
         if (string.IsNullOrEmpty(path)) return;
         try
         {
+            if (IsNonFileLaunchTarget(path))
+            {
+                var shellPsi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName        = path,
+                    UseShellExecute = true,
+                };
+                if (!string.IsNullOrEmpty(args))
+                    shellPsi.Arguments = args;
+                System.Diagnostics.Process.Start(shellPsi);
+                return;
+            }
+
             if (waitForReady)
             {
                 // WaitForInputIdle waits until the process finishes starting and its message

@@ -2627,6 +2627,13 @@ app.post('/api/me/achievements/sync-exophase', authenticateToken, async (req, re
             (parsedUrl.hostname !== 'exophase.com' && !parsedUrl.hostname.endsWith('.exophase.com'))) {
             return res.status(400).json({ success: false, message: 'Only https://exophase.com URLs are allowed.' });
         }
+        const hadFragment = Boolean(parsedUrl.hash);
+        if (hadFragment) {
+            // URL fragments (e.g. #4447906) are client-side only and are never sent in
+            // the actual HTTP request. Keep profile ID separately; do not rely on hash.
+            parsedUrl.hash = '';
+            console.warn('sync-exophase: URL fragment supplied and ignored; using exophaseProfileId/body data instead.');
+        }
         const validatedExophaseUrl = parsedUrl.toString();
 
         // Fetch the Exophase page with a 15-second timeout.
@@ -2794,7 +2801,10 @@ app.post('/api/me/achievements/sync-exophase', authenticateToken, async (req, re
             added,
             updated,
             total: scraped.length,
-            gamesDbUpdated: gamesDbWritten
+            gamesDbUpdated: gamesDbWritten,
+            warning: hadFragment
+                ? 'Exophase URL fragment was ignored during fetch; profile ID must be provided separately.'
+                : undefined
         });
     } catch (err) {
         console.error('POST /api/me/achievements/sync-exophase error:', err);

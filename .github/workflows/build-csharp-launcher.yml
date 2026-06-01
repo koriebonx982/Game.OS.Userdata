@@ -8,9 +8,9 @@
 # Tests 1–4 (PBKDF2 hash parity, bcrypt detection) always run without secrets.
 #
 # Pre-built EXE (Windows x64):
-#   The workflow publishes a self-contained single-file Windows exe with the
-#   backend URL baked in (via gameos-backend.url) so it works immediately on
-#   launch — no environment variables or PAT setup required.
+#   The workflow publishes a self-contained non-single-file Windows bundle with
+#   the backend URL baked in (via gameos-backend.url) so it works immediately on
+#   launch and ships required WebView2/LibVLC runtime assets.
 #
 # Visual Studio (developer builds from source):
 #   GameLauncher/Properties/launchSettings.json sets GAMEOS_BACKEND_URL=http://localhost:3000

@@ -104,6 +104,7 @@ public partial class App : Application
 
                 mainWindow.Show();
                 DevLogService.Log("[App] Main window shown.");
+                mainVm.BeginStartup();
 
                 // Screenshot mode: after a short delay, render the window to a PNG and exit.
                 if (DemoMode.ScreenshotPath is not null)
@@ -155,6 +156,8 @@ public partial class App : Application
             main.WindowState = WindowState.FullScreen;
             main.Show();
             main.Activate();
+            if (main.DataContext is MainViewModel vm)
+                vm.BeginStartup();
             DevLogService.Log("[App] ShowMainWindow — main window shown fullscreen.");
         }
     }
