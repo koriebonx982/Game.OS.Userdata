@@ -284,11 +284,16 @@ public sealed class GameScannerService : IDisposable
         }, ct);
 
         // Group same-title games found on multiple drives into a single LocalGame.
-        // Use NormalizeGameTitle as the group key so "Call of Duty - Ghosts" and
-        // "Call of Duty: Ghosts" are treated as the same game.
+        // Use a fuzzy comparison key so separator/symbol/metadata variants are merged
+        // (e.g. "Call of Duty: Black Ops (MP,Zm,SP)" ↔ "Call of Duty: Black Ops").
         var foundGames = new List<LocalGame>();
         foreach (var grp in foundGamesRaw.GroupBy(
-            g => NormalizeGameTitle(g.Title), System.StringComparer.OrdinalIgnoreCase))
+            g =>
+            {
+                string key = PlatformHelper.NormalizeTitleForComparison(g.Title);
+                return string.IsNullOrEmpty(key) ? NormalizeGameTitle(g.Title) : key;
+            },
+            System.StringComparer.OrdinalIgnoreCase))
         {
             var items = grp.ToList();
             var primary = items[0];
@@ -1511,6 +1516,7 @@ public sealed class GameScannerService : IDisposable
             set.Add(NormalizeGameTitle(t));
             set.Add(PlatformHelper.StripSpecialSymbols(t));
             set.Add(PlatformHelper.StripSpecialSymbols(NormalizeGameTitle(t)));
+            set.Add(PlatformHelper.NormalizeTitleForComparison(t));
         }
         return set;
     }
@@ -1526,10 +1532,12 @@ public sealed class GameScannerService : IDisposable
         string stripped      = StripRepackMarkers(repackTitle).Trim();
         string normalized    = NormalizeGameTitle(stripped);
         string symbolStripped = PlatformHelper.StripSpecialSymbols(normalized);
+        string comparisonKey  = PlatformHelper.NormalizeTitleForComparison(stripped);
         return titleSet.Contains(repackTitle)   ||
                titleSet.Contains(stripped)      ||
                titleSet.Contains(normalized)    ||
-               titleSet.Contains(symbolStripped);
+               titleSet.Contains(symbolStripped)||
+               titleSet.Contains(comparisonKey);
     }
 
     /// <summary>

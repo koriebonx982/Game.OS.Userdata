@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Net;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace GameLauncher.Models
 {
@@ -729,6 +732,70 @@ namespace GameLauncher.Models
         // Matches ™ (U+2122), ® (U+00AE), © (U+00A9)
         private static readonly System.Text.RegularExpressions.Regex _specialSymbolRegex =
             new(@"[™®©]", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        /// <summary>
+        /// Produces a stable comparison key for fuzzy game-title matching and deduplication.
+        /// Handles subtitle separator variants, trademark symbols, select metadata suffixes,
+        /// and punctuation/spacing differences.
+        /// </summary>
+        public static string NormalizeTitleForComparison(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title)) return string.Empty;
+
+            string normalized = WebUtility.HtmlDecode(title.Trim());
+            normalized = _titleSeparatorRegex.Replace(normalized, "$1: $2");
+            normalized = StripSpecialSymbols(normalized);
+
+            while (true)
+            {
+                var match = _trailingParentheticalRegex.Match(normalized);
+                if (!match.Success) break;
+                if (!ShouldTrimTrailingParenthetical(match.Groups[1].Value)) break;
+                normalized = normalized[..match.Index].TrimEnd();
+            }
+
+            normalized = _nonAlphanumericRegex.Replace(normalized, "");
+            return normalized.ToLowerInvariant();
+        }
+
+        private static bool ShouldTrimTrailingParenthetical(string inner)
+        {
+            string value = inner.Trim();
+            if (string.IsNullOrEmpty(value)) return true;
+
+            // Version/build style tags, e.g. "(1.16.2)", "(v2.0)".
+            if (_versionLikeRegex.IsMatch(value)) return true;
+
+            // Mode-token lists, e.g. "(MP,Zm,SP)".
+            var tokens = value
+                .Split(new[] { ',', '/', ';', '|', '+' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => t.Trim())
+                .Where(t => t.Length > 0)
+                .ToArray();
+
+            if (tokens.Length >= 2 && tokens.All(t => t.Length <= 4 && _shortTokenRegex.IsMatch(t)))
+                return true;
+
+            return _knownModeTagRegex.IsMatch(value);
+        }
+
+        private static readonly Regex _titleSeparatorRegex =
+            new(@"^(.+?)\s[-:]\s(.+)$", RegexOptions.Compiled);
+
+        private static readonly Regex _trailingParentheticalRegex =
+            new(@"\s*\(([^()]*)\)\s*$", RegexOptions.Compiled);
+
+        private static readonly Regex _versionLikeRegex =
+            new(@"(?:\d+\.\d+)|(?:^v(?:ersion)?\s*\d+)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex _shortTokenRegex =
+            new(@"^[a-z0-9]+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex _knownModeTagRegex =
+            new(@"^(?:mp|sp|zm|coop|co-op|multiplayer|singleplayer)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex _nonAlphanumericRegex =
+            new(@"[^\p{L}\p{Nd}]+", RegexOptions.Compiled);
 
         public static string NormalizePlatform(string platform)
         {

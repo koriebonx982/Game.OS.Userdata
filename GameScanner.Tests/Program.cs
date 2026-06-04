@@ -411,6 +411,13 @@ class Program
         if (!titleNormPassed) passed = false;
         Console.WriteLine();
 
+        // ── CANONICAL TITLE KEY TESTS ──────────────────────────────────────────
+        Console.WriteLine("🧩 Canonical Title Comparison Key (dedup/matching):");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool titleKeyPassed = TestTitleComparisonKeyNormalization();
+        if (!titleKeyPassed) passed = false;
+        Console.WriteLine();
+
         // ── STEAM ACF PRIORITY OVER FOLDER NAME ───────────────────────────────
         Console.WriteLine("🏷️  Steam ACF Name Priority (ACF name overrides folder name):");
         Console.WriteLine("───────────────────────────────────────────────────────────────");
@@ -1095,6 +1102,38 @@ class Program
     }
 
     /// <summary>
+    /// Verifies canonical title-key normalization used for fuzzy dedup and matching.
+    /// </summary>
+    private static bool TestTitleComparisonKeyNormalization()
+    {
+        bool passed = true;
+
+        var equivalentPairs = new[]
+        {
+            ("Call of Duty: Vanguard (1.16.0.12345)", "Call of Duty: Vanguard"),
+            ("Call of Duty: Black Ops (MP,Zm,SP)",    "Call of Duty: Black Ops"),
+            ("LEGO® Batman™ 3: Beyond Gotham",        "LEGO Batman 3 Beyond Gotham"),
+        };
+
+        foreach (var (left, right) in equivalentPairs)
+        {
+            string leftKey  = PlatformHelper.NormalizeTitleForComparison(left);
+            string rightKey = PlatformHelper.NormalizeTitleForComparison(right);
+            if (string.Equals(leftKey, rightKey, StringComparison.Ordinal))
+            {
+                Console.WriteLine($"  ✅  \"{left}\" ≡ \"{right}\"");
+            }
+            else
+            {
+                Console.WriteLine($"  ❌  Key mismatch: \"{left}\" ({leftKey}) vs \"{right}\" ({rightKey})");
+                passed = false;
+            }
+        }
+
+        return passed;
+    }
+
+    /// <summary>
     /// Verifies that when the same game folder exists in Steam common/ AND has an ACF
     /// manifest with a proper display name, the ACF name wins over the raw folder name.
     /// E.g. folder "LHPCR" → ACF name "LEGO® Harry Potter™ Collection".
@@ -1326,6 +1365,12 @@ class Program
             ("Deadpool",                                          "Deadpool",                      true),
             // Bracketed repack marker stripped before comparing
             ("Grand Theft Auto V [Repack]",                      "Grand Theft Auto V",            true),
+            // Parenthetical version suffix should not create a duplicate title
+            ("Call of Duty: Vanguard (1.16.0.12345)",            "Call of Duty: Vanguard",        true),
+            // Parenthetical mode list should not create a duplicate title
+            ("Call of Duty: Black Ops (MP,Zm,SP)",               "Call of Duty: Black Ops",       true),
+            // Punctuation and symbols should still match canonical DB title
+            ("LEGO Batman 3 Beyond Gotham",                      "LEGO® Batman™ 3: Beyond Gotham",true),
             // Different game — must not match
             ("Forza Horizon 4 [ElAmigos Repack]",                "Forza Horizon 5",               false),
         };

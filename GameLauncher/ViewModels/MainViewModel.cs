@@ -1637,7 +1637,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         string leftNormalized  = NormalizeGameTitle(leftStripped);
         string rightNormalized = NormalizeGameTitle(rightStripped);
-        return string.Equals(leftNormalized, rightNormalized, StringComparison.OrdinalIgnoreCase);
+        if (string.Equals(leftNormalized, rightNormalized, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return string.Equals(
+            Models.PlatformHelper.NormalizeTitleForComparison(left),
+            Models.PlatformHelper.NormalizeTitleForComparison(right),
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1951,7 +1957,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
              string.Equals(
                  Models.PlatformHelper.StripSpecialSymbols(r.Title),
                  Models.PlatformHelper.StripSpecialSymbols(title),
-                 StringComparison.OrdinalIgnoreCase)));
+                 StringComparison.OrdinalIgnoreCase) ||
+             // 4. Fuzzy canonical title key match
+             string.Equals(
+                 Models.PlatformHelper.NormalizeTitleForComparison(r.Title),
+                 Models.PlatformHelper.NormalizeTitleForComparison(title),
+                 StringComparison.Ordinal)));
     }
 
     /// <summary>
@@ -2430,8 +2441,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 string.Equals(alt, localTitle,  StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(alt, noSymbols,   StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(alt, stripped,    StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(alt, normalized,  StringComparison.OrdinalIgnoreCase)));
+                string.Equals(alt, normalized,  StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(
+                    PlatformHelper.NormalizeTitleForComparison(alt),
+                    PlatformHelper.NormalizeTitleForComparison(localTitle),
+                    StringComparison.Ordinal)));
         if (byAltName != null) return byAltName;
+
+        // 7. Canonical fuzzy-key title match (punctuation/metadata-insensitive)
+        string localCanonical = PlatformHelper.NormalizeTitleForComparison(localTitle);
+        if (!string.IsNullOrEmpty(localCanonical))
+        {
+            var byCanonical = dbGames.FirstOrDefault(g =>
+                string.Equals(
+                    PlatformHelper.NormalizeTitleForComparison(g.Title ?? ""),
+                    localCanonical,
+                    StringComparison.Ordinal));
+            if (byCanonical != null) return byCanonical;
+        }
 
         return null;
     }
@@ -2461,22 +2488,21 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             string platformLower = game.Platform?.ToLowerInvariant() ?? "";
             string key           = $"{platformLower}||{titleLower}";
 
-            // Secondary key: platform + normalised title (handles "Alien - Colonial Marines"
-            // vs "Alien: Colonial Marines" and symbol variants like "LEGO® HP" vs "LEGO HP").
-            string normTitle = NormalizeGameTitle(
-                Models.PlatformHelper.StripSpecialSymbols(game.Title ?? "")).ToLowerInvariant();
-            string normKey   = $"{platformLower}||{normTitle}";
+            // Secondary key: platform + canonical fuzzy title (handles punctuation,
+            // symbol, and metadata suffix variants).
+            string canonicalTitle = Models.PlatformHelper.NormalizeTitleForComparison(game.Title ?? "");
+            string canonicalKey   = $"{platformLower}||{canonicalTitle}";
 
             // Check by exact key first; fall through to normalised key so that the
             // same game showing up under marginally different title strings is caught.
             bool isDuplicate = !seen.Add(key);
-            if (!isDuplicate && normKey != key)
-                isDuplicate = seen.Contains(normKey);
+            if (!isDuplicate && canonicalKey != key)
+                isDuplicate = seen.Contains(canonicalKey);
 
             if (!isDuplicate)
             {
                 // Register both keys so future duplicates are caught either way
-                seen.Add(normKey);
+                seen.Add(canonicalKey);
                 result.Add(game);
             }
             else
@@ -2486,9 +2512,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     string.Equals(g.Platform, game.Platform, StringComparison.OrdinalIgnoreCase) &&
                     (string.Equals(g.Title, game.Title, StringComparison.OrdinalIgnoreCase) ||
                      string.Equals(
-                         NormalizeGameTitle(Models.PlatformHelper.StripSpecialSymbols(g.Title ?? "")),
-                         NormalizeGameTitle(Models.PlatformHelper.StripSpecialSymbols(game.Title ?? "")),
-                         StringComparison.OrdinalIgnoreCase)));
+                         Models.PlatformHelper.NormalizeTitleForComparison(g.Title ?? ""),
+                         Models.PlatformHelper.NormalizeTitleForComparison(game.Title ?? ""),
+                         StringComparison.Ordinal)));
                 if (kept != null)
                 {
                     if (!kept.SteamAppId.HasValue && game.SteamAppId.HasValue)
