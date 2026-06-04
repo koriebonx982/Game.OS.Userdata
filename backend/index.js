@@ -2609,7 +2609,11 @@ function resolveExophaseUrlTemplate(exophaseUrl, profileId) {
         .replace(/#\$UserID/gi, normalisedProfileId)
         .replace(/\$UserID/gi, profileDigits)
         .replace(/\{#UserID\}/gi, normalisedProfileId)
-        .replace(/\{UserID\}/gi, profileDigits);
+        .replace(/\{UserID\}/gi, profileDigits)
+        .replace(/#\$ExoID/gi, normalisedProfileId)
+        .replace(/\$ExoID/gi, profileDigits)
+        .replace(/\{#ExoID\}/gi, normalisedProfileId)
+        .replace(/\{ExoID\}/gi, profileDigits);
 
     try {
         const parsed = new URL(resolved);

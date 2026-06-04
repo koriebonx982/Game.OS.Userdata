@@ -177,33 +177,45 @@
                         <!-- ── Install button when repack available ── -->
                         <StackPanel Margin="0,16,0,0" Spacing="6"
                                     IsVisible="{Binding IsRepack}">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Classes="btn-success"
-                                        Padding="24,12"
-                                        IsEnabled="{Binding !IsExtracting}"
-                                        Command="{Binding InstallRepackCommand}">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <TextBlock Text="⬇" FontSize="16" VerticalAlignment="Center"/>
-                                        <!-- Label changes to "Installing..." during extraction -->
-                                        <TextBlock Text="{Binding InstallButtonLabel}" FontSize="15" FontWeight="Bold"
-                                                   VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-                                <!-- Steam option alongside repack when both available -->
-                                <Button Classes="btn-secondary"
-                                        Padding="20,12"
-                                        IsVisible="{Binding IsSteamInstallable}"
-                                        Command="{Binding InstallViaSteamCommand}">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <TextBlock Text="🎮" FontSize="14" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Install via Steam" FontSize="14" FontWeight="SemiBold"
-                                                   Foreground="#58a6ff" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
+                            <Button Classes="btn-success"
+                                    Padding="24,12"
+                                    HorizontalAlignment="Left"
+                                    IsEnabled="{Binding !IsExtracting}"
+                                    Command="{Binding InstallRepackCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="⬇" FontSize="16" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding InstallButtonLabel}" FontSize="15" FontWeight="Bold"
+                                              VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
                             <TextBlock Text="{Binding RepackSizeLabel}"
-                                       FontSize="11" Foreground="#8b949e"
-                                       IsVisible="{Binding RepackSizeLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                      FontSize="11" Foreground="#8b949e"
+                                      IsVisible="{Binding RepackSizeLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                            <Border IsVisible="{Binding ShowInstallSourcePicker}"
+                                    Background="#161b22" CornerRadius="10"
+                                    Padding="16,14" Margin="0,4,0,0">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="Choose install source"
+                                              FontSize="14" FontWeight="Bold" Foreground="White"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                       <Button Classes="btn-secondary"
+                                               Padding="16,10"
+                                               Command="{Binding ChooseRepackInstallSourceCommand}">
+                                           Repack/zip
+                                       </Button>
+                                       <Button Classes="btn-secondary"
+                                               Padding="16,10"
+                                               Command="{Binding ChooseSteamInstallSourceCommand}">
+                                           Steam
+                                       </Button>
+                                       <Button Classes="btn-secondary"
+                                               Padding="12,10"
+                                               Command="{Binding CancelInstallSourceCommand}">
+                                           Cancel
+                                       </Button>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
                             <!-- Extraction progress bar -->
                             <Border IsVisible="{Binding IsExtracting}"
                                     Background="#161b22" CornerRadius="8"
@@ -236,13 +248,13 @@
 
                         <!-- ── Install via Steam (Steam-API game, not installed locally, no repack) ── -->
                         <StackPanel Margin="0,16,0,0" Spacing="6"
-                                    IsVisible="{Binding IsSteamInstallable}">
+                                    IsVisible="{Binding ShowStandaloneSteamInstall}">
                             <Button Classes="btn-success"
                                     Padding="24,12"
                                     Command="{Binding InstallViaSteamCommand}">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="🎮" FontSize="16" VerticalAlignment="Center"/>
-                                    <TextBlock Text="Install via Steam" FontSize="15" FontWeight="Bold"
+                                    <TextBlock Text="Install" FontSize="15" FontWeight="Bold"
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
@@ -544,7 +556,7 @@
                                 <ItemsControl ItemsSource="{Binding PreLaunchEntries}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="models:LaunchEntry">
-                                            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+                                            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,4">
                                                 <StackPanel Grid.Column="0" Spacing="2">
                                                     <TextBlock Text="{Binding Label}"
                                                                FontSize="12" FontWeight="SemiBold"
@@ -553,10 +565,16 @@
                                                                FontSize="11" Foreground="#8b949e"
                                                                TextTrimming="CharacterEllipsis"/>
                                                 </StackPanel>
-                                                <Button Grid.Column="1" Padding="8,4"
+                                                <ToggleSwitch Grid.Column="1"
+                                                              IsChecked="{Binding Enabled}"
+                                                              OffContent="" OnContent=""
+                                                              VerticalAlignment="Center"
+                                                              Margin="8,0,0,0"/>
+                                                <Button Grid.Column="2" Padding="8,4"
                                                         Classes="btn-secondary"
                                                         Foreground="#f85149"
                                                         VerticalAlignment="Center"
+                                                        Margin="8,0,0,0"
                                                         Command="{Binding $parent[UserControl].DataContext.RemovePreLaunchCommand}"
                                                         CommandParameter="{Binding}">✕</Button>
                                             </Grid>
@@ -619,7 +637,7 @@
                                 <ItemsControl ItemsSource="{Binding DuringLaunchEntries}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="models:LaunchEntry">
-                                            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+                                            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,4">
                                                 <StackPanel Grid.Column="0" Spacing="2">
                                                     <TextBlock Text="{Binding Label}"
                                                                FontSize="12" FontWeight="SemiBold"
@@ -628,10 +646,16 @@
                                                                FontSize="11" Foreground="#8b949e"
                                                                TextTrimming="CharacterEllipsis"/>
                                                 </StackPanel>
-                                                <Button Grid.Column="1" Padding="8,4"
+                                                <ToggleSwitch Grid.Column="1"
+                                                              IsChecked="{Binding Enabled}"
+                                                              OffContent="" OnContent=""
+                                                              VerticalAlignment="Center"
+                                                              Margin="8,0,0,0"/>
+                                                <Button Grid.Column="2" Padding="8,4"
                                                         Classes="btn-secondary"
                                                         Foreground="#f85149"
                                                         VerticalAlignment="Center"
+                                                        Margin="8,0,0,0"
                                                         Command="{Binding $parent[UserControl].DataContext.RemoveDuringLaunchCommand}"
                                                         CommandParameter="{Binding}">✕</Button>
                                             </Grid>
@@ -689,7 +713,7 @@
                                 <ItemsControl ItemsSource="{Binding PostLaunchEntries}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="models:LaunchEntry">
-                                            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+                                            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,4">
                                                 <StackPanel Grid.Column="0" Spacing="2">
                                                     <TextBlock Text="{Binding Label}"
                                                                FontSize="12" FontWeight="SemiBold"
@@ -698,10 +722,16 @@
                                                                FontSize="11" Foreground="#8b949e"
                                                                TextTrimming="CharacterEllipsis"/>
                                                 </StackPanel>
-                                                <Button Grid.Column="1" Padding="8,4"
+                                                <ToggleSwitch Grid.Column="1"
+                                                              IsChecked="{Binding Enabled}"
+                                                              OffContent="" OnContent=""
+                                                              VerticalAlignment="Center"
+                                                              Margin="8,0,0,0"/>
+                                                <Button Grid.Column="2" Padding="8,4"
                                                         Classes="btn-secondary"
                                                         Foreground="#f85149"
                                                         VerticalAlignment="Center"
+                                                        Margin="8,0,0,0"
                                                         Command="{Binding $parent[UserControl].DataContext.RemovePostLaunchCommand}"
                                                         CommandParameter="{Binding}">✕</Button>
                                             </Grid>

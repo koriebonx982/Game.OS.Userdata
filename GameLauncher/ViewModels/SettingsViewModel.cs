@@ -48,6 +48,10 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private bool _broadcastGameStart = false;
     /// <summary>Broadcast to friends when the user comes online.</summary>
     [ObservableProperty] private bool _broadcastUserOnline = false;
+    /// <summary>Show Steam emulator detection toasts on PC game launch.</summary>
+    [ObservableProperty] private bool _notifySteamEmuStatus = false;
+    /// <summary>Show Exophase URL/scrape status toasts on game launch.</summary>
+    [ObservableProperty] private bool _notifyExophaseStatus = false;
 
     // ── Developer / Feature flags ──────────────────────────────────────────
     /// <summary>Sync Steam playtime into Game.OS after each Steam import.</summary>
@@ -316,6 +320,8 @@ public partial class SettingsViewModel : ViewModelBase
         NotifyFriendGameStart  = appSettings.NotifyFriendGameStart;
         BroadcastGameStart     = appSettings.BroadcastGameStart;
         BroadcastUserOnline    = appSettings.BroadcastUserOnline;
+        NotifySteamEmuStatus   = appSettings.NotifySteamEmuStatus;
+        NotifyExophaseStatus   = appSettings.NotifyExophaseStatus;
         SteamApiKey            = appSettings.SteamApiKey;
         SteamUserId            = appSettings.SteamUserId;
         ExophaseProfileId      = appSettings.ExophaseProfileId;
@@ -504,6 +510,8 @@ public partial class SettingsViewModel : ViewModelBase
             NotifyFriendGameStart = NotifyFriendGameStart,
             BroadcastGameStart    = BroadcastGameStart,
             BroadcastUserOnline   = BroadcastUserOnline,
+            NotifySteamEmuStatus  = NotifySteamEmuStatus,
+            NotifyExophaseStatus  = NotifyExophaseStatus,
             SteamApiKey           = SteamApiKey,
             SteamUserId           = SteamUserId,
             ExophaseProfileId     = NormaliseExophaseProfileId(ExophaseProfileId),

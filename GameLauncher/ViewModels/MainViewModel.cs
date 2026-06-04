@@ -275,6 +275,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             // ── Game-start toast notification ───────────────────────────────
             Services.NotificationService.ShowGameSessionStartedNotification(title);
+            NotifyLaunchIntegrations(settings);
 
             // ── Game-start broadcast ────────────────────────────────────────
             if (settings.BroadcastGameStart)
@@ -340,12 +341,38 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         };
         DetailVm.OnRequestPlaytimeTrackingFallback = (launchTarget, title, platform, baselinePids) =>
         {
+            var settings = Services.AppSettingsService.Load();
+            Services.NotificationService.ShowGameSessionStartedNotification(title);
+            NotifyLaunchIntegrations(settings);
+
+            if (settings.BroadcastGameStart)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try { await _client.UpdatePresenceAsync(title).ConfigureAwait(false); }
+                    catch { }
+                });
+            }
+
+            if (settings.MinimizeOnGameLaunch)
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => MinimizeWindowRequested?.Invoke());
+
             _playtimeSvc.TrackProcessFromLaunchSnapshot(
                 title,
                 platform,
                 launchTarget,
                 baselinePids,
                 _library);
+            RefreshDashboardLocalGames();
+
+            if (!string.IsNullOrWhiteSpace(DetailVm.ExophaseUrl))
+            {
+                _ = Task.Run(() => RequestManualExophaseSyncAsync(
+                    DetailVm.ExophaseUrl!,
+                    platform,
+                    title,
+                    DetailVm.CurrentTitleId));
+            }
         };
         DetailVm.OnRequestManualExophaseSyncAsync = RequestManualExophaseSyncAsync;
 
@@ -937,7 +964,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                             CoverUrl        = sg.CoverUrl,
                             AddedAt         = DateTime.UtcNow.ToString("O"),
                             PlaytimeMinutes = sg.PlaytimeMinutes,
-                            TitleId         = $"steam:{sg.AppId}",
+                            TitleId         = sg.AppId.ToString(),
                             SteamAppId      = sg.AppId,
                         };
                         _library.Add(newGame);
@@ -1056,7 +1083,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                             CoverUrl        = sg.CoverUrl,
                             AddedAt         = DateTime.UtcNow.ToString("O"),
                             PlaytimeMinutes = sg.PlaytimeMinutes,
-                            TitleId         = $"steam:{sg.AppId}",
+                            TitleId         = sg.AppId.ToString(),
                             SteamAppId      = sg.AppId,
                         });
                         existingTitles.Add(sg.Name);
@@ -1135,7 +1162,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                                     CoverUrl        = sg.CoverUrl,
                                     AddedAt         = DateTime.UtcNow.ToString("O"),
                                     PlaytimeMinutes = sg.PlaytimeMinutes,
-                                    TitleId         = $"steam:{sg.AppId}",
+                                    TitleId         = sg.AppId.ToString(),
                                     SteamAppId      = sg.AppId,
                                 });
                                 existingTitles.Add(sg.Name);
@@ -1757,6 +1784,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         if (!OperatingSystem.IsWindows()) return;
         try { Services.NativeMethods.SendMediaKey(Services.NativeMethods.VK_MEDIA_NEXT_TRACK); }
         catch { }
+    }
+
+    private void NotifyLaunchIntegrations(AppSettings settings)
+    {
+        if (!settings.NotifyExophaseStatus)
+            return;
+
+        if (string.IsNullOrWhiteSpace(DetailVm.ExophaseUrl))
+        {
+            NotificationService.ShowDeveloperNotification("Exophase", "Url Not Found");
+            return;
+        }
+
+        NotificationService.ShowDeveloperNotification("Exophase", "Url Found");
+        if (!string.IsNullOrWhiteSpace(settings.ExophaseProfileId))
+            NotificationService.ShowDeveloperNotification("Exophase", "Scrapping Ach in bg");
     }
 
     private async Task LoadFriendProfileAsync(string friendUsername)
@@ -3298,7 +3341,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             .Replace("#$UserID", normalisedProfileId, StringComparison.OrdinalIgnoreCase)
             .Replace("$UserID", profileDigits, StringComparison.OrdinalIgnoreCase)
             .Replace("{#UserID}", normalisedProfileId, StringComparison.OrdinalIgnoreCase)
-            .Replace("{UserID}", profileDigits, StringComparison.OrdinalIgnoreCase);
+            .Replace("{UserID}", profileDigits, StringComparison.OrdinalIgnoreCase)
+            .Replace("#$ExoID", normalisedProfileId, StringComparison.OrdinalIgnoreCase)
+            .Replace("$ExoID", profileDigits, StringComparison.OrdinalIgnoreCase)
+            .Replace("{#ExoID}", normalisedProfileId, StringComparison.OrdinalIgnoreCase)
+            .Replace("{ExoID}", profileDigits, StringComparison.OrdinalIgnoreCase);
 
         if (!Uri.TryCreate(resolved, UriKind.Absolute, out var parsedUrl))
             return resolved;
@@ -3507,7 +3554,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                         CoverUrl        = sg.CoverUrl,
                         AddedAt         = DateTime.UtcNow.ToString("O"),
                         PlaytimeMinutes = sg.PlaytimeMinutes,
-                        TitleId         = $"steam:{sg.AppId}",
+                        TitleId         = sg.AppId.ToString(),
                         SteamAppId      = sg.AppId,
                     });
                     existingTitles.Add(sg.Name);
@@ -3639,7 +3686,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     {
                         Platform        = "PC",
                         Title           = sg.Name,
-                        TitleId         = $"steam:{sg.AppId}",
+                        TitleId         = sg.AppId.ToString(),
                         CoverUrl        = sg.CoverUrl,
                         SteamAppId      = sg.AppId,
                         PlaytimeMinutes = Math.Max(0, sg.PlaytimeMinutes),

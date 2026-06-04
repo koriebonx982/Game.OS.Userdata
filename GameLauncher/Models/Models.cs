@@ -452,6 +452,12 @@ namespace GameLauncher.Models
         /// <summary>Broadcast an online presence update to friends when the user first logs in.</summary>
         [JsonPropertyName("broadcastUserOnline")] public bool BroadcastUserOnline { get; set; } = false;
 
+        /// <summary>Show a toast when Steam emulator achievement/stat files are detected on PC launch.</summary>
+        [JsonPropertyName("notifySteamEmuStatus")] public bool NotifySteamEmuStatus { get; set; } = false;
+
+        /// <summary>Show Exophase URL/scrape status toasts when a game session starts.</summary>
+        [JsonPropertyName("notifyExophaseStatus")] public bool NotifyExophaseStatus { get; set; } = false;
+
         // ── Game Launch ──────────────────────────────────────────────────────
 
         /// <summary>
@@ -602,6 +608,7 @@ namespace GameLauncher.Models
         [JsonPropertyName("label")]        public string  Label        { get; set; } = "";
         [JsonPropertyName("path")]         public string  Path         { get; set; } = "";
         [JsonPropertyName("arguments")]    public string? Arguments    { get; set; }
+        [JsonPropertyName("enabled")]      public bool    Enabled      { get; set; } = true;
         /// <summary>
         /// When <see langword="true"/>, the launcher waits for this process to finish
         /// initialising (main window visible / input idle) before launching the game.
@@ -745,6 +752,7 @@ namespace GameLauncher.Models
             string normalized = WebUtility.HtmlDecode(title.Trim());
             normalized = _titleSeparatorRegex.Replace(normalized, "$1: $2");
             normalized = StripSpecialSymbols(normalized);
+            normalized = StripKnownVariantSuffixes(normalized);
 
             while (true)
             {
@@ -756,6 +764,27 @@ namespace GameLauncher.Models
 
             normalized = _nonAlphanumericRegex.Replace(normalized, "");
             return normalized.ToLowerInvariant();
+        }
+
+        private static string StripKnownVariantSuffixes(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+                return title;
+
+            string normalized = title.Trim();
+            bool isCallOfDuty = normalized.Contains("call of duty", StringComparison.OrdinalIgnoreCase);
+            if (!isCallOfDuty)
+                return normalized;
+
+            while (true)
+            {
+                var trimmed = _callOfDutyModeSuffixRegex.Replace(normalized, "").TrimEnd();
+                if (trimmed.Length == normalized.Length)
+                    break;
+                normalized = trimmed;
+            }
+
+            return normalized;
         }
 
         private static bool ShouldTrimTrailingParenthetical(string inner)
@@ -793,6 +822,10 @@ namespace GameLauncher.Models
 
         private static readonly Regex _knownModeTagRegex =
             new(@"^(?:mp|sp|zm|coop|co-op|multiplayer|singleplayer)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex _callOfDutyModeSuffixRegex =
+            new(@"\s*(?:[-:]\s*|\s+\()\b(?:multiplayer|zombies|singleplayer|sp|mp|zm|sp\.mp\.mod|coop|co-op)\b\)?\s*$",
+                RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private static readonly Regex _nonAlphanumericRegex =
             new(@"[^\p{L}\p{Nd}]+", RegexOptions.Compiled);

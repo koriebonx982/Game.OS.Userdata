@@ -183,6 +183,7 @@ public partial class GameDetailViewModel : ViewModelBase
     /// <summary>True when the game is found installed on a local drive.</summary>
     [ObservableProperty] private bool _isInstalled;
     /// <summary>True when a repack archive is available to install (but game is not yet installed).</summary>
+    [NotifyPropertyChangedFor(nameof(ShowStandaloneSteamInstall))]
     [ObservableProperty] private bool _isRepack;
     /// <summary>
     /// True when this entry is a cloud library game that is not installed locally
@@ -198,6 +199,8 @@ public partial class GameDetailViewModel : ViewModelBase
     [ObservableProperty] private bool _isSetupRepack;
     /// <summary>True when the repack is an archive and we should show a drive-selection picker.</summary>
     [ObservableProperty] private bool _showDrivePicker;
+    /// <summary>True when both repack and Steam install sources are available and the user must choose one.</summary>
+    [ObservableProperty] private bool _showInstallSourcePicker;
     /// <summary>Extraction progress percentage (0–100) shown in the progress bar during archive extraction.</summary>
     [ObservableProperty] private double _extractionProgress;
     /// <summary>True while an archive is being extracted — drives the progress bar visibility.</summary>
@@ -304,6 +307,7 @@ public partial class GameDetailViewModel : ViewModelBase
     /// True when the game is a Steam-API-registered title that is not currently
     /// installed locally.  Shows an "Install via Steam" button in the UI.
     /// </summary>
+    [NotifyPropertyChangedFor(nameof(ShowStandaloneSteamInstall))]
     [ObservableProperty] private bool   _isSteamInstallable;
     /// <summary>steam://install/{AppId} URL for the Install via Steam button.</summary>
     [ObservableProperty] private string _steamInstallUrl = "";
@@ -312,6 +316,7 @@ public partial class GameDetailViewModel : ViewModelBase
     /// entry available alongside other exe options in the settings panel.
     /// </summary>
     [ObservableProperty] private bool   _hasSteamLaunchOption;
+    public bool ShowStandaloneSteamInstall => IsSteamInstallable && !IsRepack;
 
     /// <summary>Cached reference to the current LocalRom (if any), used to expose AdditionalPaths in settings.</summary>
     private LocalRom? _currentLocalRom;
@@ -1073,6 +1078,7 @@ public partial class GameDetailViewModel : ViewModelBase
     private void InstallViaSteam()
     {
         if (string.IsNullOrEmpty(SteamInstallUrl)) return;
+        ShowInstallSourcePicker = false;
         try
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
@@ -1165,7 +1171,7 @@ public partial class GameDetailViewModel : ViewModelBase
         var saved = GameSettingsService.Load(Title);
 
         // Run pre-launch entries first (fire-and-forget, best-effort)
-        foreach (var pre in saved.PreLaunch)
+        foreach (var pre in saved.PreLaunch.Where(e => e.Enabled))
             TryStartProcess(pre.Path, pre.Arguments, pre.WaitForReady);
 
         // ── ROM launch: use configured emulator if available ──────────────────
@@ -1245,8 +1251,11 @@ public partial class GameDetailViewModel : ViewModelBase
                     }
                     catch { /* best-effort */ }
 
-                    if (saved.PostLaunch.Count > 0)
-                        _ = WatchAndRunPostLaunchAsync(romProc, saved.PostLaunch);
+                    foreach (var during in saved.DuringLaunch.Where(e => e.Enabled))
+                        TryStartProcess(during.Path, during.Arguments);
+
+                    if (saved.PostLaunch.Any(e => e.Enabled))
+                        _ = WatchAndRunPostLaunchAsync(romProc, saved.PostLaunch.Where(e => e.Enabled).ToList());
 
                     // ── Switch log reader: read Ryujinx log after session ends ──────
                     if (isSwitchRyujinx)
@@ -1333,8 +1342,14 @@ public partial class GameDetailViewModel : ViewModelBase
                     _runningProcess    = gameProc;
                     IsGameRunning      = true;
                     PlayButtonIsResume = false;
-                    // Track playtime for PC games
-                    OnRequestPlaytimeTracking?.Invoke(gameProc, Title, Platform);
+                    bool useFallbackTracking = nonFileLaunchTarget || IsExternalLauncherPath(exePath);
+                    if (useFallbackTracking)
+                        OnRequestPlaytimeTrackingFallback?.Invoke(exePath, Title, Platform, baselinePids);
+                    else
+                        OnRequestPlaytimeTracking?.Invoke(gameProc, Title, Platform);
+
+                    foreach (var during in saved.DuringLaunch.Where(e => e.Enabled))
+                        TryStartProcess(during.Path, during.Arguments);
 
                     if (string.Equals(Platform, "PC", StringComparison.OrdinalIgnoreCase))
                         _ = WatchAndReadPcAchievementFilesAsync(gameProc, exePath, Title);
@@ -1349,8 +1364,8 @@ public partial class GameDetailViewModel : ViewModelBase
             catch { /* best-effort */ }
 
             // Register post-launch watcher (fire-and-forget)
-            if (saved.PostLaunch.Count > 0)
-                _ = WatchAndRunPostLaunchAsync(gameProc, saved.PostLaunch);
+            if (saved.PostLaunch.Any(e => e.Enabled))
+                _ = WatchAndRunPostLaunchAsync(gameProc, saved.PostLaunch.Where(e => e.Enabled).ToList());
         }
         else if (!string.IsNullOrEmpty(ActiveDrivePath))
         {
@@ -1463,6 +1478,48 @@ public partial class GameDetailViewModel : ViewModelBase
         if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
             return !uri.IsFile;
         return false;
+    }
+
+    private bool IsExternalLauncherPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || IsNonFileLaunchTarget(path))
+            return false;
+
+        try
+        {
+            string fullPath = Path.GetFullPath(path);
+            foreach (var drive in _driveInstances)
+            {
+                if (string.IsNullOrWhiteSpace(drive.FolderPath))
+                    continue;
+
+                string folder = Path.GetFullPath(drive.FolderPath);
+                if (fullPath.StartsWith(folder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(fullPath, folder, StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return _driveInstances.Count > 0;
+    }
+
+    private static int TryResolveSteamAppId(Game game)
+    {
+        if (game.SteamAppId.HasValue && game.SteamAppId.Value > 0)
+            return (int)game.SteamAppId.Value;
+
+        if (string.IsNullOrWhiteSpace(game.TitleId))
+            return 0;
+
+        string titleId = game.TitleId.Trim();
+        if (titleId.StartsWith("steam:", StringComparison.OrdinalIgnoreCase))
+            titleId = titleId[6..];
+
+        return int.TryParse(titleId, out int steamId) && steamId > 0 ? steamId : 0;
     }
 
     private static HashSet<int> CaptureProcessSnapshot()
@@ -1959,6 +2016,11 @@ public partial class GameDetailViewModel : ViewModelBase
         if (gameProc == null || string.IsNullOrWhiteSpace(exePath))
             return;
 
+        bool notifySteamEmuStatus = AppSettingsService.Load().NotifySteamEmuStatus;
+        bool steamEmuFilesFound = EnumerateSteamEmuAchievementFiles(exePath, _steamAppId).Any();
+        if (notifySteamEmuStatus)
+            Services.NotificationService.ShowDeveloperNotification("Steam Emu", steamEmuFilesFound ? "Found" : "Not Found");
+
         var knownUnlocks = ReadSteamEmuUnlockedIds(exePath, _steamAppId);
         var sessionUnlocks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -2275,6 +2337,12 @@ public partial class GameDetailViewModel : ViewModelBase
     private void InstallRepack()
     {
         if (!IsRepack || string.IsNullOrEmpty(RepackPath)) return;
+        if (IsSteamInstallable)
+        {
+            ShowInstallSourcePicker = true;
+            return;
+        }
+        ShowInstallSourcePicker = false;
 
         // Folder repack with Setup.exe — run installer directly
         if (IsSetupRepack)
@@ -2308,6 +2376,31 @@ public partial class GameDetailViewModel : ViewModelBase
 
         // Fallback: open with system handler
         OpenWithSystem(RepackPath);
+    }
+
+    [RelayCommand]
+    private void ChooseRepackInstallSource()
+    {
+        ShowInstallSourcePicker = false;
+
+        // Re-run the actual repack install flow without re-opening the source picker.
+        bool steamInstallable = IsSteamInstallable;
+        IsSteamInstallable = false;
+        try { InstallRepack(); }
+        finally { IsSteamInstallable = steamInstallable; }
+    }
+
+    [RelayCommand]
+    private void ChooseSteamInstallSource()
+    {
+        ShowInstallSourcePicker = false;
+        InstallViaSteam();
+    }
+
+    [RelayCommand]
+    private void CancelInstallSource()
+    {
+        ShowInstallSourcePicker = false;
     }
 
     /// <summary>
@@ -2633,6 +2726,7 @@ public partial class GameDetailViewModel : ViewModelBase
         ShowSettings    = false;
         ShowModsPanel   = false;
         ShowDrivePicker = false;
+        ShowInstallSourcePicker = false;
         _currentLocalRom = localRom;
         Title         = game.Title;
         Platform      = game.Platform;
@@ -2665,17 +2759,10 @@ public partial class GameDetailViewModel : ViewModelBase
         // IsCloudOnly: cloud library entry with no local copy of any kind
         IsCloudOnly = !IsInstalled && !IsRepack && !IsSteamInstallable;
         LoadSwitchMods();
-        _steamAppId = 0;
-
-        // Extract Steam AppId from the TitleId (format: "steam:{AppId}")
-        if (game.TitleId?.StartsWith("steam:", StringComparison.OrdinalIgnoreCase) == true &&
-            int.TryParse(game.TitleId.AsSpan(6), out int steamId) && steamId > 0)
-        {
-            _steamAppId = steamId;
-        }
+        _steamAppId = TryResolveSteamAppId(game);
 
         // "Install via Steam" shown for Steam-API games not yet installed locally
-        IsSteamInstallable   = _steamAppId > 0 && !IsInstalled && !IsRepack;
+        IsSteamInstallable   = _steamAppId > 0 && !IsInstalled;
         SteamInstallUrl      = _steamAppId > 0 ? $"steam://install/{_steamAppId}" : "";
         HasSteamLaunchOption = _steamAppId > 0;
         // Recalculate IsCloudOnly after Steam check (Steam-installable games are not "cloud only")
@@ -2690,6 +2777,7 @@ public partial class GameDetailViewModel : ViewModelBase
         ShowSettings    = false;
         ShowModsPanel   = false;
         ShowDrivePicker = false;
+        ShowInstallSourcePicker = false;
         _currentLocalRom = localRom;
         Title         = game.Title;
         Platform      = game.Platform;
@@ -2742,6 +2830,7 @@ public partial class GameDetailViewModel : ViewModelBase
         ShowSettings    = false;
         ShowModsPanel   = false;
         ShowDrivePicker = false;
+        ShowInstallSourcePicker = false;
         // Reset Switch/Ryujinx state so the Mods button is not incorrectly visible
         // when navigating from a Switch game to a PC game.
         IsSwitch             = false;
@@ -2823,6 +2912,7 @@ public partial class GameDetailViewModel : ViewModelBase
     {
         ShowSettings    = false;
         ShowDrivePicker = false;
+        ShowInstallSourcePicker = false;
         Title             = repack.Title;
         Platform          = "PC";
         Genre             = "";
@@ -2880,6 +2970,7 @@ public partial class GameDetailViewModel : ViewModelBase
         ShowSettings    = false;
         ShowModsPanel   = false;
         ShowDrivePicker = false;
+        ShowInstallSourcePicker = false;
         Title             = rom.Title;
         Platform          = rom.Platform;
         Genre             = "";

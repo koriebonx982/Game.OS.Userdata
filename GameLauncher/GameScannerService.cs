@@ -1187,28 +1187,25 @@ public sealed class GameScannerService : IDisposable
                 // Detect an "Update" sub-directory within this repack folder.
                 string? updatePath = FindUpdateDir(sub);
 
-                bool foundAny = false;
                 try
                 {
-                    foreach (var file in Directory.EnumerateFiles(sub, "*", SearchOption.AllDirectories))
-                    {
-                        // Skip files inside the Update sub-directory; they belong to the update,
-                        // not to the main repack archive.
-                        if (updatePath != null &&
-                            file.StartsWith(updatePath, StringComparison.OrdinalIgnoreCase))
-                            continue;
+                    var archiveFiles = Directory.EnumerateFiles(sub, "*", SearchOption.AllDirectories)
+                        .Where(file =>
+                            (updatePath == null || !file.StartsWith(updatePath, StringComparison.OrdinalIgnoreCase)) &&
+                            IsRepackArchive(file))
+                        .ToList();
 
-                        if (IsRepackArchive(file))
-                        {
-                            var repack = MakeRepack(file, true);
-                            repack.HasUpdate  = updatePath != null;
-                            repack.UpdatePath = updatePath;
-                            results.Add(repack);
-                            foundAny = true;
-                        }
+                    if (archiveFiles.Count > 0)
+                    {
+                        var repack = MakeFolderRepack(sub, archiveFiles);
+                        repack.HasUpdate  = updatePath != null;
+                        repack.UpdatePath = updatePath;
+                        results.Add(repack);
+                        continue;
                     }
+
                     // If the folder itself is a repack folder with no archive, add the folder
-                    if (!foundAny)
+                    if (archiveFiles.Count == 0)
                     {
                         // Check for an installer (Setup.exe) within the folder
                         string? setupExe = FindSetupExe(sub);
@@ -1365,6 +1362,42 @@ public sealed class GameScannerService : IDisposable
             SizeBytes= size,
         };
     }
+
+    private static LocalRepack MakeFolderRepack(string folderPath, List<string> archiveFiles)
+    {
+        string preferredFile = archiveFiles
+            .OrderByDescending(file => GetArchivePriority(Path.GetExtension(file)))
+            .ThenByDescending(file =>
+            {
+                try { return new FileInfo(file).Length; }
+                catch { return 0L; }
+            })
+            .ThenBy(file => file.Length)
+            .First();
+
+        long size = 0;
+        try { size = new FileInfo(preferredFile).Length; } catch { }
+
+        return new LocalRepack
+        {
+            Title     = _fileSizeAnnotationRegex.Replace(StripRepackMarkers(Path.GetFileName(folderPath)), "").Trim(),
+            FilePath  = preferredFile,
+            FileType  = Path.GetExtension(preferredFile).TrimStart('.').ToLowerInvariant(),
+            SizeBytes = size,
+        };
+    }
+
+    private static int GetArchivePriority(string extension)
+        => extension.ToLowerInvariant() switch
+        {
+            ".iso" => 5,
+            ".7z" => 4,
+            ".rar" => 3,
+            ".zip" => 2,
+            ".tar" => 1,
+            ".gz" => 1,
+            _ => 0,
+        };
 
     private static long GetDirectorySize(string path)
     {

@@ -1067,6 +1067,38 @@
                                               Margin="16,0,0,0"/>
                             </Grid>
 
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Steam Emu"
+                                              FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="When a PC game starts, checks known Steam emu achievement/stat locations and shows Found or Not Found."
+                                              FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding NotifySteamEmuStatus}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="#21262d"/>
+
+                            <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="0" Spacing="2">
+                                    <TextBlock Text="Exophase"
+                                              FontSize="13" Foreground="#e6edf3"/>
+                                    <TextBlock Text="On game launch, shows URL Found/Not Found and a background scrape status toast when Exophase syncing is available."
+                                              FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1"
+                                              IsChecked="{Binding NotifyExophaseStatus}"
+                                              OffContent="" OnContent=""
+                                              VerticalAlignment="Center"
+                                              Margin="16,0,0,0"/>
+                            </Grid>
+
                         </StackPanel>
                     </Border>
 
