@@ -455,8 +455,7 @@ namespace GameLauncher.Services
             string.Equals(key, "unlock",      StringComparison.OrdinalIgnoreCase) ||
             string.Equals(key, "unlocktime",  StringComparison.OrdinalIgnoreCase) ||
             string.Equals(key, "earned",      StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(key, "earn_time",   StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(key, "Achieved",    StringComparison.OrdinalIgnoreCase);
+            string.Equals(key, "earn_time",   StringComparison.OrdinalIgnoreCase);
 
         private static bool IsPositive(JsonElement v)
         {

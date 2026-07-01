@@ -3223,6 +3223,7 @@ public partial class GameDetailViewModel : ViewModelBase
 
             // Merge in unlock state from the user's known-unlocked list so the full
             // template is shown with the correct earned/locked presentation.
+            // Sources: Steam API (via DB), Exophase sync (via DB).
             if (knownUnlocked != null && knownUnlocked.Count > 0)
             {
                 foreach (var a in list)
@@ -3233,6 +3234,37 @@ public partial class GameDetailViewModel : ViewModelBase
                         string.Equals(a.Name, u.Name, StringComparison.OrdinalIgnoreCase));
                     if (match != null && !string.IsNullOrEmpty(match.UnlockedAt))
                         a.UnlockedAt = match.UnlockedAt;
+                }
+            }
+
+            // PC games: also merge any achievements already unlocked on-disk via a
+            // Steam emulator (Goldberg, Codex, Rune, Ali213, GBE, SSE, etc.) so the
+            // list is accurate before — or without — a play session.
+            if (string.Equals(Platform, "PC", StringComparison.OrdinalIgnoreCase) && _steamAppId > 0)
+            {
+                string exePath = SettingsExePath ?? "";
+                var emuIds = await System.Threading.Tasks.Task.Run(
+                    () => SteamEmuAchievementService.ReadUnlockedIds(exePath, _steamAppId))
+                    .ConfigureAwait(false);
+
+                if (emuIds.Count > 0)
+                {
+                    // Sentinel timestamp: a valid ISO date that sorts below timed unlocks
+                    // (real timestamps from Steam API / Exophase) but still marks the
+                    // achievement as unlocked.
+                    const string emuFallbackTs = "1970-01-01T00:00:00Z";
+                    foreach (var a in list)
+                    {
+                        if (!string.IsNullOrEmpty(a.UnlockedAt)) continue; // already stamped
+                        if (emuIds.Contains(a.AchievementId ?? "") ||
+                            emuIds.Contains(a.Name ?? ""))
+                        {
+                            a.UnlockedAt = emuFallbackTs;
+                        }
+                    }
+                    DevLogService.Log(
+                        $"[AchMerge] Merged {emuIds.Count} Steam emu unlock(s) into template " +
+                        $"for AppId {_steamAppId}.");
                 }
             }
 

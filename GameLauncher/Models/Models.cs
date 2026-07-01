@@ -204,10 +204,16 @@ namespace GameLauncher.Models
         public string Label   { get; set; } = "";
         [System.Text.Json.Serialization.JsonPropertyName("address")]
         public string Address { get; set; } = "";
-        /// <summary>"radmin" or "local" (LAN).</summary>
+        /// <summary>"radmin", "local", "zerotier", or "hamachi".</summary>
         [System.Text.Json.Serialization.JsonPropertyName("type")]
         public string Type    { get; set; } = "local";
-        public string TypeLabel => Type == "radmin" ? "Radmin" : "Local";
+        public string TypeLabel => Type?.ToLowerInvariant() switch
+        {
+            "radmin"   => "Radmin",
+            "zerotier" => "ZeroTier",
+            "hamachi"  => "Hamachi",
+            _          => "Local",
+        };
     }
 
     /// <summary>A friend displayed in the Friends screen, populated from presence API.</summary>
