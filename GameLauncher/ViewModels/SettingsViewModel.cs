@@ -495,6 +495,7 @@ public partial class SettingsViewModel : ViewModelBase
                 Arguments    = string.IsNullOrWhiteSpace(row.Arguments) ? "{rom}" : row.Arguments,
                 EmulatorName = row.EmulatorName,
                 Enabled      = row.Enabled,
+                SaveDataPath = row.SaveDataPath,
             }).ToList();
             EmulatorSettingsService.SaveAll(group.Platform, list);
         }
@@ -591,6 +592,13 @@ public partial class SettingsViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void BrowseSaveData(EmulatorRowVm? row)
+    {
+        if (row == null) return;
+        BrowseSaveDataRequested?.Invoke(row);
+    }
+
+    [RelayCommand]
     private void BrowseIntroVideo()
     {
         BrowseIntroVideoRequested?.Invoke();
@@ -604,6 +612,9 @@ public partial class SettingsViewModel : ViewModelBase
 
     /// <summary>Raised when the user clicks Browse… on an emulator row.</summary>
     public System.Action<EmulatorRowVm>? BrowseRequested { get; set; }
+
+    /// <summary>Raised when the user clicks Browse… next to the Save Data Path on an emulator row.</summary>
+    public System.Action<EmulatorRowVm>? BrowseSaveDataRequested { get; set; }
 
     /// <summary>Raised when the user clicks Browse… next to the intro video path.</summary>
     public System.Action? BrowseIntroVideoRequested { get; set; }
@@ -691,6 +702,7 @@ public partial class EmulatorRowVm : ViewModelBase
     [ObservableProperty] private string _arguments    = "{rom}";
     [ObservableProperty] private string _emulatorName = "";
     [ObservableProperty] private bool   _enabled      = true;
+    [ObservableProperty] private string _saveDataPath = "";
 
     public EmulatorRowVm(string platform, EmulatorSettings settings)
     {
@@ -699,6 +711,7 @@ public partial class EmulatorRowVm : ViewModelBase
         Arguments    = settings.Arguments;
         EmulatorName = settings.EmulatorName;
         Enabled      = settings.Enabled;
+        SaveDataPath = settings.SaveDataPath;
     }
 }
 

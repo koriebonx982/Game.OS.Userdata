@@ -973,6 +973,13 @@ namespace GameLauncher.Models
         [JsonPropertyName("emulatorName")]   public string  EmulatorName  { get; set; } = "";
         /// <summary>Whether this emulator is enabled and should be used to launch ROMs.</summary>
         [JsonPropertyName("enabled")]        public bool    Enabled       { get; set; } = true;
+        /// <summary>
+        /// Root folder where this emulator stores save data, e.g.
+        /// <c>%AppData%\Ryujinx\bis\user\save</c>.
+        /// Used by <c>EmulatorSavePathResolver</c> to locate per-game saves
+        /// via TitleID without relying on ludusavi's manifest lookup.
+        /// </summary>
+        [JsonPropertyName("saveDataPath")]   public string  SaveDataPath  { get; set; } = "";
     }
 
     // ── Playtime session ─────────────────────────────────────────────────────

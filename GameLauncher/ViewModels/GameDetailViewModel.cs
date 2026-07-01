@@ -1218,8 +1218,19 @@ public partial class GameDetailViewModel : ViewModelBase
 
         try
         {
+            // Attempt to resolve the emulator save folder via TitleID so we can
+            // copy saves directly instead of relying on ludusavi's manifest lookup.
+            string? titleId            = CurrentTitleId;
+            string? sourceOverridePath = null;
+            if (!string.IsNullOrWhiteSpace(titleId))
+            {
+                var emuSettings = EmulatorSettingsService.Load(Platform);
+                sourceOverridePath = EmulatorSavePathResolver.Resolve(
+                    Platform, emuSettings.EmulatorName, emuSettings.SaveDataPath, titleId);
+            }
+
             var result = await Services.LudusaviService.SyncAsync(
-                Platform, Title, _currentUsername);
+                Platform, Title, _currentUsername, sourceOverridePath);
 
             string statusText = result.Kind switch
             {

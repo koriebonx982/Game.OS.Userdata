@@ -12,6 +12,15 @@ namespace GameLauncher.Services
     /// per-user Game.OS save folder:
     ///   <c>Data/{username}/GameSaves/{platform}/{gameTitle}/</c>
     ///
+    /// <para>
+    /// When a <paramref name="sourceOverridePath"/> is supplied to
+    /// <see cref="SyncAsync"/> (resolved by <see cref="EmulatorSavePathResolver"/>
+    /// from the game's TitleID), the service copies files directly from that
+    /// folder instead of relying on ludusavi's manifest lookup.  This lets
+    /// emulator saves for Switch, PS3, Xbox 360, etc. be backed up reliably
+    /// using the per-game TitleID sub-folder the emulator already creates.
+    /// </para>
+    ///
     /// Ludusavi project: https://github.com/mtkennerly/ludusavi
     /// </summary>
     public static class LudusaviService
@@ -59,20 +68,34 @@ namespace GameLauncher.Services
         /// <summary>
         /// Runs <c>ludusavi backup --path "&lt;savePath&gt;" "&lt;gameTitle&gt;"</c> and
         /// backs up the game's saves into the per-user Game.OS save directory.
+        ///
+        /// <para>
+        /// When <paramref name="sourceOverridePath"/> is provided and the directory
+        /// exists on disk, the method copies save files directly from that folder
+        /// (bypassing ludusavi's manifest lookup entirely).  If ludusavi is not
+        /// installed, a plain <see cref="Directory"/> copy is used as the fallback.
+        /// </para>
         /// </summary>
         /// <param name="platform">Platform name, e.g. "PC", "Switch".</param>
         /// <param name="gameTitle">Display title of the game.</param>
         /// <param name="username">Logged-in Game.OS username — determines the target save path.</param>
+        /// <param name="sourceOverridePath">
+        ///   Optional: the resolved emulator save folder for the specific game
+        ///   (from <see cref="EmulatorSavePathResolver.Resolve"/>).  When set and
+        ///   the folder exists, files are copied directly instead of calling
+        ///   ludusavi's title-name lookup.
+        /// </param>
         public static async Task<LudusaviResult> SyncAsync(
-            string platform, string gameTitle, string username)
+            string  platform,
+            string  gameTitle,
+            string  username,
+            string? sourceOverridePath = null)
         {
             if (string.IsNullOrWhiteSpace(username))
                 return LudusaviResult.Error("No user is logged in.");
 
             if (string.IsNullOrWhiteSpace(gameTitle))
                 return LudusaviResult.Error("Game title is required.");
-
-            string ludusaviExe = GetLudusaviExePath();
 
             // Build the per-user per-game save path and ensure the directory exists
             string platformSavesRoot = UserDataService.GetGameSavesPath(username, platform);
@@ -87,6 +110,30 @@ namespace GameLauncher.Services
             {
                 return LudusaviResult.Error($"Cannot create save directory: {ex.Message}");
             }
+
+            // ── TitleID-based direct copy ──────────────────────────────────────
+            // When the caller has already resolved the exact emulator save folder,
+            // copy files directly rather than relying on ludusavi's manifest lookup.
+            if (!string.IsNullOrWhiteSpace(sourceOverridePath)
+                && Directory.Exists(sourceOverridePath))
+            {
+                return await CopyDirectoryAsync(sourceOverridePath, gameSavePath, gameTitle);
+            }
+
+            // ── Ludusavi fallback ──────────────────────────────────────────────
+            return await RunLudusaviBackupAsync(gameTitle, gameSavePath);
+        }
+
+        // ── Helpers ────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Launches ludusavi to back up saves for <paramref name="gameTitle"/>
+        /// into <paramref name="gameSavePath"/>.
+        /// </summary>
+        private static async Task<LudusaviResult> RunLudusaviBackupAsync(
+            string gameTitle, string gameSavePath)
+        {
+            string ludusaviExe = GetLudusaviExePath();
 
             // Build arguments: backup --path "<savePath>" "<gameTitle>"
             string args = $"backup --path \"{EscapeArg(gameSavePath)}\" \"{EscapeArg(gameTitle)}\"";
@@ -125,8 +172,8 @@ namespace GameLauncher.Services
                     TimeSpan.FromMinutes(5));
                 await proc.WaitForExitAsync(cts.Token);
 
-                string stdout = stdoutBuf.ToString();
-                string stderr = stderrBuf.ToString();
+                string stdout  = stdoutBuf.ToString();
+                string stderr  = stderrBuf.ToString();
                 int    exitCode = proc.ExitCode;
 
                 DevLogService.Log(
@@ -174,7 +221,49 @@ namespace GameLauncher.Services
             }
         }
 
-        // ── Helpers ────────────────────────────────────────────────────────────
+        /// <summary>
+        /// Copies all files and sub-directories from <paramref name="sourceDir"/>
+        /// into <paramref name="destDir"/>, mirroring the directory structure.
+        /// Returns <see cref="LudusaviResult.Synced"/> on success or
+        /// <see cref="LudusaviResult.Error"/> when an I/O exception occurs.
+        /// </summary>
+        private static async Task<LudusaviResult> CopyDirectoryAsync(
+            string sourceDir, string destDir, string gameTitle)
+        {
+            try
+            {
+                await Task.Run(() => CopyDirectoryCore(sourceDir, destDir));
+
+                DevLogService.Log(
+                    $"[Ludusavi] direct-copy game=\"{gameTitle}\" src=\"{sourceDir}\" dest=\"{destDir}\"");
+
+                return LudusaviResult.Synced;
+            }
+            catch (Exception ex)
+            {
+                DevLogService.Log(
+                    $"[Ludusavi] direct-copy failed game=\"{gameTitle}\": {ex.Message}");
+                return LudusaviResult.Error($"Save copy failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>Recursively copies <paramref name="source"/> into <paramref name="dest"/>.</summary>
+        private static void CopyDirectoryCore(string source, string dest)
+        {
+            Directory.CreateDirectory(dest);
+
+            foreach (string file in Directory.GetFiles(source))
+            {
+                string destFile = Path.Combine(dest, Path.GetFileName(file));
+                File.Copy(file, destFile, overwrite: true);
+            }
+
+            foreach (string subDir in Directory.GetDirectories(source))
+            {
+                string destSubDir = Path.Combine(dest, Path.GetFileName(subDir));
+                CopyDirectoryCore(subDir, destSubDir);
+            }
+        }
 
         /// <summary>
         /// Heuristically checks whether ludusavi's output indicates that no saves
