@@ -25,6 +25,11 @@ namespace GameLauncher.Services
     /// </summary>
     public static class LudusaviService
     {
+        // ── Constants ─────────────────────────────────────────────────────────
+
+        /// <summary>Maximum time to wait for a single ludusavi backup operation.</summary>
+        private static readonly TimeSpan BackupTimeout = TimeSpan.FromMinutes(5);
+
         // ── Result discriminated union ─────────────────────────────────────────
 
         public enum ResultKind { Synced, NoSaveFound, NotInstalled, Error }
@@ -167,9 +172,8 @@ namespace GameLauncher.Services
                 proc.BeginOutputReadLine();
                 proc.BeginErrorReadLine();
 
-                // Wait up to 5 minutes for the backup to complete
-                using var cts = new System.Threading.CancellationTokenSource(
-                    TimeSpan.FromMinutes(5));
+                // Wait for the backup to complete (bounded by BackupTimeout)
+                using var cts = new System.Threading.CancellationTokenSource(BackupTimeout);
                 await proc.WaitForExitAsync(cts.Token);
 
                 string stdout  = stdoutBuf.ToString();
@@ -213,7 +217,7 @@ namespace GameLauncher.Services
             }
             catch (OperationCanceledException)
             {
-                return LudusaviResult.Error("Sync timed out after 5 minutes.");
+                return LudusaviResult.Error($"Sync timed out after {BackupTimeout.TotalMinutes:0} minutes.");
             }
             catch (Exception ex)
             {

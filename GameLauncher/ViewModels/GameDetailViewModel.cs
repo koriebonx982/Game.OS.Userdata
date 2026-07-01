@@ -1220,7 +1220,7 @@ public partial class GameDetailViewModel : ViewModelBase
         {
             // Attempt to resolve the emulator save folder via TitleID so we can
             // copy saves directly instead of relying on ludusavi's manifest lookup.
-            string? titleId            = CurrentTitleId;
+            string? titleId = CurrentTitleId;
             string? sourceOverridePath = null;
             if (!string.IsNullOrWhiteSpace(titleId))
             {
