@@ -53,6 +53,12 @@ public partial class GameDetailViewModel : ViewModelBase
     [ObservableProperty] private bool    _isExophaseSyncing;
     [ObservableProperty] private string  _exophaseSyncStatus = "";
 
+    // ── Ludusavi save-sync ────────────────────────────────────────────────────
+    /// <summary>True while a Ludusavi save backup is in progress.</summary>
+    [ObservableProperty] private bool   _isLudusaviSyncing;
+    /// <summary>Human-readable status of the last (or current) Ludusavi sync operation.</summary>
+    [ObservableProperty] private string _ludusaviSyncStatus = "";
+
     /// <summary>
     /// True when the in-app trailer player overlay is visible.
     /// Bound to the VideoView overlay in GameDetailView.axaml.
@@ -1193,6 +1199,48 @@ public partial class GameDetailViewModel : ViewModelBase
         finally
         {
             IsExophaseSyncing = false;
+        }
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task SyncWithLudusaviAsync()
+    {
+        if (IsLudusaviSyncing) return;
+        if (string.IsNullOrWhiteSpace(_currentUsername))
+        {
+            LudusaviSyncStatus = "Not logged in.";
+            return;
+        }
+
+        IsLudusaviSyncing  = true;
+        LudusaviSyncStatus = "☁ Syncing saves…";
+        Services.NotificationService.ShowSaveSyncingNotification(Title);
+
+        try
+        {
+            var result = await Services.LudusaviService.SyncAsync(
+                Platform, Title, _currentUsername);
+
+            string statusText = result.Kind switch
+            {
+                Services.LudusaviService.ResultKind.Synced       => "✓ Saves synced",
+                Services.LudusaviService.ResultKind.NoSaveFound  => "No saves found for this game",
+                Services.LudusaviService.ResultKind.NotInstalled => "Ludusavi not found — set the path in Settings",
+                Services.LudusaviService.ResultKind.Error        => $"Sync failed: {result.Message}",
+                _                                                 => "Unknown sync result",
+            };
+
+            LudusaviSyncStatus = statusText;
+            Services.NotificationService.ShowSaveSyncResultNotification(Title, statusText);
+        }
+        catch (Exception ex)
+        {
+            LudusaviSyncStatus = $"Sync failed: {ex.Message}";
+            Services.NotificationService.ShowSaveSyncResultNotification(Title, LudusaviSyncStatus);
+        }
+        finally
+        {
+            IsLudusaviSyncing = false;
         }
     }
 

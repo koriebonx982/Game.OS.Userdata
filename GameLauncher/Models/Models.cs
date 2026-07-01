@@ -600,6 +600,15 @@ namespace GameLauncher.Models
 
         /// <summary>Log Steam Web API import results to Dev.log.</summary>
         [JsonPropertyName("logSteamApiScanner")] public bool LogSteamApiScanner { get; set; } = false;
+
+        // ── Save-sync integration ────────────────────────────────────────────
+
+        /// <summary>
+        /// Full path to the <c>ludusavi.exe</c> (or <c>ludusavi</c> on Linux/macOS).
+        /// When empty the launcher tries to invoke <c>ludusavi</c> from the system PATH.
+        /// Stored locally only; never uploaded to the cloud.
+        /// </summary>
+        [JsonPropertyName("ludusaviPath")] public string LudusaviPath { get; set; } = "";
     }
 
     // ── Game launch settings (saved locally per game title) ───────────────────

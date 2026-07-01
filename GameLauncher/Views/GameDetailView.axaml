@@ -153,6 +153,13 @@
                                 </StackPanel>
                             </Button>
                             <Button Classes="btn-secondary"
+                                    Padding="12,12"
+                                    ToolTip.Tip="Sync saves with Ludusavi"
+                                    Command="{Binding SyncWithLudusaviCommand}"
+                                    IsEnabled="{Binding !IsLudusaviSyncing}">
+                                <TextBlock Text="☁" FontSize="16" VerticalAlignment="Center"/>
+                            </Button>
+                            <Button Classes="btn-secondary"
                                     Padding="16,12"
                                     ToolTip.Tip="Open Exophase Achievements"
                                     Command="{Binding OpenExophasePageCommand}"
@@ -173,6 +180,11 @@
                                    Margin="0,6,0,0"
                                    Foreground="#58a6ff"
                                    IsVisible="{Binding ExophaseSyncStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                        <TextBlock Text="{Binding LudusaviSyncStatus}"
+                                   FontSize="12"
+                                   Margin="0,4,0,0"
+                                   Foreground="#3fb950"
+                                   IsVisible="{Binding LudusaviSyncStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
 
                         <!-- ── Install button when repack available ── -->
                         <StackPanel Margin="0,16,0,0" Spacing="6"

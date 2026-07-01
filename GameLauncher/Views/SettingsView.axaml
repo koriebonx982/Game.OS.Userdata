@@ -730,6 +730,35 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Ludusavi save-sync integration -->
+                    <Border Background="#161b22" CornerRadius="10" Padding="24,20" Margin="0,0,0,20">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="☁  Ludusavi Save Sync"
+                                       FontSize="14" FontWeight="Bold" Foreground="White"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#8b949e">
+                                Set the path to your ludusavi executable so Game.OS can sync game saves
+                                per user profile. Saves are backed up to
+                                Data/{UserName}/GameSaves/{Platform}/{GameTitle}/. Leave blank to use
+                                ludusavi from the system PATH. Path is stored locally only.
+                            </TextBlock>
+                             <StackPanel Spacing="6">
+                                 <TextBlock Text="Ludusavi Executable Path"
+                                            FontSize="12" Foreground="#8b949e"/>
+                                 <TextBox Classes="form-input"
+                                          Text="{Binding LudusaviPath}"
+                                          Watermark="C:\tools\ludusavi\ludusavi.exe"
+                                          FontSize="12"/>
+                                 <TextBlock Text="Leave blank to use 'ludusavi' from the system PATH."
+                                            FontSize="10" Foreground="#484f58"
+                                            TextWrapping="Wrap"/>
+                             </StackPanel>
+                             <Button Classes="btn-primary"
+                                     Content="💾  Save Settings"
+                                    Command="{Binding SaveCommand}"
+                                    Width="180" HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </Border>
+
                 </StackPanel>
 
                 <!-- ── Customise ── -->

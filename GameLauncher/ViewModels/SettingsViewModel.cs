@@ -95,6 +95,8 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private string _steamImportStatus = "";
     /// <summary>Exophase profile anchor/id (e.g. #2896888) used for per-user achievement pages.</summary>
     [ObservableProperty] private string _exophaseProfileId = "";
+    /// <summary>Full path to the ludusavi executable used for per-game save sync.</summary>
+    [ObservableProperty] private string _ludusaviPath = "";
     /// <summary>Enable a system-wide quick-menu hotkey on Windows.</summary>
     [ObservableProperty] private bool _enableGlobalQuickMenuHotkey = false;
     /// <summary>Use the older activating quick-menu overlay behaviour.</summary>
@@ -325,6 +327,7 @@ public partial class SettingsViewModel : ViewModelBase
         SteamApiKey            = appSettings.SteamApiKey;
         SteamUserId            = appSettings.SteamUserId;
         ExophaseProfileId      = appSettings.ExophaseProfileId;
+        LudusaviPath           = appSettings.LudusaviPath;
         EnableSteamSync        = appSettings.EnableSteamSync;
         EnableAchievementAutoSync = appSettings.EnableAchievementAutoSync;
         NotifyRyujinxLogStatus    = appSettings.NotifyRyujinxLogStatus;
@@ -515,6 +518,7 @@ public partial class SettingsViewModel : ViewModelBase
             SteamApiKey           = SteamApiKey,
             SteamUserId           = SteamUserId,
             ExophaseProfileId     = NormaliseExophaseProfileId(ExophaseProfileId),
+            LudusaviPath          = LudusaviPath.Trim(),
             EnableSteamSync       = EnableSteamSync,
             EnableAchievementAutoSync = EnableAchievementAutoSync,
             NotifyRyujinxLogStatus    = NotifyRyujinxLogStatus,
