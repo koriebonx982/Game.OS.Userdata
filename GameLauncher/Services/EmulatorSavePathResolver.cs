@@ -59,8 +59,8 @@ namespace GameLauncher.Services
             // RPCS3: same as PS3 platform default
             ["rpcs3"]          = new[] { "dev_hdd0", "home", "00000001", "savedata", "{titleId}" },
 
-            // Xenia: same as Xbox 360 platform default
-            ["xenia"]          = new[] { "{titleId}" },
+            // Xenia: <saveRoot>/content/<profileId>/<titleId>/000100000/<profileId>/
+            ["xenia"]          = new[] { "content", "{profileId}", "{titleId}", "000100000", "{profileId}" },
 
             // Vita3K: same as PS Vita platform default
             ["vita3k"]         = new[] { "ux0", "user", "00", "savedata", "{titleId}" },
@@ -77,6 +77,12 @@ namespace GameLauncher.Services
         /// <param name="emulatorName">Emulator label from <see cref="Models.EmulatorSettings.EmulatorName"/>; may be empty.</param>
         /// <param name="saveDataPath">Root save folder from <see cref="Models.EmulatorSettings.SaveDataPath"/>; may be empty.</param>
         /// <param name="titleId">Platform-specific title ID for the game (e.g. "0100ADC022586000" for Switch).</param>
+        /// <param name="profileId">
+        /// Emulator user profile ID; required for Xenia where the save path is
+        /// <c>content/{profileId}/{titleId}/000100000/{profileId}/</c>
+        /// (e.g. "E03000003D7E0695").  Pass <see langword="null"/> or empty for
+        /// emulators that do not use a profile ID.
+        /// </param>
         /// <returns>
         /// The resolved folder path, which may or may not exist on disk.
         /// Returns <see langword="null"/> when any required input is missing or
@@ -86,7 +92,8 @@ namespace GameLauncher.Services
             string  platform,
             string? emulatorName,
             string? saveDataPath,
-            string? titleId)
+            string? titleId,
+            string? profileId = null)
         {
             if (string.IsNullOrWhiteSpace(saveDataPath)) return null;
             if (string.IsNullOrWhiteSpace(titleId))      return null;
@@ -94,14 +101,24 @@ namespace GameLauncher.Services
             string[] segments = ResolvePattern(platform, emulatorName);
             if (segments.Length == 0) return null;
 
-            // Build the path by substituting {titleId} in each segment
+            // If the pattern requires a profileId but none was supplied, bail out.
+            bool needsProfile = Array.Exists(segments, s =>
+                string.Equals(s, "{profileId}", StringComparison.OrdinalIgnoreCase));
+            if (needsProfile && string.IsNullOrWhiteSpace(profileId)) return null;
+
+            // Build the path by substituting {titleId} and {profileId} in each segment
             string safeRoot = saveDataPath.Trim();
             var parts = new string[segments.Length + 1];
             parts[0] = safeRoot;
             for (int i = 0; i < segments.Length; i++)
-                parts[i + 1] = string.Equals(segments[i], "{titleId}", StringComparison.OrdinalIgnoreCase)
-                    ? titleId.Trim()
-                    : segments[i];
+            {
+                if (string.Equals(segments[i], "{titleId}", StringComparison.OrdinalIgnoreCase))
+                    parts[i + 1] = titleId.Trim();
+                else if (string.Equals(segments[i], "{profileId}", StringComparison.OrdinalIgnoreCase))
+                    parts[i + 1] = profileId!.Trim();
+                else
+                    parts[i + 1] = segments[i];
+            }
 
             return Path.Combine(parts);
         }

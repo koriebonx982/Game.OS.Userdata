@@ -481,6 +481,23 @@
                                                                             VerticalAlignment="Center"/>
                                                                 </Grid>
 
+                                                                <!-- Row 3: Xenia profile ID -->
+                                                                <Grid ColumnDefinitions="Auto,*" Margin="0,1,38,0">
+                                                                    <TextBlock Grid.Column="0"
+                                                                               Text="Xenia ID:"
+                                                                               FontSize="11"
+                                                                               Foreground="#484f58"
+                                                                               VerticalAlignment="Center"
+                                                                               Margin="0,0,6,0"
+                                                                               ToolTip.Tip="Xenia user profile ID used to locate save files. Path: content/{XeniaID}/{TitleID}/000100000/{XeniaID}/  Example: E03000003D7E0695"/>
+                                                                    <TextBox Grid.Column="1"
+                                                                             Classes="form-input"
+                                                                             Text="{Binding XeniaProfileId}"
+                                                                             Watermark="Xenia profile ID, e.g. E03000003D7E0695 (Xbox 360 only)…"
+                                                                             FontSize="11"
+                                                                             VerticalAlignment="Center"/>
+                                                                </Grid>
+
                                                             </StackPanel>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>

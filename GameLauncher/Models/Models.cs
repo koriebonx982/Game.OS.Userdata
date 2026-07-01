@@ -980,6 +980,12 @@ namespace GameLauncher.Models
         /// via TitleID without relying on ludusavi's manifest lookup.
         /// </summary>
         [JsonPropertyName("saveDataPath")]   public string  SaveDataPath  { get; set; } = "";
+        /// <summary>
+        /// Xenia user profile ID (e.g. "E03000003D7E0695").
+        /// Used by <c>EmulatorSavePathResolver</c> to build the full Xenia save path:
+        /// <c>{saveDataPath}/content/{xeniaProfileId}/{titleId}/000100000/{xeniaProfileId}/</c>
+        /// </summary>
+        [JsonPropertyName("xeniaProfileId")] public string  XeniaProfileId { get; set; } = "";
     }
 
     // ── Playtime session ─────────────────────────────────────────────────────

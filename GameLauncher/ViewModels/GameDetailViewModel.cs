@@ -1226,7 +1226,8 @@ public partial class GameDetailViewModel : ViewModelBase
             {
                 var emuSettings = EmulatorSettingsService.Load(Platform);
                 sourceOverridePath = EmulatorSavePathResolver.Resolve(
-                    Platform, emuSettings.EmulatorName, emuSettings.SaveDataPath, titleId);
+                    Platform, emuSettings.EmulatorName, emuSettings.SaveDataPath, titleId,
+                    emuSettings.XeniaProfileId);
             }
 
             var result = await Services.LudusaviService.SyncAsync(
