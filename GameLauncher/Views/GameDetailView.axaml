@@ -777,6 +777,106 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- ── Mod Client ── (PC games only) -->
+                        <Border Background="#21262d" CornerRadius="8" Padding="16,12"
+                                IsVisible="{Binding !IsRom}">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Grid.Column="0" Spacing="2">
+                                        <TextBlock Text="🎮  Mod Client  (community multiplayer)"
+                                                   FontSize="13" FontWeight="Bold" Foreground="#d29922"/>
+                                        <TextBlock Text="Use a mod client (iw4x, Plutonium, T7x, H1-Mod…) instead of the default game exe. The connect argument is appended on launch when a server IP is set."
+                                                   FontSize="11" Foreground="#8b949e" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <ToggleSwitch Grid.Column="1"
+                                                  IsChecked="{Binding ModClientEnabled}"
+                                                  OffContent="Off" OnContent="On"
+                                                  VerticalAlignment="Top"
+                                                  Margin="12,0,0,0"/>
+                                </Grid>
+
+                                <StackPanel Spacing="8" IsVisible="{Binding ModClientEnabled}">
+
+                                    <!-- Preset picker -->
+                                    <TextBlock Text="Quick preset:" FontSize="11" Foreground="#8b949e"/>
+                                    <WrapPanel Orientation="Horizontal">
+                                        <Button Classes="btn-secondary" FontSize="11" Padding="8,4" Margin="0,0,4,4"
+                                                Command="{Binding ApplyModClientPresetCommand}" CommandParameter="iw4x">
+                                            iw4x (MW2)
+                                        </Button>
+                                        <Button Classes="btn-secondary" FontSize="11" Padding="8,4" Margin="0,0,4,4"
+                                                Command="{Binding ApplyModClientPresetCommand}" CommandParameter="iw7-mod">
+                                            iw7-mod (IW)
+                                        </Button>
+                                        <Button Classes="btn-secondary" FontSize="11" Padding="8,4" Margin="0,0,4,4"
+                                                Command="{Binding ApplyModClientPresetCommand}" CommandParameter="S4-Mod">
+                                            S4-Mod (Vanguard)
+                                        </Button>
+                                        <Button Classes="btn-secondary" FontSize="11" Padding="8,4" Margin="0,0,4,4"
+                                                Command="{Binding ApplyModClientPresetCommand}" CommandParameter="Plutonium">
+                                            Plutonium (BO1/2/3 · MW3)
+                                        </Button>
+                                        <Button Classes="btn-secondary" FontSize="11" Padding="8,4" Margin="0,0,4,4"
+                                                Command="{Binding ApplyModClientPresetCommand}" CommandParameter="T7x">
+                                            T7x (BO3)
+                                        </Button>
+                                        <Button Classes="btn-secondary" FontSize="11" Padding="8,4" Margin="0,0,4,4"
+                                                Command="{Binding ApplyModClientPresetCommand}" CommandParameter="H1-Mod">
+                                            H1-Mod (MWR)
+                                        </Button>
+                                        <Button Classes="btn-secondary" FontSize="11" Padding="8,4" Margin="0,0,4,4"
+                                                Command="{Binding ApplyModClientPresetCommand}" CommandParameter="H2M-Mod">
+                                            H2M-Mod
+                                        </Button>
+                                        <Button Classes="btn-secondary" FontSize="11" Padding="8,4" Margin="0,0,4,4"
+                                                Command="{Binding ApplyModClientPresetCommand}" CommandParameter="AW-Dedi">
+                                            AW Dedi
+                                        </Button>
+                                    </WrapPanel>
+
+                                    <!-- Client name -->
+                                    <TextBox Text="{Binding ModClientName}"
+                                             Watermark="Client name (e.g. iw4x, Plutonium)"
+                                             Background="#0d1117" Foreground="White"
+                                             BorderBrush="#30363d" CornerRadius="6"
+                                             Padding="8,6" FontSize="12"/>
+
+                                    <!-- Client exe with browse -->
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBox Grid.Column="0"
+                                                 Text="{Binding ModClientExe}"
+                                                 Watermark="Path to mod-client exe (e.g. iw4x.exe, Plutonium.exe)"
+                                                 Background="#0d1117" Foreground="White"
+                                                 BorderBrush="#30363d" CornerRadius="6"
+                                                 Padding="8,6" FontSize="12"/>
+                                        <Button Grid.Column="1"
+                                                Classes="btn-secondary" Content="Browse…"
+                                                FontSize="11" Padding="8,6" Margin="4,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Command="{Binding BrowseModClientExeCommand}"/>
+                                    </Grid>
+
+                                    <!-- Connect arg template -->
+                                    <TextBox Text="{Binding ModClientConnectTemplate}"
+                                             Watermark="Connect arg template — use {IP} as placeholder, e.g.  connect {IP}"
+                                             Background="#0d1117" Foreground="White"
+                                             BorderBrush="#30363d" CornerRadius="6"
+                                             Padding="8,6" FontSize="12"/>
+
+                                    <!-- Server IP -->
+                                    <TextBox Text="{Binding ModClientServerIp}"
+                                             Watermark="Server IP (Radmin virtual IP or LAN IP, e.g. 25.x.x.x or 192.168.x.x)"
+                                             Background="#0d1117" Foreground="White"
+                                             BorderBrush="#30363d" CornerRadius="6"
+                                             Padding="8,6" FontSize="12"/>
+
+                                    <TextBlock FontSize="11" Foreground="#8b949e" TextWrapping="Wrap">
+                                        On launch: <Run Text="{Binding ModClientExe}" Foreground="#58a6ff"/> will be started with argument <Run Text="{Binding ModClientConnectTemplate}" Foreground="#3fb950"/> (where {IP} → <Run Text="{Binding ModClientServerIp}" Foreground="#d29922"/>).
+                                    </TextBlock>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
                         <Border Background="#21262d" CornerRadius="8" Padding="16,12">
                             <StackPanel Spacing="10">
                                 <TextBlock Text="📁  Manage Game Folder"

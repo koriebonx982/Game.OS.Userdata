@@ -475,12 +475,38 @@ public partial class GameDetailViewModel : ViewModelBase
     [ObservableProperty] private string _newPostLaunchArgs  = "";
     [ObservableProperty] private string _newPostLaunchLabel = "";
 
+    // ── Mod-client settings ────────────────────────────────────────────────────
+    [ObservableProperty] private bool   _modClientEnabled          = false;
+    [ObservableProperty] private string _modClientName             = "";
+    [ObservableProperty] private string _modClientExe              = "";
+    [ObservableProperty] private string _modClientConnectTemplate  = "";
+    [ObservableProperty] private string _modClientServerIp         = "";
+
+    /// <summary>
+    /// Known mod-client presets for the preset picker in the Mod Client panel.
+    /// Format: "DisplayName|ConnectArgTemplate"
+    /// </summary>
+    public static readonly IReadOnlyList<(string Label, string Name, string Template)> ModClientPresets =
+        new (string, string, string)[]
+        {
+            ("iw4x  (CoD: MW2)",                       "iw4x",       "connect {IP}"),
+            ("iw7-mod  (CoD: Infinite Warfare)",        "iw7-mod",    "connect cpMode {IP}"),
+            ("S4-Mod  (CoD: Vanguard — via Radmin)",    "S4-Mod",     "connect {IP}"),
+            ("Plutonium  (Black Ops 1/2/3 / MW3)",      "Plutonium",  "connect {IP}"),
+            ("T7x  (CoD: Black Ops 3 — via Radmin)",    "T7x",        "connect {IP}"),
+            ("H1-Mod  (CoD: MWR)",                      "H1-Mod",     "connect {IP}"),
+            ("H2M-Mod  (CoD: MWR extended)",            "H2M-Mod",    "connect {IP}"),
+            ("Advanced Warfare dedi",                   "AW-Dedi",    "connect {IP}"),
+            ("Custom",                                  "Custom",     "connect {IP}"),
+        };
+
     /// <summary>Status message shown at the bottom of the settings panel.</summary>
     [ObservableProperty] private string _settingsStatus = "";
 
     public ObservableCollection<LaunchEntry> PreLaunchEntries    { get; } = new();
     public ObservableCollection<LaunchEntry> DuringLaunchEntries { get; } = new();
     public ObservableCollection<LaunchEntry> PostLaunchEntries   { get; } = new();
+
 
     /// <summary>Opens the settings panel and loads any saved settings for the current game.</summary>
     private void OpenSettings()
@@ -619,6 +645,14 @@ public partial class GameDetailViewModel : ViewModelBase
         foreach (var e in saved.PostLaunch)
             PostLaunchEntries.Add(e);
 
+        // ── Mod client settings ──────────────────────────────────────────────
+        var mc = saved.ModClient;
+        ModClientEnabled         = mc?.Enabled          ?? false;
+        ModClientName            = mc?.Name             ?? "";
+        ModClientExe             = mc?.ClientExe        ?? "";
+        ModClientConnectTemplate = mc?.ConnectArgTemplate ?? "";
+        ModClientServerIp        = mc?.ServerIp         ?? "";
+
         NewPreLaunchPath         = "";
         NewPreLaunchArgs         = "";
         NewPreLaunchLabel        = "";
@@ -646,6 +680,14 @@ public partial class GameDetailViewModel : ViewModelBase
             PreLaunch              = PreLaunchEntries.ToList(),
             DuringLaunch           = DuringLaunchEntries.ToList(),
             PostLaunch             = PostLaunchEntries.ToList(),
+            ModClient              = string.IsNullOrWhiteSpace(ModClientExe) ? null : new Models.ModClientConfig
+            {
+                Enabled            = ModClientEnabled,
+                Name               = ModClientName.Trim(),
+                ClientExe          = ModClientExe.Trim(),
+                ConnectArgTemplate = ModClientConnectTemplate.Trim(),
+                ServerIp           = ModClientServerIp.Trim(),
+            },
         };
         GameSettingsService.Save(settings);
         SettingsStatus = "✓  Settings saved.";
@@ -1276,9 +1318,67 @@ public partial class GameDetailViewModel : ViewModelBase
 
         // ── Regular (PC) game launch ──────────────────────────────────────────
         // Determine the executable to launch:
-        // Priority: saved settings ExePath → steam://launch (for Steam games) → detected drive entry → open folder
+        // Priority: mod-client (if enabled) → saved settings ExePath → steam://launch → detected drive entry → open folder
         string? exePath = null;
         string? exeArgs = string.IsNullOrWhiteSpace(saved.ExeArgs) ? null : saved.ExeArgs;
+
+        // ── Mod-client override ───────────────────────────────────────────────
+        // When a mod client is configured and enabled, launch its exe instead of the
+        // game exe and append the resolved connect-argument (if a server IP is set).
+        var mc = saved.ModClient;
+        if (mc != null && mc.Enabled && !string.IsNullOrWhiteSpace(mc.ClientExe)
+            && System.IO.File.Exists(mc.ClientExe))
+        {
+            string connectArg = "";
+            if (!string.IsNullOrWhiteSpace(mc.ConnectArgTemplate)
+                && !string.IsNullOrWhiteSpace(mc.ServerIp))
+            {
+                connectArg = mc.ConnectArgTemplate.Replace("{IP}", mc.ServerIp,
+                    StringComparison.OrdinalIgnoreCase);
+            }
+
+            System.Diagnostics.Process? modProc = null;
+            try
+            {
+                var baselinePids = CaptureProcessSnapshot();
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName         = mc.ClientExe,
+                    UseShellExecute  = false,
+                    WorkingDirectory = System.IO.Path.GetDirectoryName(mc.ClientExe) ?? "",
+                };
+                if (!string.IsNullOrWhiteSpace(connectArg))
+                    psi.Arguments = connectArg;
+                modProc = System.Diagnostics.Process.Start(psi);
+
+                if (modProc != null)
+                {
+                    _runningProcess    = modProc;
+                    IsGameRunning      = true;
+                    PlayButtonIsResume = false;
+                    OnRequestPlaytimeTracking?.Invoke(modProc, Title, Platform);
+
+                    foreach (var during in saved.DuringLaunch.Where(e => e.Enabled))
+                        TryStartProcess(during.Path, during.Arguments);
+
+                    if (string.Equals(Platform, "PC", StringComparison.OrdinalIgnoreCase))
+                        _ = WatchAndReadPcAchievementFilesAsync(modProc, mc.ClientExe, Title);
+                }
+                else
+                {
+                    // Fallback: the mod client didn't spawn a trackable process
+                    IsGameRunning      = true;
+                    PlayButtonIsResume = false;
+                    OnRequestPlaytimeTrackingFallback?.Invoke(mc.ClientExe, Title, Platform, baselinePids);
+                }
+            }
+            catch { /* best-effort */ }
+
+            if (saved.PostLaunch.Any(e => e.Enabled))
+                _ = WatchAndRunPostLaunchAsync(modProc, saved.PostLaunch.Where(e => e.Enabled).ToList());
+
+            return;
+        }
 
         if (!string.IsNullOrEmpty(saved.ExePath) && IsLaunchTargetAvailable(saved.ExePath))
         {
@@ -1458,6 +1558,26 @@ public partial class GameDetailViewModel : ViewModelBase
     [RelayCommand]
     private void BrowsePostLaunch()
         => BrowseLaunchPathRequested?.Invoke(path => NewPostLaunchPath = path);
+
+    [RelayCommand]
+    private void BrowseModClientExe()
+        => BrowseLaunchPathRequested?.Invoke(path => ModClientExe = path);
+
+    /// <summary>
+    /// Applies a known mod-client preset (fills name, exe hint, and connect-arg template).
+    /// The caller passes the preset index from <see cref="ModClientPresets"/>.
+    /// </summary>
+    [RelayCommand]
+    private void ApplyModClientPreset(string presetName)
+    {
+        var preset = ModClientPresets.FirstOrDefault(p =>
+            string.Equals(p.Name, presetName, StringComparison.OrdinalIgnoreCase));
+        if (preset == default) return;
+        ModClientName            = preset.Name;
+        ModClientConnectTemplate = preset.Template;
+        // Don't overwrite exe — the user still needs to browse to it
+    }
+
 
     /// <summary>
     /// The per-system metadata cache, wired by MainViewModel at startup.
@@ -2009,6 +2129,9 @@ public partial class GameDetailViewModel : ViewModelBase
     /// <summary>
     /// Watches known Steam emulator achievement files during a PC session and
     /// reports only achievements that appear after launch.
+    /// Uses <see cref="SteamEmuAchievementService"/> to cover all major emulators:
+    /// Goldberg · GBE · GBE Fork · Codex · Plaza · Rune · Online Fix ·
+    /// Ali213/ColdAPI · Voices38 · Smart Steam Emu · SSE-R.
     /// </summary>
     private async System.Threading.Tasks.Task WatchAndReadPcAchievementFilesAsync(
         System.Diagnostics.Process? gameProc, string exePath, string gameTitle)
@@ -2017,16 +2140,18 @@ public partial class GameDetailViewModel : ViewModelBase
             return;
 
         bool notifySteamEmuStatus = AppSettingsService.Load().NotifySteamEmuStatus;
-        bool steamEmuFilesFound = EnumerateSteamEmuAchievementFiles(exePath, _steamAppId).Any();
+        bool steamEmuFilesFound = SteamEmuAchievementService
+            .EnumerateAchievementFiles(exePath, _steamAppId).Any();
         if (notifySteamEmuStatus)
-            Services.NotificationService.ShowDeveloperNotification("Steam Emu", steamEmuFilesFound ? "Found" : "Not Found");
+            Services.NotificationService.ShowDeveloperNotification("Steam Emu",
+                steamEmuFilesFound ? "Found" : "Not Found");
 
-        var knownUnlocks = ReadSteamEmuUnlockedIds(exePath, _steamAppId);
+        var knownUnlocks = SteamEmuAchievementService.ReadUnlockedIds(exePath, _steamAppId);
         var sessionUnlocks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         async System.Threading.Tasks.Task PollOnceAsync()
         {
-            var current = ReadSteamEmuUnlockedIds(exePath, _steamAppId);
+            var current = SteamEmuAchievementService.ReadUnlockedIds(exePath, _steamAppId);
             foreach (var unlockId in current)
             {
                 if (knownUnlocks.Contains(unlockId))
@@ -2085,246 +2210,6 @@ public partial class GameDetailViewModel : ViewModelBase
         }
         catch { /* best-effort */ }
     }
-
-    private static HashSet<string> ReadSteamEmuUnlockedIds(string exePath, int steamAppId)
-    {
-        var unlocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var file in EnumerateSteamEmuAchievementFiles(exePath, steamAppId))
-        {
-            try
-            {
-                var ext = Path.GetExtension(file);
-                IEnumerable<string> ids = string.Equals(ext, ".ini", StringComparison.OrdinalIgnoreCase)
-                    ? ParseUnlockedAchievementIdsFromIni(file)
-                    : ParseUnlockedAchievementIdsFromJson(file);
-
-                foreach (var id in ids)
-                {
-                    if (!string.IsNullOrWhiteSpace(id))
-                        unlocked.Add(id.Trim());
-                }
-            }
-            catch { /* best-effort per file */ }
-        }
-        return unlocked;
-    }
-
-    private static IEnumerable<string> EnumerateSteamEmuAchievementFiles(string exePath, int steamAppId)
-    {
-        var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        try
-        {
-            string? gameDir = Path.GetDirectoryName(exePath);
-            if (!string.IsNullOrEmpty(gameDir))
-            {
-                roots.Add(Path.Combine(gameDir, "steam_settings"));
-                roots.Add(Path.Combine(gameDir, "SteamSettings"));
-
-                string? parent = Directory.GetParent(gameDir)?.FullName;
-                if (!string.IsNullOrEmpty(parent))
-                {
-                    roots.Add(Path.Combine(parent, "steam_settings"));
-                    roots.Add(Path.Combine(parent, "SteamSettings"));
-                }
-            }
-        }
-        catch { }
-
-        string roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        string docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        string commonDocs = Environment.GetFolderPath(Environment.SpecialFolder.CommonDocuments);
-        string programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-
-        if (!string.IsNullOrEmpty(roaming))
-        {
-            roots.Add(Path.Combine(roaming, "Goldberg SteamEmu Saves"));
-            roots.Add(Path.Combine(roaming, "GSE Saves"));
-        }
-        if (!string.IsNullOrEmpty(local))
-            roots.Add(Path.Combine(local, "Goldberg SteamEmu Saves"));
-        if (!string.IsNullOrEmpty(commonDocs))
-            roots.Add(Path.Combine(commonDocs, "Steam"));
-        if (!string.IsNullOrEmpty(docs))
-        {
-            roots.Add(Path.Combine(docs, "CPY_SAVES"));
-            roots.Add(Path.Combine(docs, "Steam"));
-        }
-        if (!string.IsNullOrEmpty(programData))
-            roots.Add(Path.Combine(programData, "SteamEmu"));
-
-        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "achievements.json",
-            "achievement.json",
-            "stats.json",
-            "achievements.ini",
-            "stats.ini"
-        };
-
-        foreach (var root in roots)
-        {
-            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
-                continue;
-
-            IEnumerable<string> files;
-            try
-            {
-                files = Directory.EnumerateFiles(root, "*.*", SearchOption.AllDirectories);
-            }
-            catch
-            {
-                continue;
-            }
-
-            foreach (var file in files)
-            {
-                string fileName = Path.GetFileName(file);
-                if (names.Contains(fileName))
-                {
-                    yield return file;
-                    continue;
-                }
-
-                if (steamAppId > 0 &&
-                    (file.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
-                     file.EndsWith(".ini", StringComparison.OrdinalIgnoreCase)) &&
-                    file.Contains(steamAppId.ToString(), StringComparison.OrdinalIgnoreCase))
-                {
-                    yield return file;
-                }
-            }
-        }
-    }
-
-    private static IEnumerable<string> ParseUnlockedAchievementIdsFromJson(string path)
-    {
-        using var stream = File.OpenRead(path);
-        using var doc = System.Text.Json.JsonDocument.Parse(stream);
-        var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        VisitJsonForUnlocks(doc.RootElement, null, results);
-        return results;
-    }
-
-    private static void VisitJsonForUnlocks(
-        System.Text.Json.JsonElement element,
-        string? contextId,
-        HashSet<string> results)
-    {
-        if (element.ValueKind == System.Text.Json.JsonValueKind.Object)
-        {
-            string? idCandidate = contextId;
-            bool unlocked = false;
-            bool sawUnlockField = false;
-
-            foreach (var prop in element.EnumerateObject())
-            {
-                var key = prop.Name;
-                var value = prop.Value;
-
-                if (string.Equals(key, "id", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(key, "name", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(key, "apiName", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(key, "achievement", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(key, "stat", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (value.ValueKind == System.Text.Json.JsonValueKind.String)
-                        idCandidate = value.GetString();
-                }
-
-                if (IsUnlockFieldName(key))
-                {
-                    sawUnlockField = true;
-                    if (IsUnlockedJsonValue(value))
-                        unlocked = true;
-                }
-            }
-
-            if (sawUnlockField && unlocked && !string.IsNullOrWhiteSpace(idCandidate))
-                results.Add(idCandidate);
-
-            foreach (var prop in element.EnumerateObject())
-                VisitJsonForUnlocks(prop.Value, prop.Name, results);
-        }
-        else if (element.ValueKind == System.Text.Json.JsonValueKind.Array)
-        {
-            foreach (var item in element.EnumerateArray())
-                VisitJsonForUnlocks(item, contextId, results);
-        }
-    }
-
-    private static bool IsUnlockFieldName(string key) =>
-        string.Equals(key, "achieved", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(key, "unlocked", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(key, "unlock", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(key, "unlocktime", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(key, "earned", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsUnlockedJsonValue(System.Text.Json.JsonElement value)
-    {
-        switch (value.ValueKind)
-        {
-            case System.Text.Json.JsonValueKind.True:
-                return true;
-            case System.Text.Json.JsonValueKind.False:
-            case System.Text.Json.JsonValueKind.Null:
-            case System.Text.Json.JsonValueKind.Undefined:
-                return false;
-            case System.Text.Json.JsonValueKind.Number:
-                return value.TryGetInt64(out var n) && n > 0;
-            case System.Text.Json.JsonValueKind.String:
-                var s = value.GetString();
-                if (string.IsNullOrWhiteSpace(s)) return false;
-                if (long.TryParse(s, out var parsed)) return parsed > 0;
-                return s.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-                       s.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
-                       s.Equals("unlocked", StringComparison.OrdinalIgnoreCase);
-            default:
-                return false;
-        }
-    }
-
-    private static IEnumerable<string> ParseUnlockedAchievementIdsFromIni(string path)
-    {
-        var results = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        string? section = null;
-        foreach (var raw in File.ReadLines(path))
-        {
-            var line = raw.Trim();
-            if (string.IsNullOrEmpty(line) || line.StartsWith(";") || line.StartsWith("#"))
-                continue;
-
-            if (line.StartsWith("[") && line.EndsWith("]"))
-            {
-                section = line[1..^1].Trim();
-                continue;
-            }
-
-            int eq = line.IndexOf('=');
-            if (eq <= 0) continue;
-
-            string key = line[..eq].Trim();
-            string val = line[(eq + 1)..].Trim();
-            bool unlocked = val.Equals("1", StringComparison.OrdinalIgnoreCase) ||
-                            val.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-                            val.Equals("yes", StringComparison.OrdinalIgnoreCase) ||
-                            val.Equals("unlocked", StringComparison.OrdinalIgnoreCase);
-            if (!unlocked) continue;
-
-            if (IsUnlockFieldName(key))
-            {
-                if (!string.IsNullOrWhiteSpace(section))
-                    results.Add(section);
-            }
-            else if (key.StartsWith("ach", StringComparison.OrdinalIgnoreCase) ||
-                     key.Contains("achievement", StringComparison.OrdinalIgnoreCase))
-            {
-                results.Add(key);
-            }
-        }
-        return results;
-    }
-
 
     /// <summary>
     /// Installs the repack.
