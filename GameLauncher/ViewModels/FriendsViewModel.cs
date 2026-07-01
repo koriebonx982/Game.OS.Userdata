@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GameLauncher.Models;
+using GameLauncher.Services;
 
 namespace GameLauncher.ViewModels;
 
@@ -28,6 +29,16 @@ public partial class FriendsViewModel : ViewModelBase
     [ObservableProperty] private string _newMessageText     = "";
     [ObservableProperty] private bool   _isSendingMessage;
     [ObservableProperty] private string _messageError       = "";
+
+    // ── Friend IP management ──────────────────────────────────────────────────
+    /// <summary>Username of the friend whose IP panel is currently expanded.</summary>
+    [ObservableProperty] private string _expandedIpFriend = "";
+    /// <summary>New IP label being typed in the add-IP form.</summary>
+    [ObservableProperty] private string _newIpLabel   = "";
+    /// <summary>New IP address being typed in the add-IP form.</summary>
+    [ObservableProperty] private string _newIpAddress = "";
+    /// <summary>"radmin" or "local".</summary>
+    [ObservableProperty] private string _newIpType    = "local";
 
     public ObservableCollection<Message> ConversationMessages { get; } = new();
 
@@ -144,6 +155,10 @@ public partial class FriendsViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasRecentActivity));
         OnlineCount = OnlineFriends.Count;
         TotalCount  = OnlineFriends.Count + OfflineFriends.Count;
+
+        // Load any locally-stored IPs for demo friends
+        foreach (var f in OnlineFriends.Concat(OfflineFriends))
+            LoadLocalIpsIntoEntry(f);
     }
 
     /// <summary>
@@ -179,6 +194,98 @@ public partial class FriendsViewModel : ViewModelBase
     {
         if (!string.IsNullOrEmpty(friendUsername))
             OnViewFriendProfile?.Invoke(friendUsername);
+    }
+
+    // ── Friend IP commands ────────────────────────────────────────────────────
+
+    /// <summary>The friend entry whose IP panel is currently open (null = panel hidden).</summary>
+    public FriendEntry? SelectedFriendForIps => FindFriendEntry(ExpandedIpFriend);
+
+    partial void OnExpandedIpFriendChanged(string value)
+        => OnPropertyChanged(nameof(SelectedFriendForIps));
+
+    /// <summary>
+    /// Toggles the inline IP-management panel for the specified friend.
+    /// If the same friend is clicked again the panel collapses.
+    /// </summary>
+    [RelayCommand]
+    private void ToggleFriendIpPanel(string friendUsername)
+    {
+        if (ExpandedIpFriend == friendUsername)
+        {
+            ExpandedIpFriend = "";
+        }
+        else
+        {
+            ExpandedIpFriend = friendUsername;
+            NewIpLabel   = "";
+            NewIpAddress = "";
+            NewIpType    = "local";
+        }
+    }
+
+    /// <summary>
+    /// Adds the new IP entry (from <see cref="NewIpLabel"/>, <see cref="NewIpAddress"/>,
+    /// <see cref="NewIpType"/>) to the specified friend and persists it locally.
+    /// </summary>
+    [RelayCommand]
+    private void AddFriendIp(string friendUsername)
+    {
+        if (string.IsNullOrWhiteSpace(NewIpAddress)) return;
+
+        var entry = FindFriendEntry(friendUsername);
+        if (entry == null) return;
+
+        var ip = new FriendIpEntry
+        {
+            Label   = string.IsNullOrWhiteSpace(NewIpLabel) ? NewIpAddress.Trim() : NewIpLabel.Trim(),
+            Address = NewIpAddress.Trim(),
+            Type    = NewIpType,
+        };
+
+        entry.IpAddresses.Add(ip);
+        FriendIpService.Save(friendUsername, entry.IpAddresses);
+
+        NewIpLabel   = "";
+        NewIpAddress = "";
+        NewIpType    = "local";
+    }
+
+    /// <summary>
+    /// Removes a specific <see cref="FriendIpEntry"/> from the named friend and persists
+    /// the updated list locally.
+    /// </summary>
+    [RelayCommand]
+    private void RemoveFriendIp(FriendIpEntry ip)
+    {
+        if (ip == null) return;
+
+        foreach (var friend in OnlineFriends.Concat(OfflineFriends))
+        {
+            if (friend.IpAddresses.Remove(ip))
+            {
+                FriendIpService.Save(friend.Username, friend.IpAddresses);
+                return;
+            }
+        }
+    }
+
+    /// <summary>Returns the <see cref="FriendEntry"/> for the given username, or null.</summary>
+    private FriendEntry? FindFriendEntry(string username) =>
+        OnlineFriends.Concat(OfflineFriends)
+                     .FirstOrDefault(f => string.Equals(f.Username, username,
+                                          StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Loads locally-saved IPs for a friend and populates their
+    /// <see cref="FriendEntry.IpAddresses"/> collection.
+    /// </summary>
+    private static void LoadLocalIpsIntoEntry(FriendEntry entry)
+    {
+        var saved = FriendIpService.Load(entry.Username);
+        entry.IpAddresses.Clear();
+        foreach (var ip in saved)
+            entry.IpAddresses.Add(ip);
     }
 
     /// <summary>Opens the conversation panel for the specified friend.</summary>
@@ -354,6 +461,7 @@ public partial class FriendsViewModel : ViewModelBase
                 var entry = BuildFriendEntry(name, lastSeen, currentGame, gameInfo.Title, gameInfo.Platform);
                 gamerScoreMap.TryGetValue(name, out int gs);
                 entry.GamerScore = gs;
+                LoadLocalIpsIntoEntry(entry);
                 if (entry.IsOnline || entry.IsAway)
                     OnlineFriends.Add(entry);
                 else

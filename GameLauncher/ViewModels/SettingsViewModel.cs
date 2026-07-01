@@ -95,6 +95,8 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty] private string _steamImportStatus = "";
     /// <summary>Exophase profile anchor/id (e.g. #2896888) used for per-user achievement pages.</summary>
     [ObservableProperty] private string _exophaseProfileId = "";
+    /// <summary>Full path to the ludusavi executable used for per-game save sync.</summary>
+    [ObservableProperty] private string _ludusaviPath = "";
     /// <summary>Enable a system-wide quick-menu hotkey on Windows.</summary>
     [ObservableProperty] private bool _enableGlobalQuickMenuHotkey = false;
     /// <summary>Use the older activating quick-menu overlay behaviour.</summary>
@@ -325,6 +327,7 @@ public partial class SettingsViewModel : ViewModelBase
         SteamApiKey            = appSettings.SteamApiKey;
         SteamUserId            = appSettings.SteamUserId;
         ExophaseProfileId      = appSettings.ExophaseProfileId;
+        LudusaviPath           = appSettings.LudusaviPath;
         EnableSteamSync        = appSettings.EnableSteamSync;
         EnableAchievementAutoSync = appSettings.EnableAchievementAutoSync;
         NotifyRyujinxLogStatus    = appSettings.NotifyRyujinxLogStatus;
@@ -492,6 +495,7 @@ public partial class SettingsViewModel : ViewModelBase
                 Arguments    = string.IsNullOrWhiteSpace(row.Arguments) ? "{rom}" : row.Arguments,
                 EmulatorName = row.EmulatorName,
                 Enabled      = row.Enabled,
+                SaveDataPath = row.SaveDataPath,
             }).ToList();
             EmulatorSettingsService.SaveAll(group.Platform, list);
         }
@@ -515,6 +519,7 @@ public partial class SettingsViewModel : ViewModelBase
             SteamApiKey           = SteamApiKey,
             SteamUserId           = SteamUserId,
             ExophaseProfileId     = NormaliseExophaseProfileId(ExophaseProfileId),
+            LudusaviPath          = LudusaviPath.Trim(),
             EnableSteamSync       = EnableSteamSync,
             EnableAchievementAutoSync = EnableAchievementAutoSync,
             NotifyRyujinxLogStatus    = NotifyRyujinxLogStatus,
@@ -587,6 +592,13 @@ public partial class SettingsViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void BrowseSaveData(EmulatorRowVm? row)
+    {
+        if (row == null) return;
+        BrowseSaveDataRequested?.Invoke(row);
+    }
+
+    [RelayCommand]
     private void BrowseIntroVideo()
     {
         BrowseIntroVideoRequested?.Invoke();
@@ -600,6 +612,9 @@ public partial class SettingsViewModel : ViewModelBase
 
     /// <summary>Raised when the user clicks Browse… on an emulator row.</summary>
     public System.Action<EmulatorRowVm>? BrowseRequested { get; set; }
+
+    /// <summary>Raised when the user clicks Browse… next to the Save Data Path on an emulator row.</summary>
+    public System.Action<EmulatorRowVm>? BrowseSaveDataRequested { get; set; }
 
     /// <summary>Raised when the user clicks Browse… next to the intro video path.</summary>
     public System.Action? BrowseIntroVideoRequested { get; set; }
@@ -687,6 +702,7 @@ public partial class EmulatorRowVm : ViewModelBase
     [ObservableProperty] private string _arguments    = "{rom}";
     [ObservableProperty] private string _emulatorName = "";
     [ObservableProperty] private bool   _enabled      = true;
+    [ObservableProperty] private string _saveDataPath = "";
 
     public EmulatorRowVm(string platform, EmulatorSettings settings)
     {
@@ -695,6 +711,7 @@ public partial class EmulatorRowVm : ViewModelBase
         Arguments    = settings.Arguments;
         EmulatorName = settings.EmulatorName;
         Enabled      = settings.Enabled;
+        SaveDataPath = settings.SaveDataPath;
     }
 }
 

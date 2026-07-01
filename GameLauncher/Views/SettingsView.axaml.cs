@@ -17,6 +17,7 @@ public partial class SettingsView : UserControl
         if (DataContext is SettingsViewModel vm)
         {
             vm.BrowseRequested                    = OnBrowseRequested;
+            vm.BrowseSaveDataRequested            = OnBrowseSaveDataRequested;
             vm.BrowseIntroVideoRequested          = OnBrowseIntroVideoRequested;
             vm.PickIntroVideoFromGalleryRequested = OnPickIntroVideoFromGalleryRequested;
             vm.BrowseStartupAppRequested          = OnBrowseStartupAppRequested;
@@ -46,6 +47,22 @@ public partial class SettingsView : UserControl
 
         if (files.Count > 0)
             row.EmulatorPath = files[0].Path.LocalPath;
+    }
+
+    private async void OnBrowseSaveDataRequested(EmulatorRowVm row)
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null) return;
+
+        var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(
+            new FolderPickerOpenOptions
+            {
+                Title         = $"Select save data root folder for {row.Platform} ({row.EmulatorName})",
+                AllowMultiple = false,
+            });
+
+        if (folders.Count > 0)
+            row.SaveDataPath = folders[0].Path.LocalPath;
     }
 
     private async void OnBrowseIntroVideoRequested()

@@ -193,6 +193,29 @@ namespace GameLauncher.Models
         [JsonPropertyName("lastActivityAt")] public string? LastActivityAt { get; set; }
     }
 
+    /// <summary>
+    /// A network address entry stored locally for a friend
+    /// (e.g. their Radmin VPN IP or LAN address for direct-connect multiplayer).
+    /// These are never sent to the backend — they live only in local storage.
+    /// </summary>
+    public class FriendIpEntry
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("label")]
+        public string Label   { get; set; } = "";
+        [System.Text.Json.Serialization.JsonPropertyName("address")]
+        public string Address { get; set; } = "";
+        /// <summary>"radmin", "local", "zerotier", or "hamachi".</summary>
+        [System.Text.Json.Serialization.JsonPropertyName("type")]
+        public string Type    { get; set; } = "local";
+        public string TypeLabel => Type?.ToLowerInvariant() switch
+        {
+            "radmin"   => "Radmin",
+            "zerotier" => "ZeroTier",
+            "hamachi"  => "Hamachi",
+            _          => "Local",
+        };
+    }
+
     /// <summary>A friend displayed in the Friends screen, populated from presence API.</summary>
     public class FriendEntry
     {
@@ -216,6 +239,14 @@ namespace GameLauncher.Models
         /// <summary>Human-readable GamerScore label, e.g. "1,250 GS". Empty when GamerScore is 0.</summary>
         public string  GamerScoreLabel =>
             GamerScore > 0 ? $"{GamerScore:N0} GS" : "";
+        /// <summary>
+        /// Locally-stored network addresses for this friend (Radmin IP, LAN IP, etc.).
+        /// Populated by <c>FriendIpService</c> after the friend list is loaded; never synced to
+        /// the cloud backend.
+        /// </summary>
+        public System.Collections.ObjectModel.ObservableCollection<FriendIpEntry> IpAddresses { get; }
+            = new();
+        public bool HasIpAddresses => IpAddresses.Count > 0;
     }
 
     /// <summary>An item in the Friends Recent Activity feed (what friends have been playing).</summary>
@@ -569,6 +600,15 @@ namespace GameLauncher.Models
 
         /// <summary>Log Steam Web API import results to Dev.log.</summary>
         [JsonPropertyName("logSteamApiScanner")] public bool LogSteamApiScanner { get; set; } = false;
+
+        // ── Save-sync integration ────────────────────────────────────────────
+
+        /// <summary>
+        /// Full path to the <c>ludusavi.exe</c> (or <c>ludusavi</c> on Linux/macOS).
+        /// When empty the launcher tries to invoke <c>ludusavi</c> from the system PATH.
+        /// Stored locally only; never uploaded to the cloud.
+        /// </summary>
+        [JsonPropertyName("ludusaviPath")] public string LudusaviPath { get; set; } = "";
     }
 
     // ── Game launch settings (saved locally per game title) ───────────────────
@@ -597,6 +637,43 @@ namespace GameLauncher.Models
         [JsonPropertyName("duringLaunch")]public List<LaunchEntry> DuringLaunch { get; set; } = new();
         /// <summary>Apps/scripts to run <b>after</b> the game exits.</summary>
         [JsonPropertyName("postLaunch")]  public List<LaunchEntry> PostLaunch   { get; set; } = new();
+        /// <summary>
+        /// Optional mod-client configuration for this game (e.g. iw4x, Plutonium, T7x).
+        /// When set and <see cref="ModClientConfig.Enabled"/> is true, the launcher
+        /// substitutes the mod-client exe for the game exe and appends the connect argument.
+        /// </summary>
+        [JsonPropertyName("modClient")]   public ModClientConfig?  ModClient    { get; set; }
+    }
+
+    /// <summary>
+    /// Per-game mod-client configuration.
+    /// Covers community multiplayer clients such as iw4x, iw7-mod, S4-Mod, Plutonium,
+    /// T7x, H1-mod, H2M-Mod, and custom setups that route through Radmin VPN.
+    /// </summary>
+    public class ModClientConfig
+    {
+        /// <summary>User-visible name, e.g. "iw4x", "Plutonium", "T7x".</summary>
+        [JsonPropertyName("name")]               public string  Name               { get; set; } = "";
+        /// <summary>Full path to the mod-client executable (e.g. iw4x.exe, plutonium.exe).</summary>
+        [JsonPropertyName("clientExe")]          public string  ClientExe          { get; set; } = "";
+        /// <summary>
+        /// Server-connect argument template.  Use <c>{IP}</c> as the placeholder for the
+        /// resolved IP address, e.g.
+        /// <list type="bullet">
+        ///   <item>iw4x:   <c>connect {IP}</c></item>
+        ///   <item>iw7-mod: <c>connect cpMode {IP}</c></item>
+        ///   <item>Others:  <c>connect {IP}</c></item>
+        /// </list>
+        /// Leave blank to launch the client without a connect argument.
+        /// </summary>
+        [JsonPropertyName("connectArgTemplate")] public string  ConnectArgTemplate { get; set; } = "";
+        /// <summary>
+        /// IP address of the game server to connect to.
+        /// For Radmin VPN setups this is the Radmin virtual IP.
+        /// </summary>
+        [JsonPropertyName("serverIp")]           public string  ServerIp           { get; set; } = "";
+        /// <summary>When false the launcher ignores this config and launches the game normally.</summary>
+        [JsonPropertyName("enabled")]            public bool    Enabled            { get; set; } = true;
     }
 
     /// <summary>
@@ -896,6 +973,13 @@ namespace GameLauncher.Models
         [JsonPropertyName("emulatorName")]   public string  EmulatorName  { get; set; } = "";
         /// <summary>Whether this emulator is enabled and should be used to launch ROMs.</summary>
         [JsonPropertyName("enabled")]        public bool    Enabled       { get; set; } = true;
+        /// <summary>
+        /// Root folder where this emulator stores save data, e.g.
+        /// <c>%AppData%\Ryujinx\bis\user\save</c>.
+        /// Used by <c>EmulatorSavePathResolver</c> to locate per-game saves
+        /// via TitleID without relying on ludusavi's manifest lookup.
+        /// </summary>
+        [JsonPropertyName("saveDataPath")]   public string  SaveDataPath  { get; set; } = "";
     }
 
     // ── Playtime session ─────────────────────────────────────────────────────

@@ -127,6 +127,39 @@ namespace GameLauncher.Services
             catch { }
         }
 
+        /// <summary>
+        /// Shows a "Syncing saves…" toast notification while a Ludusavi backup is running.
+        /// </summary>
+        /// <param name="gameTitle">Title of the game whose saves are being synced.</param>
+        public static void ShowSaveSyncingNotification(string gameTitle)
+        {
+            if (!OperatingSystem.IsWindows()) return;
+            try
+            {
+                ShowWindowsToast(
+                    "☁ Syncing saves…",
+                    gameTitle);
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Shows the result of a Ludusavi save-sync operation as a toast notification.
+        /// </summary>
+        /// <param name="gameTitle">Title of the game.</param>
+        /// <param name="result">Human-readable result message, e.g. "Saves synced", "No saves found".</param>
+        public static void ShowSaveSyncResultNotification(string gameTitle, string result)
+        {
+            if (!OperatingSystem.IsWindows()) return;
+            try
+            {
+                ShowWindowsToast(
+                    $"☁ Save Sync — {gameTitle}",
+                    result);
+            }
+            catch { }
+        }
+
         // ── Windows Toast via PowerShell ──────────────────────────────────────
 
         /// <summary>

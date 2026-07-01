@@ -3263,6 +3263,33 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         if (changes > 0)
         {
             await TryRefreshUserDataAsync().ConfigureAwait(false);
+
+            // Re-stamp the currently-open achievement list with freshly-synced
+            // Exophase unlocks so the user sees updated state without reopening the page.
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (DetailVm is null) return;
+                if (!string.Equals(DetailVm.Title, title, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                var merged = DetailVm.Achievements
+                    .Select(a =>
+                    {
+                        if (!string.IsNullOrEmpty(a.UnlockedAt)) return a;
+                        var cloud = _achievements.FirstOrDefault(ca =>
+                            string.Equals(ca.GameTitle, title, StringComparison.OrdinalIgnoreCase) &&
+                            (string.Equals(ca.AchievementId, a.AchievementId, StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(ca.Name, a.Name, StringComparison.OrdinalIgnoreCase)));
+                        if (cloud != null && !string.IsNullOrEmpty(cloud.UnlockedAt))
+                            a.UnlockedAt = cloud.UnlockedAt;
+                        return a;
+                    })
+                    .ToList();
+
+                if (merged.Count > 0)
+                    DetailVm.PopulateAchievements(merged);
+            });
+
             await _client.WriteSyncSignalAsync(CancellationToken.None).ConfigureAwait(false);
         }
     }
