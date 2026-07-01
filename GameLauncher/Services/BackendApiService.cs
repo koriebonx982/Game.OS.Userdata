@@ -498,6 +498,29 @@ namespace GameLauncher.Services
             return data?.Messages ?? new List<Message>();
         }
 
+        public async Task SendInviteAsync(
+            string toUsername,
+            string gameName,
+            string platform,
+            string connectionType,
+            CancellationToken ct = default)
+        {
+            EnsureAuthenticated();
+            var body = new
+            {
+                toUsername,
+                gameName,
+                platform,
+                connectionType
+            };
+            using var resp = await _http.PostAsJsonAsync("/api/send-invite", body, ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var err = await resp.Content.ReadFromJsonAsync<ErrorResponse>(_jsonOpts, ct);
+                throw new GameOsException((int)resp.StatusCode, err?.Message ?? "Failed to send invite.");
+            }
+        }
+
         // ── Registration ──────────────────────────────────────────────────────
 
         /// <summary>

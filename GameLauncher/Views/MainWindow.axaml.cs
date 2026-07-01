@@ -487,6 +487,7 @@ public partial class MainWindow : Window
             _boundVm.QuickMenuVm.Refresh(
                 currentUsername:     _boundVm.ProfileVm.Username,
                 currentGameTitle:     _boundVm.DetailVm.IsGameRunning ? _boundVm.DetailVm.Title : null,
+                currentGamePlatform:  _boundVm.DetailVm.IsGameRunning ? _boundVm.DetailVm.Platform : null,
                 sessionStartedAt:     _boundVm.DetailVm.IsGameRunning
                     ? Services.PlaytimeService.GetActiveSessionStart(_boundVm.DetailVm.Platform, _boundVm.DetailVm.Title)
                       ?? Services.PlaytimeService.GetAnyActiveSessionStart()

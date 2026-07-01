@@ -151,6 +151,8 @@ namespace GameLauncher.Models
         [JsonPropertyName("inviteId")]    public string  InviteId    { get; set; } = "";
         [JsonPropertyName("from")]        public string  From        { get; set; } = "";
         [JsonPropertyName("gameName")]    public string  GameName    { get; set; } = "";
+        [JsonPropertyName("platform")]    public string  Platform    { get; set; } = "";
+        [JsonPropertyName("connectionType")] public string ConnectionType { get; set; } = "";
         [JsonPropertyName("sentAt")]      public string  SentAt      { get; set; } = "";
         [JsonPropertyName("status")]      public string  Status      { get; set; } = "";
         [JsonPropertyName("respondedAt")] public string? RespondedAt { get; set; }
@@ -980,6 +982,12 @@ namespace GameLauncher.Models
         /// via TitleID without relying on ludusavi's manifest lookup.
         /// </summary>
         [JsonPropertyName("saveDataPath")]   public string  SaveDataPath  { get; set; } = "";
+        /// <summary>
+        /// Xenia user profile ID (e.g. "E03000003D7E0695").
+        /// Used by <c>EmulatorSavePathResolver</c> to build the full Xenia save path:
+        /// <c>{saveDataPath}/content/{xeniaProfileId}/{titleId}/000100000/{xeniaProfileId}/</c>
+        /// </summary>
+        [JsonPropertyName("xeniaProfileId")] public string  XeniaProfileId { get; set; } = "";
     }
 
     // ── Playtime session ─────────────────────────────────────────────────────

@@ -129,6 +129,69 @@ namespace GameLauncher.Services
             return await RunLudusaviBackupAsync(gameTitle, gameSavePath);
         }
 
+        /// <summary>
+        /// Restores a game's saves from the per-user Game.OS backup directory back
+        /// to the emulator's save folder (or via <c>ludusavi restore</c> for PC).
+        ///
+        /// <para>
+        /// When <paramref name="targetOverridePath"/> is provided the method copies
+        /// files directly from the Game.OS backup folder into that path, which is
+        /// the exact emulator save directory resolved by
+        /// <see cref="EmulatorSavePathResolver.Resolve"/>.  This makes restore work
+        /// reliably for emulators like Xenia, RPCS3, and Ryujinx without needing the
+        /// game to be in the ludusavi manifest.
+        /// </para>
+        /// </summary>
+        /// <param name="platform">Platform name, e.g. "Xbox 360", "Switch".</param>
+        /// <param name="gameTitle">Display title of the game.</param>
+        /// <param name="username">Logged-in Game.OS username — determines the source backup path.</param>
+        /// <param name="targetOverridePath">
+        ///   Optional: the resolved emulator save folder for the specific game
+        ///   (from <see cref="EmulatorSavePathResolver.Resolve"/>).  When set,
+        ///   files are copied directly into that folder instead of calling
+        ///   <c>ludusavi restore</c>.
+        /// </param>
+        public static async Task<LudusaviResult> RestoreAsync(
+            string  platform,
+            string  gameTitle,
+            string  username,
+            string? targetOverridePath = null)
+        {
+            if (string.IsNullOrWhiteSpace(username))
+                return LudusaviResult.Error("No user is logged in.");
+
+            if (string.IsNullOrWhiteSpace(gameTitle))
+                return LudusaviResult.Error("Game title is required.");
+
+            // Locate the Game.OS backup folder for this game
+            string platformSavesRoot = UserDataService.GetGameSavesPath(username, platform);
+            string safeGameTitle     = StorageHelpers.SanitiseName(gameTitle);
+            string gameSavePath      = Path.Combine(platformSavesRoot, safeGameTitle);
+
+            if (!Directory.Exists(gameSavePath))
+                return LudusaviResult.NoSaveFound;
+
+            // ── TitleID-based direct restore ───────────────────────────────────
+            // When the caller resolved the exact emulator save folder, copy files
+            // from the Game.OS backup back into that folder.
+            if (!string.IsNullOrWhiteSpace(targetOverridePath))
+            {
+                try
+                {
+                    Directory.CreateDirectory(targetOverridePath);
+                }
+                catch (Exception ex)
+                {
+                    return LudusaviResult.Error($"Cannot create restore target: {ex.Message}");
+                }
+
+                return await CopyDirectoryAsync(gameSavePath, targetOverridePath, gameTitle);
+            }
+
+            // ── Ludusavi restore fallback (PC games) ───────────────────────────
+            return await RunLudusaviRestoreAsync(gameTitle, gameSavePath);
+        }
+
         // ── Helpers ────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -218,6 +281,95 @@ namespace GameLauncher.Services
             catch (OperationCanceledException)
             {
                 return LudusaviResult.Error($"Sync timed out after {BackupTimeout.TotalMinutes:0} minutes.");
+            }
+            catch (Exception ex)
+            {
+                return LudusaviResult.Error(ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Launches ludusavi to restore saves for <paramref name="gameTitle"/>
+        /// from <paramref name="gameSavePath"/> back to the game's default location.
+        /// </summary>
+        private static async Task<LudusaviResult> RunLudusaviRestoreAsync(
+            string gameTitle, string gameSavePath)
+        {
+            string ludusaviExe = GetLudusaviExePath();
+
+            string args = $"restore --force --path \"{EscapeArg(gameSavePath)}\" \"{EscapeArg(gameTitle)}\"";
+
+            var psi = new ProcessStartInfo
+            {
+                FileName               = ludusaviExe,
+                Arguments              = args,
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+            };
+
+            try
+            {
+                using var proc = new Process { StartInfo = psi };
+                var stdoutBuf = new StringBuilder();
+                var stderrBuf = new StringBuilder();
+
+                proc.OutputDataReceived += (_, e) =>
+                {
+                    if (e.Data != null) stdoutBuf.AppendLine(e.Data);
+                };
+                proc.ErrorDataReceived += (_, e) =>
+                {
+                    if (e.Data != null) stderrBuf.AppendLine(e.Data);
+                };
+
+                proc.Start();
+                proc.BeginOutputReadLine();
+                proc.BeginErrorReadLine();
+
+                using var cts = new System.Threading.CancellationTokenSource(BackupTimeout);
+                await proc.WaitForExitAsync(cts.Token);
+
+                string stdout   = stdoutBuf.ToString();
+                string stderr   = stderrBuf.ToString();
+                int    exitCode = proc.ExitCode;
+
+                DevLogService.Log(
+                    $"[Ludusavi] restore exit={exitCode} game=\"{gameTitle}\" path=\"{gameSavePath}\"" +
+                    (string.IsNullOrWhiteSpace(stdout) ? "" : $"\n  stdout: {stdout.Trim()}") +
+                    (string.IsNullOrWhiteSpace(stderr) ? "" : $"\n  stderr: {stderr.Trim()}"));
+
+                if (exitCode == 0)
+                {
+                    if (IsNoSaveFoundOutput(stdout) || IsNoSaveFoundOutput(stderr))
+                        return LudusaviResult.NoSaveFound;
+
+                    return LudusaviResult.Synced;
+                }
+
+                if (IsNoSaveFoundOutput(stdout) || IsNoSaveFoundOutput(stderr))
+                    return LudusaviResult.NoSaveFound;
+
+                string detail = !string.IsNullOrWhiteSpace(stderr)
+                    ? stderr.Trim()
+                    : (!string.IsNullOrWhiteSpace(stdout) ? stdout.Trim() : $"exit code {exitCode}");
+
+                if (detail.Length > 200)
+                    detail = detail[..200] + "…";
+
+                return LudusaviResult.Error(detail);
+            }
+            catch (Exception ex) when (
+                ex is System.ComponentModel.Win32Exception ||
+                ex is FileNotFoundException ||
+                ex.Message.Contains("No such file", StringComparison.OrdinalIgnoreCase))
+            {
+                return LudusaviResult.NotInstalled;
+            }
+            catch (OperationCanceledException)
+            {
+                return LudusaviResult.Error($"Restore timed out after {BackupTimeout.TotalMinutes:0} minutes.");
             }
             catch (Exception ex)
             {

@@ -58,6 +58,8 @@ public partial class GameDetailViewModel : ViewModelBase
     [ObservableProperty] private bool   _isLudusaviSyncing;
     /// <summary>Human-readable status of the last (or current) Ludusavi sync operation.</summary>
     [ObservableProperty] private string _ludusaviSyncStatus = "";
+    /// <summary>True while a Ludusavi save restore is in progress.</summary>
+    [ObservableProperty] private bool   _isLudusaviRestoring;
 
     /// <summary>
     /// True when the in-app trailer player overlay is visible.
@@ -1226,7 +1228,8 @@ public partial class GameDetailViewModel : ViewModelBase
             {
                 var emuSettings = EmulatorSettingsService.Load(Platform);
                 sourceOverridePath = EmulatorSavePathResolver.Resolve(
-                    Platform, emuSettings.EmulatorName, emuSettings.SaveDataPath, titleId);
+                    Platform, emuSettings.EmulatorName, emuSettings.SaveDataPath, titleId,
+                    emuSettings.XeniaProfileId);
             }
 
             var result = await Services.LudusaviService.SyncAsync(
@@ -1252,6 +1255,60 @@ public partial class GameDetailViewModel : ViewModelBase
         finally
         {
             IsLudusaviSyncing = false;
+        }
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task RestoreWithLudusaviAsync()
+    {
+        if (IsLudusaviRestoring) return;
+        if (string.IsNullOrWhiteSpace(_currentUsername))
+        {
+            LudusaviSyncStatus = "Not logged in.";
+            return;
+        }
+
+        IsLudusaviRestoring = true;
+        LudusaviSyncStatus  = "↙ Restoring saves…";
+        Services.NotificationService.ShowSaveSyncingNotification(Title);
+
+        try
+        {
+            // Resolve the emulator save folder so we can copy back directly
+            // (works for Xenia, RPCS3, Ryujinx, etc. without a ludusavi manifest entry).
+            string? titleId = CurrentTitleId;
+            string? targetOverridePath = null;
+            if (!string.IsNullOrWhiteSpace(titleId))
+            {
+                var emuSettings = EmulatorSettingsService.Load(Platform);
+                targetOverridePath = EmulatorSavePathResolver.Resolve(
+                    Platform, emuSettings.EmulatorName, emuSettings.SaveDataPath, titleId,
+                    emuSettings.XeniaProfileId);
+            }
+
+            var result = await Services.LudusaviService.RestoreAsync(
+                Platform, Title, _currentUsername, targetOverridePath);
+
+            string statusText = result.Kind switch
+            {
+                Services.LudusaviService.ResultKind.Synced       => "✓ Saves restored",
+                Services.LudusaviService.ResultKind.NoSaveFound  => "No backup found for this game",
+                Services.LudusaviService.ResultKind.NotInstalled => "Ludusavi not found — set the path in Settings",
+                Services.LudusaviService.ResultKind.Error        => $"Restore failed: {result.Message}",
+                _                                                 => "Unknown restore result",
+            };
+
+            LudusaviSyncStatus = statusText;
+            Services.NotificationService.ShowSaveSyncResultNotification(Title, statusText);
+        }
+        catch (Exception ex)
+        {
+            LudusaviSyncStatus = $"Restore failed: {ex.Message}";
+            Services.NotificationService.ShowSaveSyncResultNotification(Title, LudusaviSyncStatus);
+        }
+        finally
+        {
+            IsLudusaviRestoring = false;
         }
     }
 

@@ -193,6 +193,35 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsFriendsOrInbox));
     }
 
+    private void TryLaunchAcceptedInvite(GameInvite invite)
+    {
+        if (invite == null || string.IsNullOrWhiteSpace(invite.GameName))
+            return;
+
+        string invitePlatform = string.IsNullOrWhiteSpace(invite.Platform) ? "PC" : invite.Platform;
+        string targetPlatform = PlatformHelper.NormalizePlatform(invitePlatform);
+        string targetTitleKey = PlatformHelper.NormalizeTitleForComparison(invite.GameName);
+
+        var card = GetDashboardCards().FirstOrDefault(c =>
+        {
+            string cardPlatform = PlatformHelper.NormalizePlatform(c.Platform);
+            string cardTitle = string.IsNullOrWhiteSpace(c.EffectiveTitle) ? c.Title : c.EffectiveTitle;
+            return string.Equals(cardPlatform, targetPlatform, StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(
+                       PlatformHelper.NormalizeTitleForComparison(cardTitle),
+                       targetTitleKey,
+                       StringComparison.OrdinalIgnoreCase);
+        });
+
+        if (card == null)
+        {
+            Navigate("library");
+            return;
+        }
+
+        LaunchFromCard(card);
+    }
+
     public MainViewModel()
     {
         _client       = new GameOsClient();
@@ -231,6 +260,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             await _client.SendMessageAsync(friendUsername, text);
             return true;
+        };
+        QuickMenuVm.OnInviteFriend = async (friendUsername, gameName, platform, connectionType) =>
+        {
+            try
+            {
+                await _client.SendInviteAsync(friendUsername, gameName, platform, connectionType);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         };
         QuickMenuVm.OnNavigatePage = page =>
         {
@@ -629,6 +670,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         StoreVm.OnOpenDetail          = OpenDetailFromStoreGame;
         FriendsVm.OnViewFriendProfile = OpenFriendProfile;
         InboxVm.OnViewFriendProfile   = OpenFriendProfile;
+        InboxVm.OnInviteAccepted      = TryLaunchAcceptedInvite;
 
         // Start background scanner regardless of login state
         _scanner = new GameScannerService();
@@ -1746,6 +1788,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         QuickMenuVm.Refresh(
             currentUsername:       _profile.Username,
             currentGameTitle:      DetailVm.IsGameRunning ? DetailVm.Title : null,
+            currentGamePlatform:   DetailVm.IsGameRunning ? DetailVm.Platform : null,
             sessionStartedAt:      DetailVm.IsGameRunning
                 ? PlaytimeService.GetActiveSessionStart(DetailVm.Platform, DetailVm.Title)
                   ?? PlaytimeService.GetAnyActiveSessionStart()
@@ -1935,6 +1978,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 ?.PlaytimeMinutes ?? 0;
             DetailVm.LoadFromLocalGame(card.SourceGame, cloudPlaytime);
         }
+
         else if (card.SourceRom != null)
         {
             DetailVm.LoadFromLocalRom(card.SourceRom);

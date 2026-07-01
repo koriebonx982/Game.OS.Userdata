@@ -160,6 +160,13 @@
                                 <TextBlock Text="☁" FontSize="16" VerticalAlignment="Center"/>
                             </Button>
                             <Button Classes="btn-secondary"
+                                    Padding="12,12"
+                                    ToolTip.Tip="Restore saves from backup"
+                                    Command="{Binding RestoreWithLudusaviCommand}"
+                                    IsEnabled="{Binding !IsLudusaviRestoring}">
+                                <TextBlock Text="↙" FontSize="16" VerticalAlignment="Center"/>
+                            </Button>
+                            <Button Classes="btn-secondary"
                                     Padding="16,12"
                                     ToolTip.Tip="Open Exophase Achievements"
                                     Command="{Binding OpenExophasePageCommand}"

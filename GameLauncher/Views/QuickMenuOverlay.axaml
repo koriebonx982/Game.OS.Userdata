@@ -767,7 +767,7 @@
                         Padding="18">
                     <StackPanel Spacing="10">
                         <TextBlock Text="Friends" FontSize="20" FontWeight="SemiBold" Foreground="White"/>
-                        <ItemsControl ItemsSource="{Binding Friends}">
+                        <ItemsControl ItemsSource="{Binding QuickFriends}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="vm:FriendPresenceVm">
                                     <Border Background="#33222222" CornerRadius="8" Padding="10">
@@ -780,9 +780,20 @@
                                                 <TextBlock Text="Profile"/>
                                                 <Button.Flyout>
                                                     <MenuFlyout Placement="BottomEdgeAlignedRight">
-                                                        <MenuItem Header="Invite"
-                                                                  Command="{Binding $parent[UserControl].DataContext.InviteFriendCommand}"
-                                                                  CommandParameter="{Binding Username}"/>
+                                                        <MenuItem Header="Invite">
+                                                            <MenuItem Header="Crossplay"
+                                                                      Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                                      CommandParameter="{Binding Username, StringFormat='{}{0}|Crossplay'}"/>
+                                                            <MenuItem Header="Radmin"
+                                                                      Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                                      CommandParameter="{Binding Username, StringFormat='{}{0}|Radmin'}"/>
+                                                            <MenuItem Header="OnlineFix"
+                                                                      Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                                      CommandParameter="{Binding Username, StringFormat='{}{0}|OnlineFix'}"/>
+                                                            <MenuItem Header="Steam"
+                                                                      Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                                      CommandParameter="{Binding Username, StringFormat='{}{0}|Steam'}"/>
+                                                        </MenuItem>
                                                         <MenuItem Header="Message"
                                                                   Command="{Binding $parent[UserControl].DataContext.MessageFriendCommand}"
                                                                   CommandParameter="{Binding Username}"/>
@@ -797,6 +808,8 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <TextBlock Text="{Binding InviteStatusMessage}" Foreground="#9E9E9E" FontSize="11"
+                                   IsVisible="{Binding InviteStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                         <Button Classes="btn-secondary" Command="{Binding OpenFriendsPageCommand}">Open Friends Page</Button>
                     </StackPanel>
                 </Border>

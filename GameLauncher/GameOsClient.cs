@@ -562,6 +562,20 @@ namespace GameLauncher
             return new();
         }
 
+        public async Task SendInviteAsync(
+            string toUsername,
+            string gameName,
+            string platform,
+            string connectionType,
+            CancellationToken ct = default)
+        {
+            if (_username == null) throw new GameOsException(401, "Not authenticated.");
+            if (_backend == null)
+                throw new GameOsException(400, "Invites are only supported in backend mode.");
+
+            await _backend.SendInviteAsync(toUsername, gameName, platform, connectionType, ct);
+        }
+
         public async Task RespondInviteAsync(string inviteId, string response, CancellationToken ct = default)
         {
             if (_backend != null)

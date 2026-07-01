@@ -33,6 +33,7 @@ public partial class InboxViewModel : ViewModelBase
     private string _username = "";
 
     public Action<string>? OnViewFriendProfile { get; set; }
+    public Action<GameInvite>? OnInviteAccepted { get; set; }
 
     public void Load(GameOsClient client, string username)
     {
@@ -68,6 +69,8 @@ public partial class InboxViewModel : ViewModelBase
             InviteId = "demo-invite",
             From = "RetroKing",
             GameName = "Halo 3",
+            Platform = "PC",
+            ConnectionType = "Radmin",
             SentAt = "2026-03-10T17:00:00Z",
             Status = "pending"
         });
@@ -153,6 +156,7 @@ public partial class InboxViewModel : ViewModelBase
         if (_client == null || invite == null || string.IsNullOrWhiteSpace(invite.InviteId)) return;
         await _client.RespondInviteAsync(invite.InviteId, "accepted");
         PendingInvites.Remove(invite);
+        OnInviteAccepted?.Invoke(invite);
         OnPropertyChanged(nameof(HasPendingInvites));
         OnPropertyChanged(nameof(HasEmptyInbox));
     }

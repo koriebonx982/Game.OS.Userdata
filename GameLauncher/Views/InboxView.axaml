@@ -39,8 +39,13 @@
                                             <TextBlock Text="{Binding GameName}"
                                                        FontSize="14" FontWeight="Bold" Foreground="White"/>
                                             <TextBlock FontSize="12" Foreground="#8b949e">
-                                                <Run Text="Invite from "/>
                                                 <Run Text="{Binding From}"/>
+                                                <Run Text=" invited you to play "/>
+                                                <Run Text="{Binding GameName}"/>
+                                                <Run Text=" "/>
+                                                <Run Text="{Binding Platform}"/>
+                                                <Run Text=" "/>
+                                                <Run Text="{Binding ConnectionType}"/>
                                             </TextBlock>
                                         </StackPanel>
                                         <Button Grid.Column="1" Classes="btn-success"

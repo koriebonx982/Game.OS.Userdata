@@ -495,7 +495,8 @@ public partial class SettingsViewModel : ViewModelBase
                 Arguments    = string.IsNullOrWhiteSpace(row.Arguments) ? "{rom}" : row.Arguments,
                 EmulatorName = row.EmulatorName,
                 Enabled      = row.Enabled,
-                SaveDataPath = row.SaveDataPath,
+                SaveDataPath   = row.SaveDataPath,
+                XeniaProfileId = row.XeniaProfileId.Trim(),
             }).ToList();
             EmulatorSettingsService.SaveAll(group.Platform, list);
         }
@@ -702,16 +703,18 @@ public partial class EmulatorRowVm : ViewModelBase
     [ObservableProperty] private string _arguments    = "{rom}";
     [ObservableProperty] private string _emulatorName = "";
     [ObservableProperty] private bool   _enabled      = true;
-    [ObservableProperty] private string _saveDataPath = "";
+    [ObservableProperty] private string _saveDataPath   = "";
+    [ObservableProperty] private string _xeniaProfileId = "";
 
     public EmulatorRowVm(string platform, EmulatorSettings settings)
     {
-        Platform     = platform;
-        EmulatorPath = settings.EmulatorPath;
-        Arguments    = settings.Arguments;
-        EmulatorName = settings.EmulatorName;
-        Enabled      = settings.Enabled;
-        SaveDataPath = settings.SaveDataPath;
+        Platform       = platform;
+        EmulatorPath   = settings.EmulatorPath;
+        Arguments      = settings.Arguments;
+        EmulatorName   = settings.EmulatorName;
+        Enabled        = settings.Enabled;
+        SaveDataPath   = settings.SaveDataPath;
+        XeniaProfileId = settings.XeniaProfileId;
     }
 }
 

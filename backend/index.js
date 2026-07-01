@@ -1628,7 +1628,7 @@ app.get('/api/get-messages', async (req, res) => {
 // to send a game invite to any registered user.
 app.post('/api/send-invite', authenticatePublicOrUserToken, async (req, res) => {
     try {
-        const { toUsername, gameName, inviteId } = req.body;
+        const { toUsername, gameName, platform, connectionType, inviteId } = req.body;
         if (!toUsername || !gameName || !gameName.trim()) {
             return res.status(400).json({ success: false, message: 'toUsername and gameName are required' });
         }
@@ -1652,6 +1652,8 @@ app.post('/api/send-invite', authenticatePublicOrUserToken, async (req, res) => 
             inviteId: id,
             from:     fromName,
             gameName: gameName.trim(),
+            platform: typeof platform === 'string' ? platform.trim() : '',
+            connectionType: typeof connectionType === 'string' ? connectionType.trim() : '',
             sentAt:   new Date().toISOString(),
             status:   'pending'
         });
