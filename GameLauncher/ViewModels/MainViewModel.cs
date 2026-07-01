@@ -193,6 +193,35 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsFriendsOrInbox));
     }
 
+    private void TryLaunchAcceptedInvite(GameInvite invite)
+    {
+        if (invite == null || string.IsNullOrWhiteSpace(invite.GameName))
+            return;
+
+        string invitePlatform = string.IsNullOrWhiteSpace(invite.Platform) ? "PC" : invite.Platform;
+        string targetPlatform = PlatformHelper.NormalizePlatform(invitePlatform);
+        string targetTitleKey = PlatformHelper.NormalizeTitleForComparison(invite.GameName);
+
+        var card = GetDashboardCards().FirstOrDefault(c =>
+        {
+            string cardPlatform = PlatformHelper.NormalizePlatform(c.Platform);
+            string cardTitle = string.IsNullOrWhiteSpace(c.EffectiveTitle) ? c.Title : c.EffectiveTitle;
+            return string.Equals(cardPlatform, targetPlatform, StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(
+                       PlatformHelper.NormalizeTitleForComparison(cardTitle),
+                       targetTitleKey,
+                       StringComparison.OrdinalIgnoreCase);
+        });
+
+        if (card == null)
+        {
+            Navigate("library");
+            return;
+        }
+
+        LaunchFromCard(card);
+    }
+
     public MainViewModel()
     {
         _client       = new GameOsClient();
@@ -1950,34 +1979,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             DetailVm.LoadFromLocalGame(card.SourceGame, cloudPlaytime);
         }
 
-        private void TryLaunchAcceptedInvite(GameInvite invite)
-        {
-            if (invite == null || string.IsNullOrWhiteSpace(invite.GameName))
-                return;
-
-            string invitePlatform = string.IsNullOrWhiteSpace(invite.Platform) ? "PC" : invite.Platform;
-            string targetPlatform = PlatformHelper.NormalizePlatform(invitePlatform);
-            string targetTitleKey = PlatformHelper.NormalizeTitleForComparison(invite.GameName);
-
-            var card = GetDashboardCards().FirstOrDefault(c =>
-            {
-                string cardPlatform = PlatformHelper.NormalizePlatform(c.Platform);
-                string cardTitle = string.IsNullOrWhiteSpace(c.EffectiveTitle) ? c.Title : c.EffectiveTitle;
-                return string.Equals(cardPlatform, targetPlatform, StringComparison.OrdinalIgnoreCase) &&
-                       string.Equals(
-                           PlatformHelper.NormalizeTitleForComparison(cardTitle),
-                           targetTitleKey,
-                           StringComparison.OrdinalIgnoreCase);
-            });
-
-            if (card == null)
-            {
-                Navigate("library");
-                return;
-            }
-
-            LaunchFromCard(card);
-        }
         else if (card.SourceRom != null)
         {
             DetailVm.LoadFromLocalRom(card.SourceRom);
