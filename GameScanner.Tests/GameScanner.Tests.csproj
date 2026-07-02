@@ -16,5 +16,8 @@
     <Compile Include="../GameLauncher/Services/SwitchTranslateService.cs" />
     <Compile Include="../GameLauncher/Services/SwitchAchievementDetectorService.cs" />
     <Compile Include="../GameLauncher/Services/SwitchLogReaderService.cs" />
+    <Compile Include="../GameLauncher/Services/UserDataService.cs" />
+    <Compile Include="../GameLauncher/Services/StorageHelpers.cs" />
+    <Compile Include="../GameLauncher/Services/LudusaviService.cs" />
   </ItemGroup>
 </Project>

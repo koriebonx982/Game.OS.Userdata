@@ -611,6 +611,20 @@ namespace GameLauncher.Models
         /// Stored locally only; never uploaded to the cloud.
         /// </summary>
         [JsonPropertyName("ludusaviPath")] public string LudusaviPath { get; set; } = "";
+
+        /// <summary>
+        /// When <see langword="true"/> (default), backup/restore operations require
+        /// an explicit user confirmation (native prompt when available, otherwise
+        /// an in-app fallback confirmation).
+        /// </summary>
+        [JsonPropertyName("requireCloudSaveConfirmation")] public bool RequireCloudSaveConfirmation { get; set; } = true;
+
+        /// <summary>
+        /// When <see langword="true"/> (default), Game.OS falls back to an in-app
+        /// second-tap confirmation when native confirmation UI is unavailable.
+        /// Disable only when you want native-confirmation-only behavior.
+        /// </summary>
+        [JsonPropertyName("allowCloudSaveInAppFallbackConfirmation")] public bool AllowCloudSaveInAppFallbackConfirmation { get; set; } = true;
     }
 
     // ── Game launch settings (saved locally per game title) ───────────────────

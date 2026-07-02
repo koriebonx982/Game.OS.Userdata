@@ -1240,6 +1240,7 @@ public partial class GameDetailViewModel : ViewModelBase
                 Services.LudusaviService.ResultKind.Synced       => "✓ Saves synced",
                 Services.LudusaviService.ResultKind.NoSaveFound  => "No saves found for this game",
                 Services.LudusaviService.ResultKind.NotInstalled => "Ludusavi not found — set the path in Settings",
+                Services.LudusaviService.ResultKind.Cancelled    => result.Message,
                 Services.LudusaviService.ResultKind.Error        => $"Sync failed: {result.Message}",
                 _                                                 => "Unknown sync result",
             };
@@ -1294,6 +1295,7 @@ public partial class GameDetailViewModel : ViewModelBase
                 Services.LudusaviService.ResultKind.Synced       => "✓ Saves restored",
                 Services.LudusaviService.ResultKind.NoSaveFound  => "No backup found for this game",
                 Services.LudusaviService.ResultKind.NotInstalled => "Ludusavi not found — set the path in Settings",
+                Services.LudusaviService.ResultKind.Cancelled    => result.Message,
                 Services.LudusaviService.ResultKind.Error        => $"Restore failed: {result.Message}",
                 _                                                 => "Unknown restore result",
             };

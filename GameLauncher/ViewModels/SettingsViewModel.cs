@@ -486,6 +486,8 @@ public partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private void Save()
     {
+        var existingAppSettings = AppSettingsService.Load();
+
         foreach (var group in EmulatorGroups)
         {
             var list = group.Emulators.Select(row => new EmulatorSettings
@@ -537,6 +539,8 @@ public partial class SettingsViewModel : ViewModelBase
             LogRepacksScannerAdvanced = LogRepacksScannerAdvanced,
             LogLocalSteamScanner      = LogLocalSteamScanner,
             LogSteamApiScanner        = LogSteamApiScanner,
+            RequireCloudSaveConfirmation = existingAppSettings.RequireCloudSaveConfirmation,
+            AllowCloudSaveInAppFallbackConfirmation = existingAppSettings.AllowCloudSaveInAppFallbackConfirmation,
             StartupApps           = StartupApps.Select(r => new Models.StartupAppEntry
             {
                 Label     = r.Label,

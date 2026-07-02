@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
@@ -29,10 +30,12 @@ namespace GameLauncher.Services
 
         /// <summary>Maximum time to wait for a single ludusavi backup operation.</summary>
         private static readonly TimeSpan BackupTimeout = TimeSpan.FromMinutes(5);
+        private static readonly TimeSpan ApprovalFallbackWindow = TimeSpan.FromSeconds(20);
+        private static readonly ConcurrentDictionary<string, DateTimeOffset> PendingApprovalTokens = new();
 
         // ── Result discriminated union ─────────────────────────────────────────
 
-        public enum ResultKind { Synced, NoSaveFound, NotInstalled, Error }
+        public enum ResultKind { Synced, NoSaveFound, NotInstalled, Cancelled, Error }
 
         public sealed class LudusaviResult
         {
@@ -48,9 +51,18 @@ namespace GameLauncher.Services
             public static LudusaviResult Synced       => new(ResultKind.Synced,       "");
             public static LudusaviResult NoSaveFound  => new(ResultKind.NoSaveFound,  "");
             public static LudusaviResult NotInstalled => new(ResultKind.NotInstalled, "");
+            public static LudusaviResult Cancelled(string msg = "Operation cancelled.") =>
+                new(ResultKind.Cancelled, msg);
             public static LudusaviResult Error(string msg) =>
                 new(ResultKind.Error, msg ?? "Unknown error");
         }
+
+        /// <summary>
+        /// Optional platform-native confirmation callback.
+        /// Return <see langword="true"/> to approve, <see langword="false"/> to deny,
+        /// or <see langword="null"/> when native confirmation is unavailable.
+        /// </summary>
+        public static Func<string, string, Task<bool?>>? RequestNativeConfirmationAsync { get; set; }
 
         // ── Public API ─────────────────────────────────────────────────────────
 
@@ -65,6 +77,9 @@ namespace GameLauncher.Services
             if (!string.IsNullOrWhiteSpace(settings.LudusaviPath)
                 && File.Exists(settings.LudusaviPath))
                 return settings.LudusaviPath.Trim();
+
+            if (!string.IsNullOrWhiteSpace(settings.LudusaviPath))
+                DevLogService.Log($"[Ludusavi] Configured executable not found: {settings.LudusaviPath}");
 
             // Fall back to relying on PATH
             return "ludusavi";
@@ -101,6 +116,10 @@ namespace GameLauncher.Services
 
             if (string.IsNullOrWhiteSpace(gameTitle))
                 return LudusaviResult.Error("Game title is required.");
+
+            var approval = await EnsureOperationApprovedAsync("backup", platform, gameTitle, username);
+            if (!approval.Approved)
+                return LudusaviResult.Cancelled(approval.Message);
 
             // Build the per-user per-game save path and ensure the directory exists
             string platformSavesRoot = UserDataService.GetGameSavesPath(username, platform);
@@ -163,6 +182,10 @@ namespace GameLauncher.Services
             if (string.IsNullOrWhiteSpace(gameTitle))
                 return LudusaviResult.Error("Game title is required.");
 
+            var approval = await EnsureOperationApprovedAsync("restore", platform, gameTitle, username);
+            if (!approval.Approved)
+                return LudusaviResult.Cancelled(approval.Message);
+
             // Locate the Game.OS backup folder for this game
             string platformSavesRoot = UserDataService.GetGameSavesPath(username, platform);
             string safeGameTitle     = StorageHelpers.SanitiseName(gameTitle);
@@ -202,19 +225,7 @@ namespace GameLauncher.Services
             string gameTitle, string gameSavePath)
         {
             string ludusaviExe = GetLudusaviExePath();
-
-            // Build arguments: backup --path "<savePath>" "<gameTitle>"
-            string args = $"backup --path \"{EscapeArg(gameSavePath)}\" \"{EscapeArg(gameTitle)}\"";
-
-            var psi = new ProcessStartInfo
-            {
-                FileName               = ludusaviExe,
-                Arguments              = args,
-                UseShellExecute        = false,
-                CreateNoWindow         = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-            };
+            var psi = CreateLudusaviStartInfo(ludusaviExe, "backup", gameSavePath, gameTitle, force: false);
 
             try
             {
@@ -244,9 +255,11 @@ namespace GameLauncher.Services
                 int    exitCode = proc.ExitCode;
 
                 DevLogService.Log(
-                    $"[Ludusavi] exit={exitCode} game=\"{gameTitle}\" path=\"{gameSavePath}\"" +
-                    (string.IsNullOrWhiteSpace(stdout) ? "" : $"\n  stdout: {stdout.Trim()}") +
-                    (string.IsNullOrWhiteSpace(stderr) ? "" : $"\n  stderr: {stderr.Trim()}"));
+                    $"[Ludusavi] command=\"{psi.FileName}\" args=\"{string.Join(" ", psi.ArgumentList)}\" cwd=\"{psi.WorkingDirectory}\"");
+                DevLogService.Log(
+                    $"[Ludusavi] backup exit={exitCode} game=\"{gameTitle}\" path=\"{gameSavePath}\"" +
+                    (string.IsNullOrWhiteSpace(stdout) ? "" : $"\n  stdout: {SummarizeOutput(stdout)}") +
+                    (string.IsNullOrWhiteSpace(stderr) ? "" : $"\n  stderr: {SummarizeOutput(stderr)}"));
 
                 if (exitCode == 0)
                 {
@@ -269,7 +282,7 @@ namespace GameLauncher.Services
                 if (detail.Length > 200)
                     detail = detail[..200] + "…";
 
-                return LudusaviResult.Error(detail);
+                return LudusaviResult.Error($"Backup failed ({ClassifyFailure(detail)}): {detail}");
             }
             catch (Exception ex) when (
                 ex is System.ComponentModel.Win32Exception ||
@@ -280,11 +293,11 @@ namespace GameLauncher.Services
             }
             catch (OperationCanceledException)
             {
-                return LudusaviResult.Error($"Sync timed out after {BackupTimeout.TotalMinutes:0} minutes.");
+                return LudusaviResult.Error($"Backup timed out after {BackupTimeout.TotalMinutes:0} minutes.");
             }
             catch (Exception ex)
             {
-                return LudusaviResult.Error(ex.Message);
+                return LudusaviResult.Error($"Backup failed ({ClassifyFailure(ex.Message)}): {ex.Message}");
             }
         }
 
@@ -296,18 +309,7 @@ namespace GameLauncher.Services
             string gameTitle, string gameSavePath)
         {
             string ludusaviExe = GetLudusaviExePath();
-
-            string args = $"restore --force --path \"{EscapeArg(gameSavePath)}\" \"{EscapeArg(gameTitle)}\"";
-
-            var psi = new ProcessStartInfo
-            {
-                FileName               = ludusaviExe,
-                Arguments              = args,
-                UseShellExecute        = false,
-                CreateNoWindow         = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-            };
+            var psi = CreateLudusaviStartInfo(ludusaviExe, "restore", gameSavePath, gameTitle, force: true);
 
             try
             {
@@ -336,9 +338,11 @@ namespace GameLauncher.Services
                 int    exitCode = proc.ExitCode;
 
                 DevLogService.Log(
+                    $"[Ludusavi] command=\"{psi.FileName}\" args=\"{string.Join(" ", psi.ArgumentList)}\" cwd=\"{psi.WorkingDirectory}\"");
+                DevLogService.Log(
                     $"[Ludusavi] restore exit={exitCode} game=\"{gameTitle}\" path=\"{gameSavePath}\"" +
-                    (string.IsNullOrWhiteSpace(stdout) ? "" : $"\n  stdout: {stdout.Trim()}") +
-                    (string.IsNullOrWhiteSpace(stderr) ? "" : $"\n  stderr: {stderr.Trim()}"));
+                    (string.IsNullOrWhiteSpace(stdout) ? "" : $"\n  stdout: {SummarizeOutput(stdout)}") +
+                    (string.IsNullOrWhiteSpace(stderr) ? "" : $"\n  stderr: {SummarizeOutput(stderr)}"));
 
                 if (exitCode == 0)
                 {
@@ -358,7 +362,7 @@ namespace GameLauncher.Services
                 if (detail.Length > 200)
                     detail = detail[..200] + "…";
 
-                return LudusaviResult.Error(detail);
+                return LudusaviResult.Error($"Restore failed ({ClassifyFailure(detail)}): {detail}");
             }
             catch (Exception ex) when (
                 ex is System.ComponentModel.Win32Exception ||
@@ -373,8 +377,130 @@ namespace GameLauncher.Services
             }
             catch (Exception ex)
             {
-                return LudusaviResult.Error(ex.Message);
+                return LudusaviResult.Error($"Restore failed ({ClassifyFailure(ex.Message)}): {ex.Message}");
             }
+        }
+
+        private static ProcessStartInfo CreateLudusaviStartInfo(
+            string ludusaviExe,
+            string action,
+            string gameSavePath,
+            string gameTitle,
+            bool force)
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName               = ludusaviExe,
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                WorkingDirectory       = ResolveWorkingDirectory(ludusaviExe),
+            };
+
+            psi.ArgumentList.Add(action);
+            if (force) psi.ArgumentList.Add("--force");
+            psi.ArgumentList.Add("--path");
+            psi.ArgumentList.Add(gameSavePath);
+            psi.ArgumentList.Add(gameTitle);
+            return psi;
+        }
+
+        private static string ResolveWorkingDirectory(string ludusaviExe)
+        {
+            try
+            {
+                if (Path.IsPathRooted(ludusaviExe))
+                {
+                    string? configuredDir = Path.GetDirectoryName(ludusaviExe);
+                    if (!string.IsNullOrWhiteSpace(configuredDir) && Directory.Exists(configuredDir))
+                        return configuredDir;
+                }
+            }
+            catch { /* best-effort */ }
+
+            return AppContext.BaseDirectory;
+        }
+
+        private static async Task<(bool Approved, string Message)> EnsureOperationApprovedAsync(
+            string operation,
+            string platform,
+            string gameTitle,
+            string username)
+        {
+            string label = operation.Equals("restore", StringComparison.OrdinalIgnoreCase) ? "restore" : "backup";
+            string key = $"{username}|{platform}|{gameTitle}|{label}".ToLowerInvariant();
+            string title = label == "restore" ? "Restore cloud save" : "Backup cloud save";
+            string prompt = $"{title} for '{gameTitle}' on {platform}?";
+            var settings = AppSettingsService.Load();
+
+            if (!settings.RequireCloudSaveConfirmation)
+            {
+                DevLogService.Log($"[Ludusavi] {label} auto-approved by settings.");
+                PendingApprovalTokens.TryRemove(key, out _);
+                return (true, "");
+            }
+
+            if (RequestNativeConfirmationAsync != null)
+            {
+                try
+                {
+                    bool? native = await RequestNativeConfirmationAsync(title, prompt);
+                    if (native.HasValue)
+                    {
+                        PendingApprovalTokens.TryRemove(key, out _);
+                        DevLogService.Log($"[Ludusavi] native confirmation result for {label}: {native.Value}");
+                        return native.Value
+                            ? (true, "")
+                            : (false, "Cloud save operation was cancelled by the user.");
+                    }
+
+                    DevLogService.Log($"[Ludusavi] native confirmation unavailable for {label}; trying fallback.");
+                }
+                catch (Exception ex)
+                {
+                    DevLogService.Log($"[Ludusavi] native confirmation failed for {label}: {ex.Message}. Trying fallback.");
+                }
+            }
+
+            if (!settings.AllowCloudSaveInAppFallbackConfirmation)
+            {
+                PendingApprovalTokens.TryRemove(key, out _);
+                return (false, "Cloud save confirmation is required, but no native confirmation UI is available.");
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            if (PendingApprovalTokens.TryGetValue(key, out var expiresAt) && expiresAt >= now)
+            {
+                PendingApprovalTokens.TryRemove(key, out _);
+                DevLogService.Log($"[Ludusavi] fallback confirmation approved for {label}.");
+                return (true, "");
+            }
+
+            PendingApprovalTokens[key] = now.Add(ApprovalFallbackWindow);
+            return (false, $"Confirm {label}: run the action again within {ApprovalFallbackWindow.TotalSeconds:0} seconds.");
+        }
+
+        private static string ClassifyFailure(string detail)
+        {
+            if (string.IsNullOrWhiteSpace(detail)) return "unknown";
+            string lower = detail.ToLowerInvariant();
+            if (lower.Contains("permission") || lower.Contains("access is denied") || lower.Contains("unauthorized"))
+                return "permission";
+            if (lower.Contains("no such file") || lower.Contains("not found"))
+                return "path";
+            if (lower.Contains("timeout"))
+                return "timeout";
+            if (lower.Contains("manifest") || lower.Contains("no games found") || lower.Contains("no known game saves"))
+                return "game-not-found";
+            return "process";
+        }
+
+        private static string SummarizeOutput(string output)
+        {
+            if (string.IsNullOrWhiteSpace(output)) return "";
+            string trimmed = output.Trim();
+            return trimmed.Length <= 300 ? trimmed : trimmed[..300] + "…";
         }
 
         /// <summary>
@@ -437,49 +563,5 @@ namespace GameLauncher.Services
                 || lower.Contains("no known game saves");
         }
 
-        /// <summary>
-        /// Escapes a value for safe inclusion as a double-quoted Windows command-line argument.
-        /// Follows the Windows CRT quoting rules so that backslashes immediately before a
-        /// double-quote (or at the trailing end of the string, where they would precede the
-        /// closing <c>"</c>) are properly doubled.
-        /// </summary>
-        private static string EscapeArg(string value)
-        {
-            // Implementation follows the standard Windows command-line quoting algorithm:
-            //   - N backslashes followed by '"'   → 2N backslashes + '\"'
-            //   - N backslashes at end of string  → 2N backslashes  (they precede closing '"')
-            //   - Other characters pass through unchanged.
-            var sb = new StringBuilder(value.Length + 4);
-            int backslashCount = 0;
-
-            foreach (char c in value)
-            {
-                if (c == '\\')
-                {
-                    backslashCount++;
-                }
-                else if (c == '"')
-                {
-                    // Double all accumulated backslashes, then escape the quote
-                    sb.Append('\\', backslashCount * 2);
-                    backslashCount = 0;
-                    sb.Append('\\');
-                    sb.Append('"');
-                }
-                else
-                {
-                    if (backslashCount > 0)
-                    {
-                        sb.Append('\\', backslashCount);
-                        backslashCount = 0;
-                    }
-                    sb.Append(c);
-                }
-            }
-
-            // Trailing backslashes precede the closing '"' — must be doubled
-            sb.Append('\\', backslashCount * 2);
-            return sb.ToString();
-        }
     }
 }

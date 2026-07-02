@@ -785,7 +785,10 @@
                                 Set the path to your ludusavi executable so Game.OS can sync game saves
                                 per user profile. Saves are backed up to
                                 Data/{UserName}/GameSaves/{Platform}/{GameTitle}/. Leave blank to use
-                                ludusavi from the system PATH. Path is stored locally only.
+                                ludusavi from the system PATH. Path is stored locally only. Cloud-save
+                                approvals use native confirmation when available, then an in-app fallback.
+                                Advanced flags: requireCloudSaveConfirmation and
+                                allowCloudSaveInAppFallbackConfirmation in appsettings.json.
                             </TextBlock>
                              <StackPanel Spacing="6">
                                  <TextBlock Text="Ludusavi Executable Path"

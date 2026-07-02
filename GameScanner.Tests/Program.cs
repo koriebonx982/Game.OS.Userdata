@@ -467,6 +467,13 @@ class Program
         if (!switchLogParsePassed) passed = false;
         Console.WriteLine();
 
+        // ── LUDUSAVI APPROVAL + PROCESS FLOW ─────────────────────────────────
+        Console.WriteLine("☁ Ludusavi confirmation and process flow:");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool ludusaviFlowPassed = await TestLudusaviFlowAsync();
+        if (!ludusaviFlowPassed) passed = false;
+        Console.WriteLine();
+
         // ── SUMMARY ───────────────────────────────────────────────────────────
         Console.WriteLine("═══════════════════════════════════════════════════════════════");
         if (passed)
@@ -1879,5 +1886,154 @@ class Program
             dir = Path.GetDirectoryName(dir);
         }
         return Directory.GetCurrentDirectory();
+    }
+
+    private static async Task<bool> TestLudusaviFlowAsync()
+    {
+        bool passed = true;
+        string tempRoot = Path.Combine(Path.GetTempPath(), "GameOS_LudusaviFlow_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+
+        string okScript = CreateLudusaviMockExecutable(tempRoot, fail: false);
+        string failScript = CreateLudusaviMockExecutable(tempRoot, fail: true);
+
+        var originalSettings = AppSettingsService.Load();
+        var originalConfirmHandler = LudusaviService.RequestNativeConfirmationAsync;
+
+        try
+        {
+            string username = "LudusaviTestUser";
+            string platform = "PC";
+            string gameTitle = "Test Game";
+
+            // 1) Native confirm available: deny
+            AppSettingsService.Save(new AppSettings
+            {
+                LudusaviPath = okScript,
+                RequireCloudSaveConfirmation = true,
+                AllowCloudSaveInAppFallbackConfirmation = true
+            });
+            LudusaviService.RequestNativeConfirmationAsync = (_, _) => Task.FromResult<bool?>(false);
+            var denied = await LudusaviService.SyncAsync(platform, gameTitle, username, sourceOverridePath: tempRoot);
+            if (denied.Kind == LudusaviService.ResultKind.Cancelled)
+                Console.WriteLine("  ✅  Native confirmation deny returns Cancelled");
+            else
+            {
+                Console.WriteLine($"  ❌  Expected Cancelled on native deny, got {denied.Kind}");
+                passed = false;
+            }
+
+            // 2) Native confirm unavailable: in-app fallback should require retry, then approve
+            LudusaviService.RequestNativeConfirmationAsync = (_, _) => Task.FromResult<bool?>(null);
+            var fallbackStep1 = await LudusaviService.SyncAsync(platform, gameTitle, username, sourceOverridePath: tempRoot);
+            var fallbackStep2 = await LudusaviService.SyncAsync(platform, gameTitle, username, sourceOverridePath: tempRoot);
+            if (fallbackStep1.Kind == LudusaviService.ResultKind.Cancelled && fallbackStep2.Kind == LudusaviService.ResultKind.Synced)
+                Console.WriteLine("  ✅  Native unavailable fallback requires second confirmation and then proceeds");
+            else
+            {
+                Console.WriteLine($"  ❌  Fallback confirmation unexpected results: step1={fallbackStep1.Kind}, step2={fallbackStep2.Kind}");
+                passed = false;
+            }
+
+            // 3) Process success/failure mapping (no confirmation gate)
+            AppSettingsService.Save(new AppSettings
+            {
+                LudusaviPath = okScript,
+                RequireCloudSaveConfirmation = false,
+                AllowCloudSaveInAppFallbackConfirmation = true
+            });
+            LudusaviService.RequestNativeConfirmationAsync = null;
+            var backupSuccess = await LudusaviService.SyncAsync(platform, "Process Success", username);
+            if (backupSuccess.Kind == LudusaviService.ResultKind.Synced)
+                Console.WriteLine("  ✅  Ludusavi backup process success returns Synced");
+            else
+            {
+                Console.WriteLine($"  ❌  Expected Synced for successful backup process, got {backupSuccess.Kind}: {backupSuccess.Message}");
+                passed = false;
+            }
+
+            AppSettingsService.Save(new AppSettings
+            {
+                LudusaviPath = failScript,
+                RequireCloudSaveConfirmation = false,
+                AllowCloudSaveInAppFallbackConfirmation = true
+            });
+            var backupFailure = await LudusaviService.SyncAsync(platform, "Process Failure", username);
+            if (backupFailure.Kind == LudusaviService.ResultKind.Error)
+                Console.WriteLine("  ✅  Ludusavi backup process failure returns Error");
+            else
+            {
+                Console.WriteLine($"  ❌  Expected Error for failed backup process, got {backupFailure.Kind}");
+                passed = false;
+            }
+
+            string restoreTitle = "Restore Process Success";
+            string restoreDir = Path.Combine(UserDataService.GetGameSavesPath(username, platform), "Restore Process Success");
+            Directory.CreateDirectory(restoreDir);
+            File.WriteAllText(Path.Combine(restoreDir, "save.dat"), "ok");
+
+            AppSettingsService.Save(new AppSettings
+            {
+                LudusaviPath = okScript,
+                RequireCloudSaveConfirmation = false,
+                AllowCloudSaveInAppFallbackConfirmation = true
+            });
+            var restoreSuccess = await LudusaviService.RestoreAsync(platform, restoreTitle, username);
+            if (restoreSuccess.Kind == LudusaviService.ResultKind.Synced)
+                Console.WriteLine("  ✅  Ludusavi restore process success returns Synced");
+            else
+            {
+                Console.WriteLine($"  ❌  Expected Synced for successful restore process, got {restoreSuccess.Kind}: {restoreSuccess.Message}");
+                passed = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ❌  Ludusavi flow test threw: {ex.Message}");
+            passed = false;
+        }
+        finally
+        {
+            LudusaviService.RequestNativeConfirmationAsync = originalConfirmHandler;
+            AppSettingsService.Save(originalSettings);
+            try { Directory.Delete(tempRoot, true); } catch { }
+        }
+
+        return passed;
+    }
+
+    private static string CreateLudusaviMockExecutable(string root, bool fail)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            string path = Path.Combine(root, fail ? "ludusavi-fail.cmd" : "ludusavi-ok.cmd");
+            File.WriteAllText(path,
+                fail
+                    ? "@echo off\r\necho mock failure 1>&2\r\nexit /b 1\r\n"
+                    : "@echo off\r\necho mock success\r\nexit /b 0\r\n");
+            return path;
+        }
+
+        string scriptPath = Path.Combine(root, fail ? "ludusavi-fail.sh" : "ludusavi-ok.sh");
+        File.WriteAllText(scriptPath,
+            fail
+                ? "#!/usr/bin/env bash\necho 'mock failure' >&2\nexit 1\n"
+                : "#!/usr/bin/env bash\necho 'mock success'\nexit 0\n");
+
+        try
+        {
+            using var chmod = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "chmod",
+                ArgumentList = { "+x", scriptPath },
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            });
+            chmod?.WaitForExit();
+        }
+        catch { /* best-effort */ }
+
+        return scriptPath;
     }
 }
