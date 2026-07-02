@@ -557,6 +557,8 @@ public partial class DashboardViewModel : ViewModelBase
     public Action<LocalGameCardVm>? OnOpenFocusedCardDetail { get; set; }
     /// <summary>Invoked when the user navigates to the All Games / Library page.</summary>
     public Action? OnNavigateToLibrary { get; set; }
+    /// <summary>Invoked when the user navigates to a specific page (e.g. friends/inbox).</summary>
+    public Action<string>? OnNavigateToPage { get; set; }
 
     public void MoveFocus(int delta)
     {
@@ -621,6 +623,12 @@ public partial class DashboardViewModel : ViewModelBase
 
     [RelayCommand]
     private void NavigateToAllGames() => OnNavigateToLibrary?.Invoke();
+
+    [RelayCommand]
+    private void NavigateToFriends() => OnNavigateToPage?.Invoke("friends");
+
+    [RelayCommand]
+    private void NavigateToInbox() => OnNavigateToPage?.Invoke("inbox");
 
     // ── XB360 blade navigation ────────────────────────────────────────────────
     private static readonly string[] Xb360Blades = { "mygames", "social", "games", "settings" };

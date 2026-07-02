@@ -46,6 +46,13 @@
                        Foreground="#f85149" FontSize="13"/>
         </Border>
 
+        <Border Background="#132238" CornerRadius="6" Padding="14,10"
+                Margin="0,0,0,16"
+                IsVisible="{Binding InviteStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Text="{Binding InviteStatusMessage}"
+                       Foreground="#58a6ff" FontSize="13"/>
+        </Border>
+
         <!-- ── Recent Activity Feed ── -->
         <StackPanel IsVisible="False" Margin="0,0,0,24">
             <TextBlock Text="Recent Activity" Classes="section-header" Margin="0,0,0,10"/>
@@ -260,13 +267,36 @@
                                         CommandParameter="{Binding Username}">
                                     👤 Profile
                                 </Button>
-                                <!-- Message button -->
+                                <!-- Friend actions (Invite / Message / View) -->
                                 <Button Grid.Column="3" Classes="btn-secondary"
                                         Padding="12,7" VerticalAlignment="Center"
                                         Margin="0,0,8,0"
-                                        Command="{Binding $parent[UserControl].DataContext.OpenConversationCommand}"
-                                        CommandParameter="{Binding Username}">
-                                    💬
+                                        ToolTip.Tip="Friend actions">
+                                    ⋯
+                                    <Button.Flyout>
+                                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                            <MenuItem Header="Invite">
+                                                <MenuItem Header="Crossplay"
+                                                          Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                          CommandParameter="{Binding Username, StringFormat='{}{0}|Crossplay'}"/>
+                                                <MenuItem Header="Radmin"
+                                                          Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                          CommandParameter="{Binding Username, StringFormat='{}{0}|Radmin'}"/>
+                                                <MenuItem Header="OnlineFix"
+                                                          Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                          CommandParameter="{Binding Username, StringFormat='{}{0}|OnlineFix'}"/>
+                                                <MenuItem Header="Steam"
+                                                          Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                          CommandParameter="{Binding Username, StringFormat='{}{0}|Steam'}"/>
+                                            </MenuItem>
+                                            <MenuItem Header="Message"
+                                                      Command="{Binding $parent[UserControl].DataContext.OpenConversationCommand}"
+                                                      CommandParameter="{Binding Username}"/>
+                                            <MenuItem Header="View"
+                                                      Command="{Binding $parent[UserControl].DataContext.ViewFriendProfileCommand}"
+                                                      CommandParameter="{Binding Username}"/>
+                                        </MenuFlyout>
+                                    </Button.Flyout>
                                 </Button>
                                 <!-- Manage IPs button -->
                                 <Button Grid.Column="4" Classes="btn-secondary"
@@ -393,14 +423,37 @@
                                         CommandParameter="{Binding Username}">
                                     👤 Profile
                                 </Button>
-                                <!-- Message button -->
+                                <!-- Friend actions (Invite / Message / View) -->
                                 <Button Grid.Column="3" Classes="btn-secondary"
                                         Padding="12,7" VerticalAlignment="Center"
                                         Margin="0,0,8,0"
                                         Opacity="0.7"
-                                        Command="{Binding $parent[UserControl].DataContext.OpenConversationCommand}"
-                                        CommandParameter="{Binding Username}">
-                                    💬
+                                        ToolTip.Tip="Friend actions">
+                                    ⋯
+                                    <Button.Flyout>
+                                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                            <MenuItem Header="Invite">
+                                                <MenuItem Header="Crossplay"
+                                                          Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                          CommandParameter="{Binding Username, StringFormat='{}{0}|Crossplay'}"/>
+                                                <MenuItem Header="Radmin"
+                                                          Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                          CommandParameter="{Binding Username, StringFormat='{}{0}|Radmin'}"/>
+                                                <MenuItem Header="OnlineFix"
+                                                          Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                          CommandParameter="{Binding Username, StringFormat='{}{0}|OnlineFix'}"/>
+                                                <MenuItem Header="Steam"
+                                                          Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                          CommandParameter="{Binding Username, StringFormat='{}{0}|Steam'}"/>
+                                            </MenuItem>
+                                            <MenuItem Header="Message"
+                                                      Command="{Binding $parent[UserControl].DataContext.OpenConversationCommand}"
+                                                      CommandParameter="{Binding Username}"/>
+                                            <MenuItem Header="View"
+                                                      Command="{Binding $parent[UserControl].DataContext.ViewFriendProfileCommand}"
+                                                      CommandParameter="{Binding Username}"/>
+                                        </MenuFlyout>
+                                    </Button.Flyout>
                                 </Button>
                                 <!-- Manage IPs button -->
                                 <Button Grid.Column="4" Classes="btn-secondary"

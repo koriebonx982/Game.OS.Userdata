@@ -158,16 +158,34 @@
                 <StackPanel Margin="32,20,32,20" Spacing="12" IsVisible="{Binding IsXb360SocialBlade}">
                     <TextBlock Text="Friends &amp; Social" Classes="xb360-strip-header"/>
                     <Border Classes="xb360-metro-tile xb360-metro-stat" Height="80">
-                        <StackPanel Margin="16,0" VerticalAlignment="Center">
+                        <Grid Margin="16,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
                             <TextBlock Text="Friends" Classes="xb360-metro-label" FontSize="14"/>
                             <TextBlock Text="Visit the Friends page to see who's online." Classes="xb360-achievement-desc"/>
-                        </StackPanel>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Classes="btn-secondary"
+                                    Padding="12,6"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding NavigateToFriendsCommand}">
+                                Open
+                            </Button>
+                        </Grid>
                     </Border>
                     <Border Classes="xb360-metro-tile xb360-metro-stat" Height="80">
-                        <StackPanel Margin="16,0" VerticalAlignment="Center">
+                        <Grid Margin="16,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
                             <TextBlock Text="Inbox" Classes="xb360-metro-label" FontSize="14"/>
                             <TextBlock Text="Check your messages and invites." Classes="xb360-achievement-desc"/>
-                        </StackPanel>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Classes="btn-secondary"
+                                    Padding="12,6"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding NavigateToInboxCommand}">
+                                Open
+                            </Button>
+                        </Grid>
                     </Border>
                 </StackPanel>
 

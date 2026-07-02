@@ -59,8 +59,8 @@ namespace GameLauncher.Services
             // RPCS3: same as PS3 platform default
             ["rpcs3"]          = new[] { "dev_hdd0", "home", "00000001", "savedata", "{titleId}" },
 
-            // Xenia: <saveRoot>/content/<profileId>/<titleId>/000100000/<profileId>/
-            ["xenia"]          = new[] { "content", "{profileId}", "{titleId}", "000100000", "{profileId}" },
+            // Xenia has multiple layouts (canary / legacy). Resolved via special-case logic.
+            ["xenia"]          = new[] { "{titleId}" },
 
             // Vita3K: same as PS Vita platform default
             ["vita3k"]         = new[] { "ux0", "user", "00", "savedata", "{titleId}" },
@@ -99,8 +99,20 @@ namespace GameLauncher.Services
             if (string.IsNullOrWhiteSpace(titleId))      return null;
 
             // Trim once and reuse throughout the method.
-            string safeRoot    = saveDataPath.Trim();
+            string safeRoot    = NormalizeSaveRoot(saveDataPath);
             string safeTitleId = titleId.Trim();
+            if (string.IsNullOrWhiteSpace(safeRoot)) return null;
+
+            // Xenia layouts vary by version/configuration:
+            //  - {saveRoot}/{titleId}/
+            //  - {saveRoot}/content/{profileId}/{titleId}/
+            //  - legacy: .../{titleId}/00000001 or .../000100000/{profileId}
+            // Prefer existing folders, then fall back to best guess.
+            if ((emulatorName ?? "").Contains("xenia", StringComparison.OrdinalIgnoreCase) ||
+                (platform ?? "").Contains("xbox 360", StringComparison.OrdinalIgnoreCase))
+            {
+                return ResolveXeniaPath(safeRoot, safeTitleId, profileId);
+            }
 
             string[] segments = ResolvePattern(platform, emulatorName);
             if (segments.Length == 0) return null;
@@ -131,6 +143,67 @@ namespace GameLauncher.Services
             }
 
             return Path.Combine(parts);
+        }
+
+        private static string NormalizeSaveRoot(string saveDataPath)
+        {
+            string root = (saveDataPath ?? "").Trim().Trim('"');
+            if (string.IsNullOrWhiteSpace(root)) return "";
+
+            // Users sometimes paste/select the emulator executable; use its folder instead.
+            if (LooksLikeExecutablePath(root))
+            {
+                string? dir = Path.GetDirectoryName(root);
+                if (!string.IsNullOrWhiteSpace(dir))
+                    return dir.Trim();
+            }
+
+            return root;
+        }
+
+        private static bool LooksLikeExecutablePath(string path)
+        {
+            string ext = Path.GetExtension(path) ?? "";
+            return ext.Equals(".exe", StringComparison.OrdinalIgnoreCase)
+                   || ext.Equals(".bat", StringComparison.OrdinalIgnoreCase)
+                   || ext.Equals(".cmd", StringComparison.OrdinalIgnoreCase)
+                   || ext.Equals(".sh", StringComparison.OrdinalIgnoreCase)
+                   || ext.Equals(".appimage", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string ResolveXeniaPath(string saveRoot, string titleId, string? profileId)
+        {
+            string safeProfileId = (profileId ?? "").Trim();
+            string directTitlePath = Path.Combine(saveRoot, titleId);
+            if (Directory.Exists(directTitlePath))
+                return directTitlePath;
+
+            string contentRoot = Path.Combine(saveRoot, "content");
+            if (!Directory.Exists(contentRoot))
+                return directTitlePath;
+
+            if (!string.IsNullOrWhiteSpace(safeProfileId))
+            {
+                string profileTitlePath = Path.Combine(contentRoot, safeProfileId, titleId);
+                if (Directory.Exists(profileTitlePath))
+                    return profileTitlePath;
+
+                string legacy00000001 = Path.Combine(profileTitlePath, "00000001");
+                if (Directory.Exists(legacy00000001))
+                    return legacy00000001;
+
+                string legacy000100000 = Path.Combine(profileTitlePath, "000100000", safeProfileId);
+                if (Directory.Exists(legacy000100000))
+                    return legacy000100000;
+
+                return profileTitlePath;
+            }
+
+            string? detectedProfile = TryDetectXeniaProfileId(saveRoot, titleId);
+            if (!string.IsNullOrWhiteSpace(detectedProfile))
+                return Path.Combine(contentRoot, detectedProfile, titleId);
+
+            return directTitlePath;
         }
 
         // ── Helpers ────────────────────────────────────────────────────────────

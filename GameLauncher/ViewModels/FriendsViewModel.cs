@@ -18,6 +18,8 @@ namespace GameLauncher.ViewModels;
 /// </summary>
 public partial class FriendsViewModel : ViewModelBase
 {
+    private const string InvitePayloadSeparator = "|";
+
     [ObservableProperty] private int    _onlineCount;
     [ObservableProperty] private int    _totalCount;
     [ObservableProperty] private bool   _isLoading  = false;
@@ -29,6 +31,7 @@ public partial class FriendsViewModel : ViewModelBase
     [ObservableProperty] private string _newMessageText     = "";
     [ObservableProperty] private bool   _isSendingMessage;
     [ObservableProperty] private string _messageError       = "";
+    [ObservableProperty] private string _inviteStatusMessage = "";
 
     // ── Friend IP management ──────────────────────────────────────────────────
     /// <summary>Username of the friend whose IP panel is currently expanded.</summary>
@@ -59,6 +62,10 @@ public partial class FriendsViewModel : ViewModelBase
 
     /// <summary>Invoked when the user clicks "View Profile" on a friend row.</summary>
     public System.Action<string>? OnViewFriendProfile { get; set; }
+    /// <summary>Invoked when the user sends a game invite from the Friends page.</summary>
+    public Func<string, string, string, string, Task<bool>>? OnInviteFriend { get; set; }
+    /// <summary>Supplies the current running game context (title + platform) for invites.</summary>
+    public Func<(string? GameTitle, string? Platform)>? OnResolveCurrentGameContext { get; set; }
 
     public void Load(GameOsClient client, string username)
     {
@@ -75,6 +82,7 @@ public partial class FriendsViewModel : ViewModelBase
     {
         IsLoading     = false;
         ErrorMessage  = "";
+        InviteStatusMessage = "";
 
         OnlineFriends.Clear();
         OfflineFriends.Clear();
@@ -194,6 +202,50 @@ public partial class FriendsViewModel : ViewModelBase
     {
         if (!string.IsNullOrEmpty(friendUsername))
             OnViewFriendProfile?.Invoke(friendUsername);
+    }
+
+    [RelayCommand]
+    private async Task InviteFriendViaConnection(string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload)) return;
+
+        string[] parts = payload.Split(InvitePayloadSeparator, 2, StringSplitOptions.TrimEntries);
+        if (parts.Length != 2) return;
+
+        await InviteFriendWithConnection(parts[0], parts[1]);
+    }
+
+    private async Task InviteFriendWithConnection(string friendUsername, string connectionType)
+    {
+        if (string.IsNullOrWhiteSpace(friendUsername) || string.IsNullOrWhiteSpace(connectionType))
+            return;
+
+        if (OnInviteFriend == null)
+        {
+            InviteStatusMessage = "Invite service is unavailable right now.";
+            return;
+        }
+
+        var context = OnResolveCurrentGameContext?.Invoke() ?? (null, null);
+        string gameName = (context.GameTitle ?? "").Trim();
+        string platform = string.IsNullOrWhiteSpace(context.Platform) ? "PC" : context.Platform.Trim();
+        if (string.IsNullOrWhiteSpace(gameName))
+        {
+            InviteStatusMessage = "Start a game first, then send an invite from Friends.";
+            return;
+        }
+
+        try
+        {
+            bool sent = await OnInviteFriend(friendUsername, gameName, platform, connectionType);
+            InviteStatusMessage = sent
+                ? $"Invite sent: {friendUsername} → {gameName} ({platform}, {connectionType})"
+                : "Invite was not sent.";
+        }
+        catch (Exception ex)
+        {
+            InviteStatusMessage = $"Invite failed: {ex.Message}";
+        }
     }
 
     // ── Friend IP commands ────────────────────────────────────────────────────
@@ -368,6 +420,7 @@ public partial class FriendsViewModel : ViewModelBase
 
         IsLoading    = true;
         ErrorMessage = "";
+        InviteStatusMessage = "";
 
         OnlineFriends.Clear();
         OfflineFriends.Clear();

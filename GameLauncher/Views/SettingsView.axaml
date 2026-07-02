@@ -489,7 +489,7 @@
                                                                                Foreground="#484f58"
                                                                                VerticalAlignment="Center"
                                                                                Margin="0,0,6,0"
-                                                                               ToolTip.Tip="Xenia user profile ID used to locate save files. Path: content/{XeniaID}/{TitleID}/000100000/{XeniaID}/  Example: E03000003D7E0695"/>
+                                                                               ToolTip.Tip="Xenia user profile ID used to locate save files. Typical path: content/{XeniaID}/{TitleID}/ (legacy layouts are also supported). Example: E03000003D7E0695"/>
                                                                     <TextBox Grid.Column="1"
                                                                              Classes="form-input"
                                                                              Text="{Binding XeniaProfileId}"

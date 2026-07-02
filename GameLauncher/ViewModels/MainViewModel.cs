@@ -660,6 +660,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         DashboardVm.OnOpenLocalDetail   = OpenDetailFromMyGameCard;
         DashboardVm.OnContinuePlaying   = LaunchFromCard;
         DashboardVm.OnNavigateToLibrary = () => Navigate("library");
+        DashboardVm.OnNavigateToPage    = Navigate;
         DashboardVm.OnPlayFocusedCard   = LaunchFromCard;
         DashboardVm.OnOpenFocusedCardDetail = OpenDetailFromMyGameCard;
         LibraryVm.OnOpenDetail        = OpenDetailFromGame;
@@ -669,6 +670,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         LibraryVm.OnOpenMyGameDetail  = OpenDetailFromMyGameCard;
         StoreVm.OnOpenDetail          = OpenDetailFromStoreGame;
         FriendsVm.OnViewFriendProfile = OpenFriendProfile;
+        FriendsVm.OnInviteFriend = async (friendUsername, gameName, platform, connectionType) =>
+        {
+            try
+            {
+                await _client.SendInviteAsync(friendUsername, gameName, platform, connectionType);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        };
+        FriendsVm.OnResolveCurrentGameContext = () => (
+            DetailVm.IsGameRunning ? DetailVm.Title : null,
+            DetailVm.IsGameRunning ? DetailVm.Platform : null
+        );
         InboxVm.OnViewFriendProfile   = OpenFriendProfile;
         InboxVm.OnInviteAccepted      = TryLaunchAcceptedInvite;
 
