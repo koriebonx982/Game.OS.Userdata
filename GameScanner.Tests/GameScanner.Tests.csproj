@@ -19,5 +19,6 @@
     <Compile Include="../GameLauncher/Services/UserDataService.cs" />
     <Compile Include="../GameLauncher/Services/StorageHelpers.cs" />
     <Compile Include="../GameLauncher/Services/LudusaviService.cs" />
+    <Compile Include="../GameLauncher/Services/EmulatorSavePathResolver.cs" />
   </ItemGroup>
 </Project>

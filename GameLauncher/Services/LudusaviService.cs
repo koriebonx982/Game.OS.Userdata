@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using GameLauncher.Models;
 
@@ -401,12 +402,47 @@ namespace GameLauncher.Services
                 WorkingDirectory       = ResolveWorkingDirectory(ludusaviExe),
             };
 
+            // Normalize the title before passing it to ludusavi so that games
+            // with trademark/registered symbols (e.g. "LEGO® The Lord of the
+            // Rings™") are still matched in ludusavi's manifest database.
+            string normalizedTitle = NormalizeTitleForLudusavi(gameTitle);
+
             psi.ArgumentList.Add(action);
             if (force) psi.ArgumentList.Add("--force");
             psi.ArgumentList.Add("--path");
             psi.ArgumentList.Add(gameSavePath);
-            psi.ArgumentList.Add(gameTitle);
+            psi.ArgumentList.Add(normalizedTitle);
             return psi;
+        }
+
+        /// <summary>
+        /// Strips decorative Unicode symbols commonly appended to game titles —
+        /// registered trademark (®), trademark (™), copyright (©) — and collapses
+        /// any resulting double spaces before returning the cleaned title.
+        ///
+        /// <para>
+        /// Ludusavi's manifest database uses clean titles without these symbols,
+        /// so passing the raw display title causes a "no info for these games"
+        /// lookup failure for titles like "LEGO® The Lord of the Rings™".
+        /// </para>
+        /// </summary>
+        internal static string NormalizeTitleForLudusavi(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title)) return title;
+
+            // Remove registered/trademark/copyright glyphs and their ASCII look-alikes.
+            string cleaned = title
+                .Replace("®", "")
+                .Replace("©", "")
+                .Replace("™", "")
+                .Replace("\u00AE", "")   // ® (latin-1)
+                .Replace("\u00A9", "")   // ©
+                .Replace("\u2122", "")   // ™
+                .Replace("\u2120", ""); // ℠ (service mark)
+
+            // Collapse any double-spaces left after removal and trim.
+            cleaned = Regex.Replace(cleaned, @"  +", " ").Trim();
+            return cleaned;
         }
 
         private static string ResolveWorkingDirectory(string ludusaviExe)

@@ -474,6 +474,20 @@ class Program
         if (!ludusaviFlowPassed) passed = false;
         Console.WriteLine();
 
+        // ── LUDUSAVI TITLE NORMALISATION ─────────────────────────────────────
+        Console.WriteLine("🏷  Ludusavi title normalisation (trademark stripping):");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool ludusaviTitleNormPassed = TestLudusaviTitleNormalisation();
+        if (!ludusaviTitleNormPassed) passed = false;
+        Console.WriteLine();
+
+        // ── XENIA PROFILE AUTO-DETECTION ────────────────────────────────────
+        Console.WriteLine("🎮 Xenia profile auto-detection:");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool xeniaDetectPassed = TestXeniaProfileAutoDetection();
+        if (!xeniaDetectPassed) passed = false;
+        Console.WriteLine();
+
         // ── SUMMARY ───────────────────────────────────────────────────────────
         Console.WriteLine("═══════════════════════════════════════════════════════════════");
         if (passed)
@@ -2000,6 +2014,105 @@ class Program
         {
             LudusaviService.RequestNativeConfirmationAsync = originalConfirmHandler;
             AppSettingsService.Save(originalSettings);
+            try { Directory.Delete(tempRoot, true); } catch { }
+        }
+
+        return passed;
+    }
+
+    private static bool TestLudusaviTitleNormalisation()
+    {
+        bool passed = true;
+
+        var cases = new (string Input, string Expected)[]
+        {
+            ("LEGO® The Lord of the Rings™",   "LEGO The Lord of the Rings"),
+            ("LEGO® Batman™ 3: Beyond Gotham",  "LEGO Batman 3: Beyond Gotham"),
+            ("Cyberpunk 2077",                   "Cyberpunk 2077"),   // unchanged
+            ("©2024 My Game™",                  "2024 My Game"),
+            ("Service℠ Game",                   "Service Game"),
+            ("Normal Title",                     "Normal Title"),
+        };
+
+        foreach (var (input, expected) in cases)
+        {
+            string result = LudusaviService.NormalizeTitleForLudusavi(input);
+            if (result == expected)
+            {
+                Console.WriteLine($"  ✅  \"{input}\" → \"{result}\"");
+            }
+            else
+            {
+                Console.WriteLine($"  ❌  \"{input}\" → \"{result}\" (expected \"{expected}\")");
+                passed = false;
+            }
+        }
+
+        return passed;
+    }
+
+    private static bool TestXeniaProfileAutoDetection()
+    {
+        bool passed = true;
+        string tempRoot = Path.Combine(Path.GetTempPath(), "GameOS_XeniaTest_" + Path.GetRandomFileName());
+
+        try
+        {
+            // Build a fake Xenia save layout:
+            //   <tempRoot>/content/<profileId>/<titleId>/
+            string profileId = "E03000003D7E0695";
+            string titleId   = "4D530004";
+            string saveDir   = Path.Combine(tempRoot, "content", profileId, titleId);
+            Directory.CreateDirectory(saveDir);
+            File.WriteAllText(Path.Combine(saveDir, "save.dat"), "test");
+
+            // With no profileId configured, Resolve should auto-detect it.
+            string? resolved = EmulatorSavePathResolver.Resolve(
+                platform: "Xbox 360",
+                emulatorName: "Xenia",
+                saveDataPath: tempRoot,
+                titleId: titleId,
+                profileId: null);
+
+            // Expected: <tempRoot>/content/<profileId>/<titleId>/000100000/<profileId>/
+            string expected = Path.Combine(tempRoot, "content", profileId, titleId, "000100000", profileId);
+
+            if (resolved == expected)
+            {
+                Console.WriteLine($"  ✅  Auto-detected profile \"{profileId}\" for title \"{titleId}\"");
+            }
+            else
+            {
+                Console.WriteLine($"  ❌  Expected \"{expected}\"");
+                Console.WriteLine($"       got     \"{resolved}\"");
+                passed = false;
+            }
+
+            // When the titleId is not present under any profile, should return null.
+            string? missingTitle = EmulatorSavePathResolver.Resolve(
+                platform: "Xbox 360",
+                emulatorName: "Xenia",
+                saveDataPath: tempRoot,
+                titleId: "DEADBEEF",
+                profileId: null);
+
+            if (missingTitle == null)
+            {
+                Console.WriteLine($"  ✅  Returns null when title not found in any profile");
+            }
+            else
+            {
+                Console.WriteLine($"  ❌  Expected null for missing title, got \"{missingTitle}\"");
+                passed = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ❌  Xenia auto-detection test threw: {ex.Message}");
+            passed = false;
+        }
+        finally
+        {
             try { Directory.Delete(tempRoot, true); } catch { }
         }
 

@@ -101,10 +101,16 @@ namespace GameLauncher.Services
             string[] segments = ResolvePattern(platform, emulatorName);
             if (segments.Length == 0) return null;
 
-            // If the pattern requires a profileId but none was supplied, bail out.
+            // If the pattern requires a profileId but none was supplied, attempt
+            // to auto-detect it by scanning the emulator's content directory for
+            // a profile folder that contains the game's titleId subfolder.
             bool needsProfile = Array.Exists(segments, s =>
                 string.Equals(s, "{profileId}", StringComparison.OrdinalIgnoreCase));
-            if (needsProfile && string.IsNullOrWhiteSpace(profileId)) return null;
+            if (needsProfile && string.IsNullOrWhiteSpace(profileId))
+            {
+                profileId = TryDetectXeniaProfileId(saveDataPath.Trim(), titleId.Trim());
+                if (string.IsNullOrWhiteSpace(profileId)) return null;
+            }
 
             // Build the path by substituting {titleId} and {profileId} in each segment
             string safeRoot       = saveDataPath.Trim();
@@ -126,6 +132,31 @@ namespace GameLauncher.Services
         }
 
         // ── Helpers ────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Scans <c>{saveDataPath}/content/</c> for a profile sub-directory that
+        /// contains a <c>{titleId}</c> folder, returning the first match.
+        /// This lets Xenia saves be located even when the user has not manually
+        /// entered their profile ID in the emulator settings.
+        /// </summary>
+        private static string? TryDetectXeniaProfileId(string saveDataPath, string titleId)
+        {
+            try
+            {
+                string contentDir = Path.Combine(saveDataPath, "content");
+                if (!Directory.Exists(contentDir)) return null;
+
+                foreach (string profileDir in Directory.EnumerateDirectories(contentDir))
+                {
+                    string candidate = Path.Combine(profileDir, titleId);
+                    if (Directory.Exists(candidate))
+                        return Path.GetFileName(profileDir);
+                }
+            }
+            catch { /* best-effort */ }
+
+            return null;
+        }
 
         private static string[] ResolvePattern(string platform, string? emulatorName)
         {
