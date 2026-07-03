@@ -303,6 +303,10 @@ public partial class GameDetailViewModel : ViewModelBase
     /// <summary>Switch TitleID pattern: exactly 16 hexadecimal characters (e.g. "0100152000022000").</summary>
     private static readonly Regex _switchTitleIdValidationRegex =
         new(@"^[0-9A-Fa-f]{16}$", RegexOptions.Compiled);
+    private static readonly Regex _achievementLookupPrefixRegex =
+        new(@"^(achievement|ach|stat)[\s_.:-]*", RegexOptions.Compiled);
+    private static readonly Regex _achievementLookupNonAlnumRegex =
+        new(@"[^a-z0-9]+", RegexOptions.Compiled);
 
     public ObservableCollection<string> DriveLabels { get; } = new();
 
@@ -3747,8 +3751,8 @@ public partial class GameDetailViewModel : ViewModelBase
             return "";
 
         string normalized = value.Trim().ToLowerInvariant();
-        normalized = Regex.Replace(normalized, @"^(achievement|ach|stat)[\s_.:-]*", "");
-        normalized = Regex.Replace(normalized, @"[^a-z0-9]+", "");
+        normalized = _achievementLookupPrefixRegex.Replace(normalized, "");
+        normalized = _achievementLookupNonAlnumRegex.Replace(normalized, "");
         return normalized;
     }
 
@@ -3760,6 +3764,8 @@ public partial class GameDetailViewModel : ViewModelBase
         var emuSettings = EmulatorSettingsService.Load(Platform);
         string saveRoot = !string.IsNullOrWhiteSpace(emuSettings.SaveDataPath)
             ? emuSettings.SaveDataPath
+            // Xbox 360 setups often only configure the emulator executable path.
+            // EmulatorSavePathResolver will normalize executable paths to their directory.
             : emuSettings.EmulatorPath;
 
         return EmulatorSavePathResolver.Resolve(
