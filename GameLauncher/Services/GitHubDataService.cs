@@ -1059,6 +1059,71 @@ namespace GameLauncher.Services
             return messages ?? new List<Message>();
         }
 
+        // ── Invites (GitHub-direct mode) ──────────────────────────────────────
+
+        /// <summary>
+        /// Sends a game invite to <paramref name="toUsername"/> by appending an entry to
+        /// their <c>accounts/{user}/invites.json</c> file.  The invite is also delivered
+        /// as a message in the shared conversation file so it appears in the messages inbox.
+        /// </summary>
+        public async Task SendInviteAsync(
+            string fromUsername,
+            string toUsername,
+            string gameName,
+            string platform,
+            string connectionType,
+            CancellationToken ct = default)
+        {
+            string toLower   = toUsername.ToLowerInvariant();
+            string fromLower = fromUsername.ToLowerInvariant();
+            string inviteId  = Guid.NewGuid().ToString("N")[..16];
+
+            // Write invite entry to recipient's invites.json
+            var invitesKey = $"accounts/{toLower}/invites.json";
+            var (invites, invitesSha) = await ReadFileAsync<List<GameInvite>>(invitesKey, ct);
+            var inviteList = invites ?? new List<GameInvite>();
+            inviteList.Add(new GameInvite
+            {
+                InviteId       = inviteId,
+                From           = fromUsername,
+                GameName       = gameName.Trim(),
+                Platform       = platform.Trim(),
+                ConnectionType = connectionType.Trim(),
+                SentAt         = DateTimeOffset.UtcNow.ToString("o"),
+                Status         = "pending",
+            });
+            await WriteFileAsync(invitesKey, inviteList,
+                $"Invite from {fromUsername} to {toUsername} for {gameName}", invitesSha, ct);
+
+            // Also deliver the invite as a message so it surfaces in the inbox conversation.
+            string platformStr = string.IsNullOrWhiteSpace(platform) ? "" : $" ({platform.Trim()})";
+            string connStr     = string.IsNullOrWhiteSpace(connectionType) ? "" : $" via {connectionType.Trim()}";
+            string notifyText  = $"[Game Invite] Join me in {gameName.Trim()}{platformStr}{connStr}";
+            var (a, b) = BuildThreadKey(fromLower, toLower);
+            var convKey = $"accounts/messages/{a}_{b}.json";
+            var (msgs, msgSha) = await ReadFileAsync<List<Message>>(convKey, ct);
+            var msgList = msgs ?? new List<Message>();
+            msgList.Add(new Message
+            {
+                From   = fromUsername,
+                Text   = notifyText,
+                SentAt = DateTimeOffset.UtcNow.ToString("o"),
+            });
+            await WriteFileAsync(convKey, msgList,
+                $"Invite message from {fromUsername} to {toUsername}", msgSha, ct);
+        }
+
+        /// <summary>
+        /// Returns all pending game invites for <paramref name="username"/>.
+        /// </summary>
+        public async Task<List<GameInvite>> GetInvitesAsync(
+            string username, CancellationToken ct = default)
+        {
+            var (invites, _) = await ReadFileAsync<List<GameInvite>>(
+                $"accounts/{username.ToLowerInvariant()}/invites.json", ct);
+            return invites ?? new List<GameInvite>();
+        }
+
         public async Task SendFriendRequestAsync(
             string from, string to, CancellationToken ct = default)
         {

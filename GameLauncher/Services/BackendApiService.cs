@@ -477,7 +477,7 @@ namespace GameLauncher.Services
             string fromUsername, string toUsername, string text, CancellationToken ct = default)
         {
             EnsureAuthenticated();
-            var body = new { from = fromUsername, to = toUsername, text };
+            var body = new { username = fromUsername, toUsername, text };
             using var resp = await _http.PostAsJsonAsync("/api/send-message", body, ct);
             if (!resp.IsSuccessStatusCode)
             {
@@ -490,7 +490,7 @@ namespace GameLauncher.Services
             string username, string withUsername, CancellationToken ct = default)
         {
             using var resp = await _http.GetAsync(
-                $"/api/get-messages?username={Uri.EscapeDataString(username)}&with={Uri.EscapeDataString(withUsername)}", ct);
+                $"/api/get-messages?username={Uri.EscapeDataString(username)}&withUsername={Uri.EscapeDataString(withUsername)}", ct);
             resp.EnsureSuccessStatusCode();
 
             var data = await resp.Content

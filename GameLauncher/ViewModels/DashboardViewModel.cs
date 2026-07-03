@@ -70,6 +70,25 @@ public partial class DashboardViewModel : ViewModelBase
     // Recent achievements
     public ObservableCollection<Achievement> RecentAchievements { get; } = new();
 
+    // ── Friends (online friends shown in the dashboard) ────────────────────
+    /// <summary>Online friends to display in dashboard friend tiles.</summary>
+    public ObservableCollection<FriendPresenceVm> OnlineFriends { get; } = new();
+    [ObservableProperty] private bool _hasDashboardFriends;
+    [ObservableProperty] private int  _onlineFriendsCount;
+
+    /// <summary>
+    /// Called by MainViewModel whenever the friends list is refreshed so the
+    /// dashboard can show up-to-date presence data without requiring a reload.
+    /// </summary>
+    public void UpdateFriends(IReadOnlyList<FriendPresenceVm> allFriends)
+    {
+        OnlineFriends.Clear();
+        foreach (var f in allFriends.Where(f => f.IsOnline))
+            OnlineFriends.Add(f);
+        OnlineFriendsCount   = OnlineFriends.Count;
+        HasDashboardFriends  = OnlineFriends.Count > 0;
+    }
+
     /// <summary>Invoked when the user clicks a game card to open the detail overlay.</summary>
     public Action<Game>?            OnOpenDetail        { get; set; }
     public Action<StoreGame>?       OnOpenStoreDetail   { get; set; }
@@ -629,6 +648,67 @@ public partial class DashboardViewModel : ViewModelBase
 
     [RelayCommand]
     private void NavigateToInbox() => OnNavigateToPage?.Invoke("inbox");
+
+    // ── Dashboard friend actions ───────────────────────────────────────────────
+    private const string InvitePayloadSeparator = "|";
+    [ObservableProperty] private string _dashboardInviteStatus = "";
+
+    /// <summary>Invoked when the user sends a game invite from the Dashboard Friends section.</summary>
+    public Func<string, string, string, string, System.Threading.Tasks.Task<bool>>? OnInviteFriend { get; set; }
+    /// <summary>Invoked when the user clicks "View" on a friend in the Dashboard.</summary>
+    public Action<string>? OnViewFriendProfile { get; set; }
+    /// <summary>Invoked when the user clicks "Message" on a friend in the Dashboard.</summary>
+    public Action<string>? OnMessageFriend { get; set; }
+    /// <summary>Holds context about the currently running game so the invite can be populated.</summary>
+    public Func<(string? title, string? platform)>? OnResolveCurrentGameContext { get; set; }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task InviteFriendViaConnection(string? payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload)) return;
+        string[] parts = payload.Split(InvitePayloadSeparator, 2, StringSplitOptions.TrimEntries);
+        if (parts.Length < 2) return;
+        string friendUsername  = parts[0];
+        string connectionType  = parts[1];
+
+        var (gameName, platform) = OnResolveCurrentGameContext?.Invoke() ?? (null, null);
+        if (string.IsNullOrEmpty(gameName))
+        {
+            DashboardInviteStatus = "Start a game first, then send an invite.";
+            return;
+        }
+        if (OnInviteFriend == null)
+        {
+            DashboardInviteStatus = "Invite service is unavailable right now.";
+            return;
+        }
+        DashboardInviteStatus = "";
+        try
+        {
+            bool sent = await OnInviteFriend(friendUsername, gameName, platform ?? "", connectionType);
+            DashboardInviteStatus = sent
+                ? $"Invite sent to {friendUsername} ({connectionType})"
+                : "Invite was not sent.";
+        }
+        catch (Exception ex)
+        {
+            DashboardInviteStatus = $"Invite failed: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void ViewFriend(string? friendUsername)
+    {
+        if (string.IsNullOrWhiteSpace(friendUsername)) return;
+        OnViewFriendProfile?.Invoke(friendUsername);
+    }
+
+    [RelayCommand]
+    private void MessageFriend(string? friendUsername)
+    {
+        if (string.IsNullOrWhiteSpace(friendUsername)) return;
+        OnMessageFriend?.Invoke(friendUsername);
+    }
 
     // ── XB360 blade navigation ────────────────────────────────────────────────
     private static readonly string[] Xb360Blades = { "mygames", "social", "games", "settings" };

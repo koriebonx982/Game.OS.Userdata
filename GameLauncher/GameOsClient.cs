@@ -559,6 +559,8 @@ namespace GameLauncher
         {
             if (_backend != null)
                 return await _backend.GetInvitesAsync(ct);
+            if (_github != null && _username != null)
+                return await _github.GetInvitesAsync(_username, ct);
             return new();
         }
 
@@ -570,10 +572,20 @@ namespace GameLauncher
             CancellationToken ct = default)
         {
             if (_username == null) throw new GameOsException(401, "Not authenticated.");
-            if (_backend == null)
-                throw new GameOsException(400, "Invites are only supported in backend mode.");
 
-            await _backend.SendInviteAsync(toUsername, gameName, platform, connectionType, ct);
+            if (_backend != null)
+            {
+                await _backend.SendInviteAsync(toUsername, gameName, platform, connectionType, ct);
+                return;
+            }
+
+            if (_github != null)
+            {
+                await _github.SendInviteAsync(_username, toUsername, gameName, platform, connectionType, ct);
+                return;
+            }
+
+            throw new GameOsException(400, "No connection available to send invites.");
         }
 
         public async Task RespondInviteAsync(string inviteId, string response, CancellationToken ct = default)

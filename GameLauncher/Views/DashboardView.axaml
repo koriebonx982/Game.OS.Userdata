@@ -157,18 +157,65 @@
                 <!-- Social blade -->
                 <StackPanel Margin="32,20,32,20" Spacing="12" IsVisible="{Binding IsXb360SocialBlade}">
                     <TextBlock Text="Friends &amp; Social" Classes="xb360-strip-header"/>
-                    <Border Classes="xb360-metro-tile xb360-metro-stat" Height="80">
+                    <!-- Online friends list with Invite / Message / View actions -->
+                    <ItemsControl ItemsSource="{Binding OnlineFriends}" IsVisible="{Binding HasDashboardFriends}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:FriendPresenceVm">
+                                <Border Classes="xb360-metro-tile xb360-metro-stat" Height="70" Margin="0,0,0,4">
+                                    <Grid Margin="16,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Username}" Classes="xb360-metro-label" FontSize="14"/>
+                                            <TextBlock Text="{Binding StatusLabel}" Classes="xb360-achievement-desc"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Classes="btn-secondary" Padding="10,6" VerticalAlignment="Center">
+                                            <TextBlock Text="···"/>
+                                            <Button.Flyout>
+                                                <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                                    <MenuItem Header="Invite">
+                                                        <MenuItem Header="Crossplay"
+                                                                  Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                                  CommandParameter="{Binding Username, StringFormat='{}{0}|Crossplay'}"/>
+                                                        <MenuItem Header="Radmin"
+                                                                  Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                                  CommandParameter="{Binding Username, StringFormat='{}{0}|Radmin'}"/>
+                                                        <MenuItem Header="OnlineFix"
+                                                                  Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                                  CommandParameter="{Binding Username, StringFormat='{}{0}|OnlineFix'}"/>
+                                                        <MenuItem Header="Steam"
+                                                                  Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                                  CommandParameter="{Binding Username, StringFormat='{}{0}|Steam'}"/>
+                                                    </MenuItem>
+                                                    <MenuItem Header="Message"
+                                                              Command="{Binding $parent[UserControl].DataContext.MessageFriendCommand}"
+                                                              CommandParameter="{Binding Username}"/>
+                                                    <MenuItem Header="View"
+                                                              Command="{Binding $parent[UserControl].DataContext.ViewFriendCommand}"
+                                                              CommandParameter="{Binding Username}"/>
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding DashboardInviteStatus}" Foreground="#888888" FontSize="12"
+                               IsVisible="{Binding DashboardInviteStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                    <Border Classes="xb360-metro-tile xb360-metro-stat" Height="68">
                         <Grid Margin="16,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
                             <TextBlock Text="Friends" Classes="xb360-metro-label" FontSize="14"/>
-                            <TextBlock Text="Visit the Friends page to see who's online." Classes="xb360-achievement-desc"/>
+                            <TextBlock Text="{Binding OnlineFriendsCount, StringFormat='{}{0} online'}" Classes="xb360-achievement-desc"
+                                       IsVisible="{Binding HasDashboardFriends}"/>
+                            <TextBlock Text="No friends online right now." Classes="xb360-achievement-desc"
+                                       IsVisible="{Binding !HasDashboardFriends}"/>
                             </StackPanel>
                             <Button Grid.Column="1"
                                     Classes="btn-secondary"
                                     Padding="12,6"
                                     VerticalAlignment="Center"
                                     Command="{Binding NavigateToFriendsCommand}">
-                                Open
+                                All Friends
                             </Button>
                         </Grid>
                     </Border>
@@ -503,7 +550,8 @@
                 </Border>
                 <Border Classes="ps5-status-tile" Width="160" Height="52" Padding="10" Margin="12,0,0,0">
                     <StackPanel>
-                        <TextBlock Text="Friends Who Play" Classes="ps5-status-value" FontSize="13"/>
+                        <TextBlock Text="{Binding OnlineFriendsCount}" Classes="ps5-status-value"/>
+                        <TextBlock Text="Friends Online" Classes="ps5-status-label"/>
                     </StackPanel>
                 </Border>
                 <Border Classes="ps5-status-tile" Width="140" Height="52" Padding="10" Margin="12,0,0,0">

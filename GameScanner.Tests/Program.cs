@@ -481,6 +481,13 @@ class Program
         if (!ludusaviTitleNormPassed) passed = false;
         Console.WriteLine();
 
+        // ── XBOX 360 TITLEID DETECTION ───────────────────────────────────────
+        Console.WriteLine("🎮 Xbox 360 TitleID detection:");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool xbox360TitleIdPassed = TestXbox360TitleIdDetection();
+        if (!xbox360TitleIdPassed) passed = false;
+        Console.WriteLine();
+
         // ── XENIA PROFILE AUTO-DETECTION ────────────────────────────────────
         Console.WriteLine("🎮 Xenia profile auto-detection:");
         Console.WriteLine("───────────────────────────────────────────────────────────────");
@@ -2032,6 +2039,14 @@ class Program
             ("©2024 My Game™",                  "2024 My Game"),
             ("Service℠ Game",                   "Service Game"),
             ("Normal Title",                     "Normal Title"),
+            // Article normalisation: "Title, The" → "The Title"
+            ("Simpsons Game, The",               "The Simpsons Game"),
+            ("Simpsons Game, the",               "the Simpsons Game"),
+            ("Legend of Zelda, The",             "The Legend of Zelda"),
+            ("Darkness, The",                    "The Darkness"),
+            ("Adventures of a Hero, A",          "A Adventures of a Hero"),  // grammatically odd but correct normalization
+            ("Escape, An",                       "An Escape"),
+            ("The Already Clean Title",          "The Already Clean Title"), // unchanged
         };
 
         foreach (var (input, expected) in cases)
@@ -2046,6 +2061,51 @@ class Program
                 Console.WriteLine($"  ❌  \"{input}\" → \"{result}\" (expected \"{expected}\")");
                 passed = false;
             }
+        }
+
+        return passed;
+    }
+
+    private static bool TestXbox360TitleIdDetection()
+    {
+        bool passed = true;
+
+        // Valid Xbox 360 TitleIDs: exactly 8 hex characters
+        var valid = new[] { "454108E6", "45410955", "4D5308D3", "58410B00", "FFFE07D1" };
+        foreach (string id in valid)
+        {
+            string? result = GameScannerService.ExtractTitleId(id, "Xbox 360");
+            if (result != null && result == id.ToUpperInvariant())
+                Console.WriteLine($"  ✅  Xbox 360 TitleID detected: \"{id}\" → \"{result}\"");
+            else
+            {
+                Console.WriteLine($"  ❌  Xbox 360 TitleID not detected: \"{id}\" (got \"{result ?? "null"}\")");
+                passed = false;
+            }
+        }
+
+        // Should NOT be detected as TitleID: wrong length or wrong platform
+        var invalid = new[] { "454108E", "454108E61", "GGGG1234", "NotAnId" };
+        foreach (string id in invalid)
+        {
+            string? result = GameScannerService.ExtractTitleId(id, "Xbox 360");
+            if (result == null)
+                Console.WriteLine($"  ✅  Correctly rejected non-TitleID: \"{id}\"");
+            else
+            {
+                Console.WriteLine($"  ❌  Incorrectly accepted as TitleID: \"{id}\" → \"{result}\"");
+                passed = false;
+            }
+        }
+
+        // Xbox 360 TitleIDs should not be detected for other platforms
+        string? switchResult = GameScannerService.ExtractTitleId("454108E6", "Switch");
+        if (switchResult == null)
+            Console.WriteLine("  ✅  Xbox 360 TitleID not matched on Switch platform");
+        else
+        {
+            Console.WriteLine($"  ❌  Xbox 360 TitleID incorrectly matched on Switch: \"{switchResult}\"");
+            passed = false;
         }
 
         return passed;

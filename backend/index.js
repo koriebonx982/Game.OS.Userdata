@@ -1661,6 +1661,31 @@ app.post('/api/send-invite', authenticatePublicOrUserToken, async (req, res) => 
             `Invite from ${fromName} to ${toUsername} for ${gameName}`,
             invitesFile ? invitesFile.sha : undefined);
 
+        // Also deliver a message notification in the shared conversation so the invite
+        // appears in the messages inbox (messages work even when invite polling is unavailable).
+        // Only write the message when the sender is an authenticated user (not the public key).
+        if (!req.tokenUser.publicKeyAuth) {
+            try {
+                const connStr = typeof connectionType === 'string' && connectionType.trim()
+                    ? ` via ${connectionType.trim()}`
+                    : '';
+                const platformStr = typeof platform === 'string' && platform.trim()
+                    ? ` (${platform.trim()})`
+                    : '';
+                const notifyText = `[Game Invite] Join me in ${gameName.trim()}${platformStr}${connStr}`;
+                const convPath = conversationPath(fromName, toLower);
+                const convFile = await getFile(convPath);
+                const msgs = convFile ? [...convFile.content] : [];
+                msgs.push({ from: fromName, text: notifyText, sentAt: new Date().toISOString() });
+                await putFile(convPath, msgs,
+                    `Invite notification from ${fromName} to ${toUsername}`,
+                    convFile ? convFile.sha : undefined);
+            } catch (msgErr) {
+                // Non-fatal: invite was already written; message notification is best-effort.
+                console.warn('Invite message notification failed:', msgErr.message);
+            }
+        }
+
         res.json({ success: true, inviteId: id, message: 'Invite sent' });
     } catch (err) {
         console.error('Error sending invite:', err);

@@ -425,6 +425,12 @@ namespace GameLauncher.Services
         /// any resulting double spaces before returning the cleaned title.
         ///
         /// <para>
+        /// Also normalises article-at-end suffixes so that titles stored in databases
+        /// as "Simpsons Game, The" are looked up in ludusavi's manifest as the canonical
+        /// form "The Simpsons Game".  Articles handled: The, A, An.
+        /// </para>
+        ///
+        /// <para>
         /// Ludusavi's manifest database uses clean titles without these symbols,
         /// so passing the raw display title causes a "no info for these games"
         /// lookup failure for titles like "LEGO® The Lord of the Rings™".
@@ -438,7 +444,31 @@ namespace GameLauncher.Services
             // then collapse any double-spaces left after removal and trim.
             string cleaned = Regex.Replace(title, @"[®©™\u00AE\u00A9\u2122\u2120]", "");
             cleaned = Regex.Replace(cleaned, @"  +", " ").Trim();
+
+            // Normalise "Title, The" → "The Title", "Title, A" → "A Title", etc.
+            // This handles databases (e.g. No-Intro) that store the article at the end.
+            cleaned = NormalizeLeadingArticle(cleaned);
+
             return cleaned;
+        }
+
+        /// <summary>
+        /// Converts "Some Title, The" → "The Some Title" (and likewise for "A" and "An").
+        /// Only the trailing article suffix form is normalised; titles already starting
+        /// with the article are returned unchanged.
+        /// </summary>
+        private static readonly Regex _articleSuffixRegex =
+            new(@"^(.*?),\s+(The|A|An)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static string NormalizeLeadingArticle(string title)
+        {
+            // Match: any text, then ", " then an article at the very end.
+            var m = _articleSuffixRegex.Match(title);
+            if (!m.Success) return title;
+
+            string article = m.Groups[2].Value;
+            // Preserve original casing of the article ("the" stays "the", "The" stays "The").
+            return article + " " + m.Groups[1].Value.Trim();
         }
 
         private static string ResolveWorkingDirectory(string ludusaviExe)

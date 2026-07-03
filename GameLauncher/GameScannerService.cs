@@ -1096,6 +1096,11 @@ public sealed class GameScannerService : IDisposable
     private static readonly Regex _switchEmbeddedTitleIdRegex =
         new(@"\[([0-9A-Fa-f]{16})\]", RegexOptions.Compiled);
 
+    // Xbox 360 TitleID: exactly 8 hex digits (e.g. 454108E6 for Skate 3)
+    // These are the folder names Xenia creates under Content/{profileId}/{titleId}/
+    private static readonly Regex _xbox360TitleIdRegex =
+        new(@"^[0-9A-Fa-f]{8}$", RegexOptions.Compiled);
+
     /// <summary>
     /// Returns the TitleID if <paramref name="name"/> is (or contains) a platform-specific
     /// TitleID, or <see langword="null"/> if no TitleID is detected.
@@ -1125,6 +1130,14 @@ public sealed class GameScannerService : IDisposable
             // Also extract embedded TitleID from "Game Title [0100ADC022586000][v0]" style names
             var em = _switchEmbeddedTitleIdRegex.Match(trimmed);
             if (em.Success) return em.Groups[1].Value.ToUpperInvariant();
+        }
+
+        // Xbox 360: standalone 8-character hex TitleID folder (e.g. 454108E6)
+        // Xenia stores saves at Content/{profileId}/{titleId}/00000001/
+        if (string.Equals(platform, "Xbox 360", StringComparison.OrdinalIgnoreCase) &&
+            _xbox360TitleIdRegex.IsMatch(trimmed))
+        {
+            return trimmed.ToUpperInvariant();
         }
 
         return null;
