@@ -10,8 +10,9 @@ namespace GameLauncher.Services
     /// major Steam emulators, replicating the path knowledge of Achievement Watcher.
     ///
     /// Supported emulators / crack groups:
-    ///   Goldberg · GBE · GBE Fork · Codex · Plaza · Rune · Online Fix ·
-    ///   Ali213 / ColdAPI Steam · Voices38 · Smart Steam Emu (SSE) · SSE-R
+    ///   Goldberg · GBE · GSE Saves · Codex · Plaza · Rune · EMPRESS ·
+    ///   Online Fix · Skidrow · Ali213 / ColdAPI Steam · Voices38 ·
+    ///   Smart Steam Emu (SSE) · SSE-R
     /// </summary>
     public static class SteamEmuAchievementService
     {
@@ -133,17 +134,23 @@ namespace GameLauncher.Services
                     set.Add(Path.Combine(dir, n));
             }
 
-            // ── Goldberg / GBE / GBE Fork ─────────────────────────────────────
-            // Goldberg writes to: %APPDATA%/Goldberg SteamEmu Saves/{steam_id}/{appid}/achievements.json
-            // GBE Fork follows the same convention.
-            // We scan the root in BuildScanRoots; here we also add the flat appid form.
+            // ── Goldberg ──────────────────────────────────────────────────────
+            // %APPDATA%/Goldberg SteamEmu Saves/{appid}/achievements.json
+            // (also scanned recursively via BuildScanRoots to cover Steam-user-ID sub-dirs)
             if (!string.IsNullOrEmpty(roaming))
             {
                 var gbRoot = Path.Combine(roaming, "Goldberg SteamEmu Saves");
                 AddDir(Path.Combine(gbRoot, appId), "achievements.json", "stats.json");
 
+                // ── GBE / GBE Fork ────────────────────────────────────────────
+                // %APPDATA%/GBE Saves/{appid}/  (legacy name)
                 var gbeRoot = Path.Combine(roaming, "GBE Saves");
                 AddDir(Path.Combine(gbeRoot, appId), "achievements.json", "stats.json");
+
+                // ── GSE Saves (GBE renamed) ───────────────────────────────────
+                // %APPDATA%/GSE Saves/{appid}/
+                var gseRoot = Path.Combine(roaming, "GSE Saves");
+                AddDir(Path.Combine(gseRoot, appId), "achievements.json", "stats.json");
             }
             if (!string.IsNullOrEmpty(local))
             {
@@ -151,12 +158,29 @@ namespace GameLauncher.Services
                 AddDir(Path.Combine(gbLocalRoot, appId), "achievements.json", "stats.json");
             }
 
-            // ── Codex / Plaza / Online Fix / Rune (INI-based, public Documents) ──
-            // Achievement Watcher uses: %PUBLIC%/Documents/Steam/CODEX/{appid}/achievements.ini
+            // ── Public Documents / Steam / {Group} ────────────────────────────
+            // %PUBLIC%/Documents/Steam/{Group}/{appid}/achievements.ini
             if (!string.IsNullOrEmpty(common))
             {
-                var codexRoot = Path.Combine(common, "Steam", "CODEX", appId);
-                AddDir(codexRoot, "achievements.ini", "stats.ini", "achievements.json");
+                string steamCommon = Path.Combine(common, "Steam");
+
+                // Codex
+                AddDir(Path.Combine(steamCommon, "CODEX",      appId), "achievements.ini", "stats.ini", "achievements.json");
+                // Plaza
+                AddDir(Path.Combine(steamCommon, "PLAZA",      appId), "achievements.ini", "stats.ini", "achievements.json");
+                // Rune — canonical: %PUBLIC%/Documents/Steam/RUNE/{appid}/
+                AddDir(Path.Combine(steamCommon, "RUNE",        appId), "achievements.ini", "stats.ini", "achievements.json");
+                // Online Fix
+                AddDir(Path.Combine(steamCommon, "ONLINE_FIX",  appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(steamCommon, "OnlineFix",   appId), "achievements.ini", "stats.ini", "achievements.json");
+                // Skidrow
+                AddDir(Path.Combine(steamCommon, "Skidrow",     appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(steamCommon, "SKIDROW",     appId), "achievements.ini", "stats.ini", "achievements.json");
+
+                // ── EMPRESS ───────────────────────────────────────────────────
+                // %PUBLIC%/Documents/EMPRESS/{appid}/  (NOT under Steam/)
+                var empressRoot = Path.Combine(common, "EMPRESS", appId);
+                AddDir(empressRoot, "achievements.ini", "stats.ini", "achievements.json");
             }
 
             // ── CPY (EMPRESS/Codex) variant: Documents/CPY_SAVES ──────────────
@@ -172,7 +196,7 @@ namespace GameLauncher.Services
 
             if (!string.IsNullOrEmpty(roaming))
             {
-                // ── Rune ──────────────────────────────────────────────────────
+                // ── Rune (legacy %APPDATA% layout kept as fallback) ───────────
                 var runeRoot = Path.Combine(roaming, "Rune", appId);
                 AddDir(runeRoot, "achievements.ini", "stats.ini", "achievements.json");
 
@@ -191,6 +215,8 @@ namespace GameLauncher.Services
                 AddDir(v38Root, "achievements.ini", "stats.ini", "achievements.json");
 
                 // ── Smart Steam Emu (SSE) / SSE-R ─────────────────────────────
+                // Flat: %APPDATA%/SmartSteamEmu/{appid}/
+                // Profile: %APPDATA%/SmartSteamEmu/{Profile}/{appid}/  — covered by recursive scan
                 var sseRoot = Path.Combine(roaming, "SmartSteamEmu", appId);
                 AddDir(sseRoot, "achievements.ini", "stats.ini", "profile.ini");
 
@@ -238,7 +264,7 @@ namespace GameLauncher.Services
 
         /// <summary>
         /// Returns the root directories to scan recursively (covers Steam-user-ID subdirs
-        /// inside Goldberg / GBE roots, and other catch-all locations).
+        /// inside Goldberg / GBE roots, SSE profile subdirs, and other catch-all locations).
         /// </summary>
         private static IEnumerable<string> BuildScanRoots(string exePath, int steamAppId)
         {
@@ -257,6 +283,8 @@ namespace GameLauncher.Services
                 yield return Path.Combine(roaming, "ColdAPI Steam");
                 yield return Path.Combine(roaming, "Ali213");
                 yield return Path.Combine(roaming, "Voices38");
+                // SmartSteamEmu root is scanned recursively so that profile subdirectories
+                // (%APPDATA%/SmartSteamEmu/{Profile}/{AppID}/) are discovered automatically.
                 yield return Path.Combine(roaming, "SmartSteamEmu");
                 yield return Path.Combine(roaming, "SSE-R");
                 yield return Path.Combine(roaming, "SSE");
@@ -268,7 +296,10 @@ namespace GameLauncher.Services
             }
             if (!string.IsNullOrEmpty(commonDocs))
             {
+                // Covers CODEX, RUNE, ONLINE_FIX, Skidrow, Plaza, etc. under Steam/
                 yield return Path.Combine(commonDocs, "Steam");
+                // EMPRESS lives directly under Public Documents (not under Steam/)
+                yield return Path.Combine(commonDocs, "EMPRESS");
             }
             if (!string.IsNullOrEmpty(docs))
             {

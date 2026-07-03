@@ -17,12 +17,13 @@ namespace GameLauncher.Services
     ///   <c>Data/{username}/GameSaves/{platform}/{gameTitle}/</c>
     ///
     /// <para>
-    /// When a <paramref name="sourceOverridePath"/> is supplied to
-    /// <see cref="SyncAsync"/> (resolved by <see cref="EmulatorSavePathResolver"/>
-    /// from the game's TitleID), the service copies files directly from that
-    /// folder instead of relying on ludusavi's manifest lookup.  This lets
-    /// emulator saves for Switch, PS3, Xbox 360, etc. be backed up reliably
-    /// using the per-game TitleID sub-folder the emulator already creates.
+    /// For emulator games (Xbox 360/Xenia, PS3/RPCS3, Switch/Ryujinx, etc.)
+    /// whose save folder is resolved by <see cref="EmulatorSavePathResolver"/>,
+    /// the service first registers the game in a Game.OS-owned secondary ludusavi
+    /// manifest via <see cref="LudusaviConfigService.TryRegisterGameSave"/>.
+    /// Ludusavi then handles backup/restore — and its own cloud-sync features —
+    /// exactly as it does for PC games.  If ludusavi is not installed the service
+    /// falls back to a plain directory copy.
     /// </para>
     ///
     /// Ludusavi project: https://github.com/mtkennerly/ludusavi
@@ -139,18 +140,45 @@ namespace GameLauncher.Services
                 return LudusaviResult.Error($"Cannot create save directory: {ex.Message}");
             }
 
-            // ── TitleID-based direct copy ──────────────────────────────────────
-            // When the caller has already resolved the exact emulator save folder,
-            // copy files directly rather than relying on ludusavi's manifest lookup.
+            // ── TitleID-based emulator save registration ───────────────────────
+            // When the caller has resolved the exact emulator save folder,
+            // register the game in ludusavi's secondary manifest so that ludusavi
+            // can find the saves on its own — enabling its cloud-sync features.
+            // Then let ludusavi run normally.  If ludusavi is not installed we
+            // fall back to a plain directory copy.
             if (!string.IsNullOrWhiteSpace(sourceOverridePath))
             {
                 if (Directory.Exists(sourceOverridePath))
-                    return await CopyDirectoryAsync(sourceOverridePath, gameSavePath, gameTitle);
+                {
+                    // Register so ludusavi knows where this emulator game's saves live.
+                    LudusaviConfigService.TryRegisterGameSave(gameTitle, sourceOverridePath);
 
-                // Path was resolved for a non-PC emulator game but doesn't exist yet —
+                    // Let ludusavi perform the backup (it now has a manifest entry).
+                    var result = await RunLudusaviBackupAsync(gameTitle, gameSavePath);
+
+                    // If ludusavi succeeded or reported a definitive failure, return.
+                    if (result.Kind != ResultKind.NotInstalled)
+                        return result;
+
+                    // Ludusavi not installed — fall back to a direct file copy.
+                    DevLogService.Log("[Ludusavi] not installed; falling back to direct copy.");
+                    return await CopyDirectoryAsync(sourceOverridePath, gameSavePath, gameTitle);
+                }
+
+                // Path was resolved but the folder doesn't exist yet —
                 // no saves to back up; do NOT fall through to ludusavi for emulator games.
                 return LudusaviResult.NoSaveFound;
             }
+
+            // ── Non-PC emulator games without a resolved save path ─────────────
+            // Ludusavi's manifest only covers PC game saves.  For emulator games
+            // (Xbox 360, PS3, Switch, etc.) with no TitleID or save-data root
+            // configured, calling ludusavi would produce a useless "No info for
+            // these games" error.  Direct the user to configure the emulator
+            // settings instead.
+            if (IsEmulatorPlatform(platform))
+                return LudusaviResult.Error(
+                    "Set the emulator save folder in ⚙ Settings to back up saves for this game.");
 
             // ── Ludusavi fallback (PC games without a resolved emulator path) ──
             return await RunLudusaviBackupAsync(gameTitle, gameSavePath);
@@ -202,9 +230,10 @@ namespace GameLauncher.Services
             if (!Directory.Exists(gameSavePath))
                 return LudusaviResult.NoSaveFound;
 
-            // ── TitleID-based direct restore ───────────────────────────────────
-            // When the caller resolved the exact emulator save folder, copy files
-            // from the Game.OS backup back into that folder.
+            // ── TitleID-based emulator save registration ───────────────────────
+            // Register the game in the secondary manifest so ludusavi knows where
+            // the live save folder is, then let ludusavi perform the restore.
+            // If ludusavi is not installed we fall back to a plain directory copy.
             if (!string.IsNullOrWhiteSpace(targetOverridePath))
             {
                 try
@@ -216,8 +245,26 @@ namespace GameLauncher.Services
                     return LudusaviResult.Error($"Cannot create restore target: {ex.Message}");
                 }
 
+                // Register so ludusavi knows where this emulator game's saves live.
+                LudusaviConfigService.TryRegisterGameSave(gameTitle, targetOverridePath);
+
+                // Let ludusavi perform the restore (it now has a manifest entry).
+                var result = await RunLudusaviRestoreAsync(gameTitle, gameSavePath);
+
+                if (result.Kind != ResultKind.NotInstalled)
+                    return result;
+
+                // Ludusavi not installed — fall back to a direct file copy.
+                DevLogService.Log("[Ludusavi] not installed; falling back to direct copy for restore.");
                 return await CopyDirectoryAsync(gameSavePath, targetOverridePath, gameTitle);
             }
+
+            // ── Non-PC emulator games without a resolved save path ─────────────
+            // Ludusavi only knows about PC saves; for emulator games with no save
+            // root configured, direct the user to set up the emulator settings.
+            if (IsEmulatorPlatform(platform))
+                return LudusaviResult.Error(
+                    "Set the emulator save folder in ⚙ Settings to restore saves for this game.");
 
             // ── Ludusavi restore fallback (PC games) ───────────────────────────
             return await RunLudusaviRestoreAsync(gameTitle, gameSavePath);
@@ -555,6 +602,17 @@ namespace GameLauncher.Services
                 if (item.Value < now)
                     PendingApprovalTokens.TryRemove(item.Key, out _);
             }
+        }
+
+        /// <summary>
+        /// Returns <see langword="true"/> for platforms that are backed by an emulator
+        /// (e.g. "Xbox 360", "PS3", "Switch") and therefore cannot use ludusavi's
+        /// PC-game manifest as a fallback.
+        /// </summary>
+        private static bool IsEmulatorPlatform(string platform)
+        {
+            if (string.IsNullOrWhiteSpace(platform)) return false;
+            return !string.Equals(platform.Trim(), "PC", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string ClassifyFailure(string detail)
