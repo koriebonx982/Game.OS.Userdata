@@ -681,6 +681,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         DashboardVm.OnNavigateToPage    = Navigate;
         DashboardVm.OnPlayFocusedCard   = LaunchFromCard;
         DashboardVm.OnOpenFocusedCardDetail = OpenDetailFromMyGameCard;
+        DashboardVm.OnViewFriendProfile  = OpenFriendProfile;
+        DashboardVm.OnMessageFriend      = friendUsername => Navigate("inbox");
+        DashboardVm.OnResolveCurrentGameContext = () => (
+            DetailVm.IsGameRunning ? DetailVm.Title : null,
+            DetailVm.IsGameRunning ? DetailVm.Platform : null
+        );
+        DashboardVm.OnInviteFriend = async (friendUsername, gameName, platform, connectionType) =>
+        {
+            try
+            {
+                await _client.SendInviteAsync(friendUsername, gameName, platform, connectionType);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        };
         LibraryVm.OnOpenDetail        = OpenDetailFromGame;
         LibraryVm.OnOpenLocalDetail   = OpenDetailFromLocalGame;
         LibraryVm.OnOpenRepackDetail  = OpenDetailFromLocalRepack;
@@ -704,6 +722,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             DetailVm.IsGameRunning ? DetailVm.Title : null,
             DetailVm.IsGameRunning ? DetailVm.Platform : null
         );
+        // Keep dashboard Friends section in sync whenever the friends list updates
+        FriendsVm.OnlineFriends.CollectionChanged  += (_, _) => _PushFriendsToDashboard();
+        FriendsVm.OfflineFriends.CollectionChanged += (_, _) => _PushFriendsToDashboard();
         InboxVm.OnViewFriendProfile   = OpenFriendProfile;
         InboxVm.OnInviteAccepted      = TryLaunchAcceptedInvite;
 
@@ -861,6 +882,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         FriendsVm.LoadDemo();
         InboxVm.LoadDemo(_profile.Username);
         SettingsVm.LoadAccount(_profile, _library);
+
+        // Push demo friends into dashboard
+        _PushFriendsToDashboard();
 
         // Optional screenshot helper:
         //   GAMEOS_DEMO_QUICKMENU_THEME=<theme>  (e.g. Wii, Switch, SteamBPM)
@@ -1841,6 +1865,29 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             quickMenuTheme:        SettingsVm.QuickMenuTheme);
 
         ShowQuickMenu = true;
+    }
+
+    /// <summary>
+    /// Converts the current FriendsVm friend lists into <see cref="FriendPresenceVm"/> objects
+    /// and pushes them into the dashboard so the Friends section shows live data.
+    /// Safe to call from any thread; dispatches to the UI thread if needed.
+    /// </summary>
+    private void _PushFriendsToDashboard()
+    {
+        var allFriends = FriendsVm.OnlineFriends
+            .Concat(FriendsVm.OfflineFriends)
+            .Select(f => new FriendPresenceVm
+            {
+                Username    = f.Username,
+                CurrentGame = f.CurrentGame ?? "",
+                Status      = f.Status,
+            })
+            .ToList();
+
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+            DashboardVm.UpdateFriends(allFriends);
+        else
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => DashboardVm.UpdateFriends(allFriends));
     }
 
     private static void SendMediaPrevious()

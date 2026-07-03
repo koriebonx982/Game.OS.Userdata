@@ -330,10 +330,10 @@
                     <Button Grid.Column="2" Classes="qm-wii-bubble" Command="{Binding DismissCommand}" Width="86">Close</Button>
                 </Grid>
                 <Grid Grid.Row="1" ColumnDefinitions="*,*,*,*,*,*" ColumnSpacing="10">
-                    <Button Grid.Column="0" Classes="qm-wii-bubble" Command="{Binding SelectHomeCommand}">Home</Button>
-                    <Button Grid.Column="1" Classes="qm-wii-bubble" Command="{Binding SelectRecentGamesCommand}">Recent</Button>
-                    <Button Grid.Column="2" Classes="qm-wii-bubble" Command="{Binding SelectFriendsCommand}">Friends</Button>
-                    <Button Grid.Column="3" Classes="qm-wii-bubble" Command="{Binding SelectInboxCommand}">Inbox</Button>
+                    <Button Grid.Column="0" Classes="qm-wii-bubble" Command="{Binding GoToGameOsHomeCommand}">Home</Button>
+                    <Button Grid.Column="1" Classes="qm-wii-bubble" Command="{Binding OpenLibraryPageCommand}">Recent</Button>
+                    <Button Grid.Column="2" Classes="qm-wii-bubble" Command="{Binding OpenFriendsPageCommand}">Friends</Button>
+                    <Button Grid.Column="3" Classes="qm-wii-bubble" Command="{Binding OpenInboxPageCommand}">Inbox</Button>
                     <Button Grid.Column="4" Classes="qm-wii-bubble" Command="{Binding OpenBrowserCommand}">Browser</Button>
                     <Button Grid.Column="5" Classes="qm-wii-bubble" Command="{Binding ExitGameCommand}" IsVisible="{Binding IsPlayingGame}">Exit Game</Button>
                 </Grid>
@@ -506,8 +506,52 @@
                                         </StackPanel>
                                         <StackPanel IsVisible="{Binding Xb360CursorFriends}" Spacing="10">
                                             <TextBlock Text="Friends" FontWeight="SemiBold" FontSize="15" Foreground="#1a1a1a"/>
-                                            <TextBlock Text="{Binding Xb360FriendsCount, StringFormat='{}{0} online'}" FontSize="13" Foreground="#444"/>
-                                            <Button Classes="xb360-sub-action-btn" Command="{Binding OpenFriendsPageCommand}">View Friends</Button>
+                                            <TextBlock Text="{Binding Xb360FriendsCount, StringFormat='{}{0} friends'}" FontSize="13" Foreground="#444"/>
+                                            <!-- Friends list with Invite / Message / View actions -->
+                                            <ItemsControl ItemsSource="{Binding QuickFriends}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:FriendPresenceVm">
+                                                        <Border Background="#e8e8e8" CornerRadius="4" Padding="8,6" Margin="0,2">
+                                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding Username}" FontWeight="SemiBold" FontSize="13" Foreground="#1a1a1a"/>
+                                                                    <TextBlock Text="{Binding StatusLabel}" FontSize="11" Foreground="#555"/>
+                                                                </StackPanel>
+                                                                <Button Grid.Column="1" Classes="xb360-sub-action-btn" Padding="8,4" FontSize="12">
+                                                                    <TextBlock Text="..."/>
+                                                                    <Button.Flyout>
+                                                                        <MenuFlyout Placement="BottomEdgeAlignedRight">
+                                                                            <MenuItem Header="Invite">
+                                                                                <MenuItem Header="Crossplay"
+                                                                                          Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                                                          CommandParameter="{Binding Username, StringFormat='{}{0}|Crossplay'}"/>
+                                                                                <MenuItem Header="Radmin"
+                                                                                          Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                                                          CommandParameter="{Binding Username, StringFormat='{}{0}|Radmin'}"/>
+                                                                                <MenuItem Header="OnlineFix"
+                                                                                          Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                                                          CommandParameter="{Binding Username, StringFormat='{}{0}|OnlineFix'}"/>
+                                                                                <MenuItem Header="Steam"
+                                                                                          Command="{Binding $parent[UserControl].DataContext.InviteFriendViaConnectionCommand}"
+                                                                                          CommandParameter="{Binding Username, StringFormat='{}{0}|Steam'}"/>
+                                                                            </MenuItem>
+                                                                            <MenuItem Header="Message"
+                                                                                      Command="{Binding $parent[UserControl].DataContext.MessageFriendCommand}"
+                                                                                      CommandParameter="{Binding Username}"/>
+                                                                            <MenuItem Header="View"
+                                                                                      Command="{Binding $parent[UserControl].DataContext.ViewFriendCommand}"
+                                                                                      CommandParameter="{Binding Username}"/>
+                                                                        </MenuFlyout>
+                                                                    </Button.Flyout>
+                                                                </Button>
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <TextBlock Text="{Binding InviteStatusMessage}" Foreground="#555" FontSize="11"
+                                                       IsVisible="{Binding InviteStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                            <Button Classes="xb360-sub-action-btn" Command="{Binding OpenFriendsPageCommand}">All Friends</Button>
                                         </StackPanel>
                                         <StackPanel IsVisible="{Binding Xb360CursorInbox}" Spacing="10">
                                             <TextBlock Text="Messages" FontWeight="SemiBold" FontSize="15" Foreground="#1a1a1a"/>
