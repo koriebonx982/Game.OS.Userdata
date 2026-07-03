@@ -2734,27 +2734,47 @@ app.post('/api/me/achievements/sync-exophase', authenticateToken, async (req, re
         }
 
         // Parse achievements using Exophase's confirmed HTML structure.
-        // The page has one or more <ul class="achievement|trophy|challenge"> sections,
-        // each containing <li> elements with the award data.
+        // Selector cascade covers both singular/plural variants and common fallbacks.
         const $ = cheerio.load(html);
         const scraped = [];
+        let items = $('ul.achievement > li, ul.trophy > li, ul.challenge > li');
+        if (!items.length) items = $('ul.achievements > li, ul.trophies > li, ul.challenges > li');
+        if (!items.length) items = $('li[data-average]').filter((_, el) =>
+            $(el).find('a, h4, h5, .title, .award-title').length > 0);
 
-        // Primary selectors — match the real Exophase page structure
-        $('ul.achievement > li, ul.trophy > li, ul.challenge > li').each((i, el) => {
+        items.each((i, el) => {
             const $el = $(el);
 
-            const name = ($el.find('a').first().text() || '').trim();
+            const name = ($el.find('a').first().text() ||
+                          $el.find('h4, h5, .title, .award-title').first().text() || '').trim();
             if (!name) return; // skip items with no name
 
-            const description = ($el.find('div.award-description p').first().text() || '').trim();
-            const iconUrl     = $el.find('img').first().attr('src') || undefined;
+            const description = ($el.find('div.award-description p, .award-description, .description').first().text() || '').trim();
+            const rawIconUrl  = $el.find('img').first().attr('src') || undefined;
+            let iconUrl;
+            if (rawIconUrl) {
+                try {
+                    const iconParsed = new URL(rawIconUrl);
+                    if (iconParsed.protocol === 'https:' &&
+                        (iconParsed.hostname === 'exophase.com' || iconParsed.hostname.endsWith('.exophase.com'))) {
+                        iconUrl = rawIconUrl;
+                    }
+                } catch { /* ignore malformed icon URLs */ }
+            }
             const classesRaw  = ($el.attr('class') || '');
             const isHidden    = classesRaw.split(/\s+/).includes('secret');
             const classes     = classesRaw.toLowerCase();
-            const unlocked    = /\b(unlocked|earned|achieved|completed|done)\b/.test(classes);
             const unlockedText = ($el.find('time').first().attr('datetime')
                 || $el.find('.date, .earned, .unlock-date, .award-date').first().text()
                 || '').trim();
+            const unlockAttrRaw = ($el.attr('data-earned')
+                || $el.attr('data-unlocked')
+                || $el.attr('data-achieved')
+                || $el.attr('data-completed')
+                || '').trim();
+            const unlocked = /\b(unlocked|earned|achieved|completed|done)\b/.test(classes) ||
+                (unlockAttrRaw && /^(1|true|yes|earned|unlocked|achieved|completed|done)$/i.test(unlockAttrRaw)) ||
+                !!unlockedText;
 
             // Rarity: data-average attribute (0–100 float, percentage of players who earned it)
             const avgRaw = $el.attr('data-average');

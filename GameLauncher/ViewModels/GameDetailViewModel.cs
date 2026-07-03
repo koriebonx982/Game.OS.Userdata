@@ -2275,19 +2275,38 @@ public partial class GameDetailViewModel : ViewModelBase
                 if (knownUnlocks.Contains(unlockId))
                     continue;
 
-                knownUnlocks.Add(unlockId);
-                if (!sessionUnlocks.Add(unlockId))
+                var resolved = ResolvePcAchievementForUnlock(unlockId);
+                string resolvedId = !string.IsNullOrWhiteSpace(resolved?.AchievementId)
+                    ? resolved!.AchievementId
+                    : unlockId;
+                string resolvedName = !string.IsNullOrWhiteSpace(resolved?.Name)
+                    ? resolved!.Name
+                    : unlockId;
+                string? iconUrl = resolved?.IconUrl;
+
+                if (sessionUnlocks.Contains(unlockId) ||
+                    sessionUnlocks.Contains(resolvedId) ||
+                    sessionUnlocks.Contains(resolvedName))
                     continue;
 
-                Services.NotificationService.ShowAchievementUnlockedNotification(unlockId, gameTitle);
-                DevLogService.Log($"[PcAch] Steam emu unlock detected: {unlockId} ({gameTitle})");
+                knownUnlocks.Add(unlockId);
+                knownUnlocks.Add(resolvedId);
+                knownUnlocks.Add(resolvedName);
+                sessionUnlocks.Add(unlockId);
+                sessionUnlocks.Add(resolvedId);
+                sessionUnlocks.Add(resolvedName);
+
+                Services.NotificationService.ShowAchievementUnlockedNotification(resolvedName, gameTitle);
+                DevLogService.Log($"[PcAch] Steam emu unlock detected: {resolvedName} (id={resolvedId}, raw={unlockId}) ({gameTitle})");
 
                 if (OnRequestAchievementUnlockAsync != null)
-                    _ = OnRequestAchievementUnlockAsync("PC", gameTitle, unlockId, unlockId, null);
+                    _ = OnRequestAchievementUnlockAsync("PC", gameTitle, resolvedId, resolvedName, iconUrl);
 
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
                     var existing = Achievements.FirstOrDefault(a =>
+                        string.Equals(a.AchievementId, resolvedId, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(a.Name, resolvedName, StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(a.AchievementId, unlockId, StringComparison.OrdinalIgnoreCase) ||
                         string.Equals(a.Name, unlockId, StringComparison.OrdinalIgnoreCase));
                     if (existing != null && string.IsNullOrEmpty(existing.UnlockedAt))
@@ -2327,6 +2346,26 @@ public partial class GameDetailViewModel : ViewModelBase
             await PollOnceAsync();
         }
         catch { /* best-effort */ }
+    }
+
+    private Achievement? ResolvePcAchievementForUnlock(string unlockId)
+    {
+        if (string.IsNullOrWhiteSpace(unlockId) || Achievements.Count == 0)
+            return null;
+
+        var exact = Achievements.FirstOrDefault(a =>
+            string.Equals(a.AchievementId, unlockId, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(a.Name, unlockId, StringComparison.OrdinalIgnoreCase));
+        if (exact != null)
+            return exact;
+
+        string normalizedUnlock = NormalizeAchievementLookupKey(unlockId);
+        if (string.IsNullOrEmpty(normalizedUnlock))
+            return null;
+
+        return Achievements.FirstOrDefault(a =>
+            string.Equals(NormalizeAchievementLookupKey(a.AchievementId), normalizedUnlock, StringComparison.Ordinal) ||
+            string.Equals(NormalizeAchievementLookupKey(a.Name), normalizedUnlock, StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -3716,6 +3755,17 @@ public partial class GameDetailViewModel : ViewModelBase
                 return val.GetString() ?? "";
         }
         return "";
+    }
+
+    private static string NormalizeAchievementLookupKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "";
+
+        string normalized = value.Trim().ToLowerInvariant();
+        normalized = Regex.Replace(normalized, @"^(achievement|ach|stat)[\s_.:-]*", "");
+        normalized = Regex.Replace(normalized, @"[^a-z0-9]+", "");
+        return normalized;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
