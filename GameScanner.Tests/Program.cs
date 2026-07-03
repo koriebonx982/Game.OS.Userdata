@@ -2044,7 +2044,7 @@ class Program
             ("Simpsons Game, the",               "the Simpsons Game"),
             ("Legend of Zelda, The",             "The Legend of Zelda"),
             ("Darkness, The",                    "The Darkness"),
-            ("Adventures of a Hero, A",          "A Adventures of a Hero"),
+            ("Adventures of a Hero, A",          "A Adventures of a Hero"),  // grammatically odd but correct normalization
             ("Escape, An",                       "An Escape"),
             ("The Already Clean Title",          "The Already Clean Title"), // unchanged
         };

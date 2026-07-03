@@ -457,10 +457,13 @@ namespace GameLauncher.Services
         /// Only the trailing article suffix form is normalised; titles already starting
         /// with the article are returned unchanged.
         /// </summary>
+        private static readonly Regex _articleSuffixRegex =
+            new(@"^(.*?),\s+(The|A|An)$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         private static string NormalizeLeadingArticle(string title)
         {
             // Match: any text, then ", " then an article at the very end.
-            var m = Regex.Match(title, @"^(.*?),\s+(The|A|An)$", RegexOptions.IgnoreCase);
+            var m = _articleSuffixRegex.Match(title);
             if (!m.Success) return title;
 
             string article = m.Groups[2].Value;

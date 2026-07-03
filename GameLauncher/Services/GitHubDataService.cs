@@ -1096,9 +1096,9 @@ namespace GameLauncher.Services
                 $"Invite from {fromUsername} to {toUsername} for {gameName}", invitesSha, ct);
 
             // Also deliver the invite as a message so it surfaces in the inbox conversation.
-            string notifyText = string.IsNullOrWhiteSpace(connectionType)
-                ? $"[Game Invite] Join me in {gameName} ({platform})"
-                : $"[Game Invite] Join me in {gameName} ({platform}) via {connectionType}";
+            string platformStr = string.IsNullOrWhiteSpace(platform) ? "" : $" ({platform.Trim()})";
+            string connStr     = string.IsNullOrWhiteSpace(connectionType) ? "" : $" via {connectionType.Trim()}";
+            string notifyText  = $"[Game Invite] Join me in {gameName.Trim()}{platformStr}{connStr}";
             var (a, b) = BuildThreadKey(fromLower, toLower);
             var convKey = $"accounts/messages/{a}_{b}.json";
             var (msgs, msgSha) = await ReadFileAsync<List<Message>>(convKey, ct);
