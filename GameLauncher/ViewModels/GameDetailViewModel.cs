@@ -2252,6 +2252,17 @@ public partial class GameDetailViewModel : ViewModelBase
             Services.NotificationService.ShowDeveloperNotification("Steam Emu",
                 steamEmuFilesFound ? "Found" : "Not Found");
 
+        // Build the raw→displayName map from steam_settings/achievements.json (GBE / Goldberg).
+        // This lets us convert raw API names like "ACH_WIN_GAME" to clean names like "Win The Game"
+        // even when the achievements panel hasn't been opened yet (Achievements list is empty).
+        var achNameMap = await System.Threading.Tasks.Task.Run(
+            () => SteamEmuAchievementService.TryBuildAchievementNameMap(exePath, _steamAppId))
+            .ConfigureAwait(false);
+
+        if (notifySteamEmuStatus && achNameMap.Count > 0)
+            Services.NotificationService.ShowDeveloperNotification("Steam Emu",
+                $"Name map loaded: {achNameMap.Count} entries");
+
         var knownUnlocks = SteamEmuAchievementService.ReadUnlockedIds(exePath, _steamAppId);
         var sessionUnlocks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -2269,7 +2280,9 @@ public partial class GameDetailViewModel : ViewModelBase
                     : unlockId;
                 string resolvedName = !string.IsNullOrWhiteSpace(resolved?.Name)
                     ? resolved!.Name
-                    : unlockId;
+                    // Fall back to the steam_settings name map when the Achievements list
+                    // hasn't been populated (e.g. user never opened the achievements panel).
+                    : (achNameMap.TryGetValue(unlockId, out var mappedName) ? mappedName : unlockId);
                 string? iconUrl = resolved?.IconUrl;
 
                 if (sessionUnlocks.Contains(unlockId) ||

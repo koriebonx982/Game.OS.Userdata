@@ -259,12 +259,21 @@ namespace GameLauncher.Services
                 // Let ludusavi perform the restore (it now has a manifest entry).
                 var result = await RunLudusaviRestoreAsync(gameTitle, gameSavePath);
 
-                if (result.Kind != ResultKind.NotInstalled)
+                if (result.Kind == ResultKind.Synced)
                     return result;
 
-                // Ludusavi not installed — fall back to a direct file copy.
-                DevLogService.Log("[Ludusavi] not installed; falling back to direct copy for restore.");
-                return await CopyDirectoryAsync(gameSavePath, targetOverridePath, gameTitle);
+                // Ludusavi not installed or game not found in its manifest (common for
+                // emulator titles like Xbox 360/Xenia that are not in the built-in database)
+                // — fall back to a direct file copy from the Game.OS backup folder.
+                if (result.Kind is ResultKind.NotInstalled or ResultKind.NoSaveFound)
+                {
+                    DevLogService.Log(
+                        $"[Ludusavi] restore returned {result.Kind}; falling back to direct copy.");
+                    return await CopyDirectoryAsync(gameSavePath, targetOverridePath, gameTitle);
+                }
+
+                // For other failures (permission/path/process), surface the error.
+                return result;
             }
 
             // ── Non-PC emulator games without a resolved save path ─────────────

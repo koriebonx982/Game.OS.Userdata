@@ -65,6 +65,133 @@ namespace GameLauncher.Services
         }
 
         /// <summary>
+        /// Builds a mapping from raw API achievement name (e.g. <c>ACH_WIN_GAME</c>) to
+        /// its human-readable display name (e.g. <c>Win The Game</c>) by reading the
+        /// <c>steam_settings/achievements.json</c> definitions file placed by GBE,
+        /// Goldberg, and other Steam-emulator forks next to the game executable.
+        ///
+        /// <para>
+        /// The definitions file is distinct from the unlock-state files read by
+        /// <see cref="ReadUnlockedIds"/>; it contains no unlock information, only
+        /// the achievement catalogue with names, descriptions and icons.
+        /// </para>
+        /// </summary>
+        /// <param name="exePath">Full path to the game's launch executable.</param>
+        /// <param name="steamAppId">Steam AppID (kept for API symmetry with other methods).</param>
+        /// <returns>
+        /// A case-insensitive dictionary mapping <c>name</c> → <c>displayName</c>.
+        /// Returns an empty dictionary when no definitions file is found or can be parsed.
+        /// </returns>
+        public static Dictionary<string, string> TryBuildAchievementNameMap(string exePath, int steamAppId)
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            string? gameDir = null;
+            try { gameDir = Path.GetDirectoryName(exePath); } catch { }
+            if (string.IsNullOrEmpty(gameDir)) return map;
+
+            // Candidate definition-file locations (game dir and parent dir, both casing variants)
+            var candidates = new List<string>
+            {
+                Path.Combine(gameDir,  "steam_settings", "achievements.json"),
+                Path.Combine(gameDir,  "SteamSettings",  "achievements.json"),
+            };
+            string? parent = null;
+            try { parent = Directory.GetParent(gameDir)?.FullName; } catch { }
+            if (!string.IsNullOrEmpty(parent))
+            {
+                candidates.Add(Path.Combine(parent, "steam_settings", "achievements.json"));
+                candidates.Add(Path.Combine(parent, "SteamSettings",  "achievements.json"));
+            }
+
+            foreach (var defPath in candidates)
+            {
+                if (!File.Exists(defPath)) continue;
+                try
+                {
+                    ParseAchievementDefinitions(defPath, map);
+                    if (map.Count > 0) break; // stop at the first file that yields entries
+                }
+                catch { /* best-effort */ }
+            }
+
+            return map;
+        }
+
+        // ── Internal: achievement-definitions parser ──────────────────────────
+
+        /// <summary>
+        /// Parses a <c>steam_settings/achievements.json</c> definitions file into
+        /// <paramref name="map"/>, adding raw <c>name</c> → <c>displayName</c> pairs.
+        ///
+        /// Handles two common layouts:
+        /// <list type="bullet">
+        ///   <item>Array: <c>[{ "name": "ACH_ID", "displayName": "Clean Name", … }]</c></item>
+        ///   <item>Object: <c>{ "ACH_ID": { "displayName": "Clean Name", … } }</c></item>
+        /// </list>
+        /// </summary>
+        private static void ParseAchievementDefinitions(string filePath, Dictionary<string, string> map)
+        {
+            using var stream = File.OpenRead(filePath);
+            using var doc    = JsonDocument.Parse(stream);
+            var root = doc.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                // [ { "name": "ACH_ID", "displayName": "Clean Name", … }, … ]
+                foreach (var item in root.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.Object) continue;
+
+                    string? rawName     = null;
+                    string? displayName = null;
+
+                    foreach (var prop in item.EnumerateObject())
+                    {
+                        if (string.Equals(prop.Name, "name",         StringComparison.OrdinalIgnoreCase) &&
+                            prop.Value.ValueKind == JsonValueKind.String)
+                            rawName = prop.Value.GetString();
+
+                        if ((string.Equals(prop.Name, "displayName",  StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(prop.Name, "display_name", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(prop.Name, "title",        StringComparison.OrdinalIgnoreCase)) &&
+                            prop.Value.ValueKind == JsonValueKind.String)
+                            displayName = prop.Value.GetString();
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(rawName) && !string.IsNullOrWhiteSpace(displayName))
+                        map.TryAdd(rawName.Trim(), displayName.Trim());
+                }
+            }
+            else if (root.ValueKind == JsonValueKind.Object)
+            {
+                // { "ACH_ID": { "displayName": "Clean Name", … }, … }
+                foreach (var prop in root.EnumerateObject())
+                {
+                    string rawName = prop.Name;
+                    if (string.IsNullOrWhiteSpace(rawName)) continue;
+
+                    if (prop.Value.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var inner in prop.Value.EnumerateObject())
+                        {
+                            if ((string.Equals(inner.Name, "displayName",  StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(inner.Name, "display_name", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(inner.Name, "title",        StringComparison.OrdinalIgnoreCase)) &&
+                                inner.Value.ValueKind == JsonValueKind.String)
+                            {
+                                string? dn = inner.Value.GetString();
+                                if (!string.IsNullOrWhiteSpace(dn))
+                                    map.TryAdd(rawName.Trim(), dn.Trim());
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// Enumerates every achievement/stats file from all known Steam-emulator save paths
         /// that are relevant to the supplied game.
         /// </summary>
@@ -186,6 +313,28 @@ namespace GameLauncher.Services
                 AddDir(empressRoot, "achievements.ini", "stats.ini", "achievements.json");
             }
 
+            // ── %PUBLIC%\steam\{Group}\{appid}\ ──────────────────────────────
+            // Some crack groups store saves directly under %PUBLIC%\steam\ (without
+            // the \Documents\ subfolder).  Rune in particular uses this layout:
+            //   C:\Users\Public\steam\rune\{appid}\achievements.ini
+            string? publicRoot = Environment.GetEnvironmentVariable("PUBLIC");
+            if (string.IsNullOrEmpty(publicRoot) && !string.IsNullOrEmpty(common))
+                publicRoot = Directory.GetParent(common)?.FullName; // parent of %PUBLIC%\Documents
+            if (!string.IsNullOrEmpty(publicRoot))
+            {
+                string pubSteam = Path.Combine(publicRoot, "steam");
+                AddDir(Path.Combine(pubSteam, "rune",       appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "RUNE",       appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "codex",      appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "CODEX",      appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "plaza",      appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "PLAZA",      appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "skidrow",    appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "SKIDROW",    appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "online_fix", appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "onlinefix",  appId), "achievements.ini", "stats.ini", "achievements.json");
+            }
+
             // ── CPY (EMPRESS/Codex) variant: Documents/CPY_SAVES ──────────────
             if (!string.IsNullOrEmpty(docs))
             {
@@ -304,6 +453,12 @@ namespace GameLauncher.Services
                 // EMPRESS lives directly under Public Documents (not under Steam/)
                 yield return Path.Combine(commonDocs, "EMPRESS");
             }
+            // Also scan %PUBLIC%\steam\ (some emulators omit the \Documents\ subfolder)
+            string? publicDir = Environment.GetEnvironmentVariable("PUBLIC");
+            if (string.IsNullOrEmpty(publicDir) && !string.IsNullOrEmpty(commonDocs))
+                publicDir = Directory.GetParent(commonDocs)?.FullName;
+            if (!string.IsNullOrEmpty(publicDir))
+                yield return Path.Combine(publicDir, "steam");
             if (!string.IsNullOrEmpty(docs))
             {
                 yield return Path.Combine(docs, "Steam");
