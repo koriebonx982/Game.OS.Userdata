@@ -542,8 +542,9 @@ namespace GameLauncher.Services
                 if (!File.Exists(filePath)) return 0;
                 string raw = File.ReadAllText(filePath).Trim();
                 // The file may contain just the AppID or a line like "1234567\n"
-                // Split on any whitespace/newline and take the first token.
-                string token = raw.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+                // Split on whitespace/newlines and take the first token.
+                string[] tokens = raw.Split(Array.Empty<char>(), StringSplitOptions.RemoveEmptyEntries);
+                string token = tokens.Length > 0 ? tokens[0] : "";
                 return int.TryParse(token, out int id) && id > 0 ? id : 0;
             }
             catch { return 0; }
