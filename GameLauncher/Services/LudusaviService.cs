@@ -267,8 +267,11 @@ namespace GameLauncher.Services
                 // — fall back to a direct file copy from the Game.OS backup folder.
                 if (result.Kind is ResultKind.NotInstalled or ResultKind.NoSaveFound)
                 {
+                    string reason = result.Kind == ResultKind.NotInstalled
+                        ? "ludusavi not installed"
+                        : "game not found in ludusavi manifest";
                     DevLogService.Log(
-                        $"[Ludusavi] restore returned {result.Kind}; falling back to direct copy.");
+                        $"[Ludusavi] restore fallback ({reason}); copying directly to \"{targetOverridePath}\".");
                     return await CopyDirectoryAsync(gameSavePath, targetOverridePath, gameTitle);
                 }
 

@@ -77,12 +77,18 @@ namespace GameLauncher.Services
         /// </para>
         /// </summary>
         /// <param name="exePath">Full path to the game's launch executable.</param>
-        /// <param name="steamAppId">Steam AppID (kept for API symmetry with other methods).</param>
+        /// <param name="steamAppId">
+        /// Steam AppID.  Currently unused by this method — kept for API symmetry with
+        /// <see cref="ReadUnlockedIds"/> and <see cref="EnumerateAchievementFiles"/> so
+        /// all three can be called with the same pair of arguments.
+        /// </param>
         /// <returns>
         /// A case-insensitive dictionary mapping <c>name</c> → <c>displayName</c>.
         /// Returns an empty dictionary when no definitions file is found or can be parsed.
         /// </returns>
+#pragma warning disable CA1801   // steamAppId intentionally unused (API symmetry — see doc)
         public static Dictionary<string, string> TryBuildAchievementNameMap(string exePath, int steamAppId)
+#pragma warning restore CA1801
         {
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -150,17 +156,17 @@ namespace GameLauncher.Services
                     {
                         if (string.Equals(prop.Name, "name",         StringComparison.OrdinalIgnoreCase) &&
                             prop.Value.ValueKind == JsonValueKind.String)
-                            rawName = prop.Value.GetString();
+                            rawName = prop.Value.GetString()?.Trim();
 
                         if ((string.Equals(prop.Name, "displayName",  StringComparison.OrdinalIgnoreCase) ||
                              string.Equals(prop.Name, "display_name", StringComparison.OrdinalIgnoreCase) ||
                              string.Equals(prop.Name, "title",        StringComparison.OrdinalIgnoreCase)) &&
                             prop.Value.ValueKind == JsonValueKind.String)
-                            displayName = prop.Value.GetString();
+                            displayName = prop.Value.GetString()?.Trim();
                     }
 
                     if (!string.IsNullOrWhiteSpace(rawName) && !string.IsNullOrWhiteSpace(displayName))
-                        map.TryAdd(rawName.Trim(), displayName.Trim());
+                        map.TryAdd(rawName, displayName);
                 }
             }
             else if (root.ValueKind == JsonValueKind.Object)
@@ -168,7 +174,7 @@ namespace GameLauncher.Services
                 // { "ACH_ID": { "displayName": "Clean Name", … }, … }
                 foreach (var prop in root.EnumerateObject())
                 {
-                    string rawName = prop.Name;
+                    string rawName = prop.Name.Trim();
                     if (string.IsNullOrWhiteSpace(rawName)) continue;
 
                     if (prop.Value.ValueKind == JsonValueKind.Object)
@@ -180,9 +186,9 @@ namespace GameLauncher.Services
                                  string.Equals(inner.Name, "title",        StringComparison.OrdinalIgnoreCase)) &&
                                 inner.Value.ValueKind == JsonValueKind.String)
                             {
-                                string? dn = inner.Value.GetString();
+                                string? dn = inner.Value.GetString()?.Trim();
                                 if (!string.IsNullOrWhiteSpace(dn))
-                                    map.TryAdd(rawName.Trim(), dn.Trim());
+                                    map.TryAdd(rawName, dn);
                                 break;
                             }
                         }
