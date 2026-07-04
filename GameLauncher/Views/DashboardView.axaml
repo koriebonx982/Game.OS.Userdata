@@ -899,6 +899,42 @@
             </Border>
         </StackPanel>
 
+        <!-- Media -->
+        <StackPanel Margin="0,0,0,24">
+            <TextBlock Text="Media" Classes="section-header"/>
+            <ItemsControl>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <Button Classes="game-card-btn"
+                        Command="{Binding OpenMoviesFolderCommand}">
+                    <StackPanel Margin="12,10" Spacing="6">
+                        <TextBlock Text="🎬 Movies" Classes="game-card-title"/>
+                        <TextBlock Text="Browse your movie collection."
+                                   Classes="achievement-desc"/>
+                    </StackPanel>
+                </Button>
+                <Button Classes="game-card-btn"
+                        Command="{Binding OpenTvShowsFolderCommand}">
+                    <StackPanel Margin="12,10" Spacing="6">
+                        <TextBlock Text="📺 TV Shows" Classes="game-card-title"/>
+                        <TextBlock Text="Browse your TV show collection."
+                                   Classes="achievement-desc"/>
+                    </StackPanel>
+                </Button>
+                <Button Classes="game-card-btn"
+                        Command="{Binding OpenMusicFolderCommand}">
+                    <StackPanel Margin="12,10" Spacing="6">
+                        <TextBlock Text="🎵 Music" Classes="game-card-title"/>
+                        <TextBlock Text="Play your music library."
+                                   Classes="achievement-desc"/>
+                    </StackPanel>
+                </Button>
+            </ItemsControl>
+        </StackPanel>
+
         <!-- Recent Achievements -->
         <TextBlock Text="Recent Achievements" Classes="section-header"
                    IsVisible="{Binding RecentAchievements.Count}"/>
