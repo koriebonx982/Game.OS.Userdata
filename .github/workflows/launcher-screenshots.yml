@@ -144,8 +144,16 @@ jobs:
             }
           ]
           SESSIONEOF
+          cat > "${SESSION_DIR}/appsettings.json" << 'APPEOF'
+          {
+            "hasCompletedFirstRunSetup": true,
+            "showIntroVideo": false
+          }
+          APPEOF
           echo "sessions.json written to ${SESSION_DIR}"
           cat "${SESSION_DIR}/sessions.json"
+          echo "appsettings.json written to ${SESSION_DIR}"
+          cat "${SESSION_DIR}/appsettings.json"
 
       - name: Launch and screenshot all pages
         env:
@@ -398,8 +406,16 @@ jobs:
             }
           ]
           SESSIONEOF
+          cat > "${SESSION_DIR}/appsettings.json" << 'APPEOF'
+          {
+            "hasCompletedFirstRunSetup": true,
+            "showIntroVideo": false
+          }
+          APPEOF
           echo "sessions.json written to ${SESSION_DIR}"
           cat "${SESSION_DIR}/sessions.json"
+          echo "appsettings.json written to ${SESSION_DIR}"
+          cat "${SESSION_DIR}/appsettings.json"
 
       - name: Launch and screenshot all pages
         env:
@@ -623,8 +639,16 @@ jobs:
           )
           $json = ConvertTo-Json -InputObject $session -Depth 5
           Set-Content (Join-Path $sessionDir 'sessions.json') $json
+          $appSettings = [ordered]@{
+            hasCompletedFirstRunSetup = $true
+            showIntroVideo            = $false
+          }
+          $appSettingsJson = ConvertTo-Json -InputObject $appSettings -Depth 5
+          Set-Content (Join-Path $sessionDir 'appsettings.json') $appSettingsJson
           Write-Host "sessions.json written to $sessionDir"
           Get-Content (Join-Path $sessionDir 'sessions.json')
+          Write-Host "appsettings.json written to $sessionDir"
+          Get-Content (Join-Path $sessionDir 'appsettings.json')
 
       - name: Launch and screenshot all pages
         shell: pwsh
