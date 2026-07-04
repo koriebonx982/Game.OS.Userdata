@@ -200,6 +200,12 @@ public partial class IntroWindow : Window
         _libVlc = null;
     }
 
+    /// <summary>
+    /// Public accessor so other views (e.g. <see cref="GameDetailView"/>) can
+    /// locate the bundled LibVLC directory without duplicating the discovery logic.
+    /// </summary>
+    public static string? FindBundledLibVlcDirectoryPublic() => FindBundledLibVlcDirectory();
+
     private static string? FindBundledLibVlcDirectory()
     {
         string baseDir = AppContext.BaseDirectory;

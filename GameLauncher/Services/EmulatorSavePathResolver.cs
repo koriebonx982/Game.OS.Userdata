@@ -198,8 +198,10 @@ namespace GameLauncher.Services
                     return Path.Combine(contentRoot, anyProfile, titleId, "00000001");
             }
 
-            // No profile known and none detected — cannot resolve a reliable Xenia save path.
-            return null;
+            // No profile known and none detected — use the standard Xenia offline
+            // default profile ("00000001"), which is the 8-digit hex profile created
+            // automatically by Xenia for local/offline play.
+            return Path.Combine(contentRoot, "00000001", titleId, "00000001");
         }
 
         // ── Helpers ────────────────────────────────────────────────────────────
@@ -249,15 +251,15 @@ namespace GameLauncher.Services
             return null;
         }
 
-        // Xenia profile IDs are 8–16 character uppercase hex strings, e.g. "E03000003D7E0695".
-        private const int MinProfileIdLength = 8;
-        private const int MaxProfileIdLength = 16;
+        // Xbox 360 / Xenia profile IDs are exactly 8 uppercase hex characters, e.g. "00000001"
+        // (offline/default profile) or "E0300001" (gamertag-derived profile).
+        private const int XeniaProfileIdLength = 8;
 
         /// <summary>
-        /// Scans <paramref name="contentRoot"/> for the first sub-directory that looks
-        /// like a Xenia profile folder (any directory whose name is a hex string of
-        /// 8–16 characters, matching the typical Xenia profile ID format).
-        /// Used as a last-resort fallback when the game-specific detection fails.
+        /// Scans <paramref name="contentRoot"/> for the first sub-directory whose name
+        /// is exactly 8 hex characters — the standard Xenia profile folder format
+        /// (e.g. "00000001" for offline play, "E0300001" for a gamertag profile).
+        /// Used as a last-resort fallback when game-specific detection fails.
         /// </summary>
         private static string? TryDetectAnyXeniaProfileId(string contentRoot)
         {
@@ -268,11 +270,8 @@ namespace GameLauncher.Services
                 foreach (string profileDir in Directory.EnumerateDirectories(contentRoot))
                 {
                     string name = Path.GetFileName(profileDir);
-                    if (name.Length >= MinProfileIdLength && name.Length <= MaxProfileIdLength &&
-                        IsHexString(name))
-                    {
+                    if (name.Length == XeniaProfileIdLength && IsHexString(name))
                         return name;
-                    }
                 }
             }
             catch { /* best-effort */ }

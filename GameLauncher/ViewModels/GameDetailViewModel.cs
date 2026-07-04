@@ -63,9 +63,20 @@ public partial class GameDetailViewModel : ViewModelBase
 
     /// <summary>
     /// True when the in-app trailer player overlay is visible.
-    /// Bound to the VideoView overlay in GameDetailView.axaml.
+    /// Bound to the WebView overlay in GameDetailView.axaml.
     /// </summary>
     [ObservableProperty] private bool    _isTrailerPlayerOpen;
+
+    // ── VLC local file player ─────────────────────────────────────────────────
+    /// <summary>True when the in-app VLC file-player overlay is visible.</summary>
+    [ObservableProperty] private bool    _isVlcPlayerOpen;
+    /// <summary>Path (or network URI) of the media currently loaded in the VLC player.</summary>
+    [ObservableProperty] private string  _vlcMediaPath = "";
+    /// <summary>
+    /// Delegate set by the View code-behind.  When invoked, the View shows a file
+    /// picker and—once the user selects a file—starts VLC playback in the overlay.
+    /// </summary>
+    public System.Action? PlayLocalVideoRequested { get; set; }
 
     /// <summary>
     /// The extracted YouTube video ID (e.g. "dQw4w9WgXcQ").
@@ -74,29 +85,52 @@ public partial class GameDetailViewModel : ViewModelBase
     public string YoutubeVideoId => ExtractYoutubeVideoId(TrailerUrl);
 
     /// <summary>
-    /// The YouTube embed URL used by the in-app WebView player
-    /// (e.g. <c>https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&amp;rel=0</c>).
-    /// Returns <c>"about:blank"</c> when the overlay is closed so that closing
-    /// the player stops audio/video, and re-opening it always causes a real URL
-    /// change in the binding (guaranteeing the WebView re-navigates).
+    /// Returns <see langword="true"/> when <see cref="TrailerUrl"/> is a valid
+    /// http/https URL that can be loaded directly in the WebView
+    /// (covers YouTube embeds and any other web-hosted trailer, e.g. Triller).
     /// </summary>
-    public string TrailerEmbedUrl =>
-        IsTrailerPlayerOpen && !string.IsNullOrEmpty(YoutubeVideoId)
-            ? $"https://www.youtube.com/embed/{YoutubeVideoId}?autoplay=1&rel=0"
-            : "about:blank";
+    public bool TrailerIsWebUrl =>
+        !string.IsNullOrEmpty(TrailerUrl) &&
+        Uri.TryCreate(TrailerUrl, UriKind.Absolute, out var u) &&
+        (u.Scheme == Uri.UriSchemeHttp || u.Scheme == Uri.UriSchemeHttps);
+
+    /// <summary>
+    /// The URL loaded by the in-app WebView player.
+    /// <list type="bullet">
+    ///   <item>YouTube: uses the embed format so autoplay works.</item>
+    ///   <item>Any other http/https URL (e.g. Triller): loaded directly.</item>
+    ///   <item>When the overlay is closed returns <c>"about:blank"</c> so the
+    ///         WebView stops playback and the binding re-fires on next open.</item>
+    /// </list>
+    /// </summary>
+    public string TrailerEmbedUrl
+    {
+        get
+        {
+            if (!IsTrailerPlayerOpen || string.IsNullOrEmpty(TrailerUrl)) return "about:blank";
+            var videoId = YoutubeVideoId;
+            if (!string.IsNullOrEmpty(videoId))
+                return $"https://www.youtube.com/embed/{videoId}?autoplay=1&rel=0";
+            // Non-YouTube web URL: load directly in the WebView
+            if (TrailerIsWebUrl) return TrailerUrl!;
+            return "about:blank";
+        }
+    }
 
     partial void OnTrailerUrlChanged(string? value)
     {
         OnPropertyChanged(nameof(YoutubeVideoId));
+        OnPropertyChanged(nameof(TrailerIsWebUrl));
         OnPropertyChanged(nameof(TrailerEmbedUrl));
     }
 
     partial void OnIsTrailerPlayerOpenChanged(bool value)
     {
         // Always notify so the WebView URL binding fires in both directions:
-        // open  → "about:blank" → YouTube URL  (WebView navigates to video)
-        // close → YouTube URL  → "about:blank" (WebView stops playback/audio)
+        // open  → "about:blank" → URL  (WebView navigates to video)
+        // close → URL → "about:blank"  (WebView stops playback/audio)
         OnPropertyChanged(nameof(YoutubeVideoId));
+        OnPropertyChanged(nameof(TrailerIsWebUrl));
         OnPropertyChanged(nameof(TrailerEmbedUrl));
     }
 
@@ -314,6 +348,17 @@ public partial class GameDetailViewModel : ViewModelBase
 
     /// <summary>Steam AppId for locally-installed Steam games (0 for non-Steam games).</summary>
     private int _steamAppId;
+
+    // ── Title / App ID display ────────────────────────────────────────────────
+    /// <summary>
+    /// Human-readable identifier shown in the game-info panel.
+    /// For Steam games shows the AppId (e.g. "AppId: 1091500");
+    /// for ROM/emulated games shows the platform TitleId (e.g. "TitleId: 454108E6").
+    /// Empty when neither value is available.
+    /// </summary>
+    [ObservableProperty] private string _displayTitleId = "";
+    /// <summary>True when <see cref="DisplayTitleId"/> has a non-empty value to show.</summary>
+    [ObservableProperty] private bool   _hasDisplayTitleId;
 
     /// <summary>
     /// True when the game is a Steam-API-registered title that is not currently
@@ -1077,22 +1122,23 @@ public partial class GameDetailViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Opens the trailer in-app (via the LibVLC VideoView overlay) for recognised
-    /// YouTube URLs.  Falls back to the system browser for unrecognised URLs.
+    /// Opens the trailer in-app (via the WebView overlay) for any valid http/https
+    /// URL — including YouTube embeds and other web-hosted trailers (e.g. Triller).
+    /// Falls back to the system browser only for unrecognised/non-web URLs.
     /// </summary>
     [RelayCommand]
     private void OpenTrailer()
     {
         if (string.IsNullOrEmpty(TrailerUrl)) return;
 
-        // If we can extract a YouTube video ID, open the in-app player
-        if (!string.IsNullOrEmpty(YoutubeVideoId))
+        // Any valid http/https URL can be played inside the WebView overlay
+        if (TrailerIsWebUrl)
         {
             IsTrailerPlayerOpen = true;
             return;
         }
 
-        // Fallback: unrecognised URL → open in system browser
+        // Fallback: non-web URL → open with shell (e.g. local file associations)
         try
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
@@ -1102,6 +1148,25 @@ public partial class GameDetailViewModel : ViewModelBase
             });
         }
         catch { /* best-effort */ }
+    }
+
+    /// <summary>
+    /// Opens the in-app VLC player with a user-selected local video file.
+    /// The View code-behind must set <see cref="PlayLocalVideoRequested"/> to handle
+    /// file picking and VLC playback.
+    /// </summary>
+    [RelayCommand]
+    private void PlayLocalVideo()
+    {
+        PlayLocalVideoRequested?.Invoke();
+    }
+
+    /// <summary>Dismisses the in-app VLC local file player overlay.</summary>
+    [RelayCommand]
+    private void CloseVlcPlayer()
+    {
+        IsVlcPlayerOpen = false;
+        VlcMediaPath    = "";
     }
 
     /// <summary>Dismisses the in-app trailer player overlay.</summary>
@@ -2822,6 +2887,7 @@ public partial class GameDetailViewModel : ViewModelBase
         HasSteamLaunchOption = _steamAppId > 0;
         // Recalculate IsCloudOnly after Steam check (Steam-installable games are not "cloud only")
         if (IsSteamInstallable) IsCloudOnly = false;
+        RefreshDisplayTitleId();
         LoadReviews();
     }
     /// <param name="localGame">If not null, the game is installed — shows Play + ··· buttons.</param>
@@ -2962,6 +3028,7 @@ public partial class GameDetailViewModel : ViewModelBase
         IsSteamInstallable   = false; // already installed
         SteamInstallUrl      = game.SteamAppId > 0 ? $"steam://install/{game.SteamAppId}" : "";
         HasSteamLaunchOption = game.SteamAppId > 0;
+        RefreshDisplayTitleId();
         LoadReviews();
     }
 
@@ -3028,6 +3095,7 @@ public partial class GameDetailViewModel : ViewModelBase
         IsSteamInstallable   = false;
         SteamInstallUrl      = "";
         HasSteamLaunchOption = false;
+        RefreshDisplayTitleId();
         LoadReviews();
     }
 
@@ -3084,6 +3152,7 @@ public partial class GameDetailViewModel : ViewModelBase
         IsSteamInstallable   = false;
         SteamInstallUrl      = "";
         HasSteamLaunchOption = false;
+        RefreshDisplayTitleId();
         LoadReviews();
     }
 
@@ -3243,6 +3312,7 @@ public partial class GameDetailViewModel : ViewModelBase
         PopulateTrailer(dbGame.TrailerUrl);
         ExophaseUrl = dbGame.ExophaseUrl;
         PopulateScreenshots(dbGame.Screenshots);
+        RefreshDisplayTitleId();
 
         // Always fetch the full achievement template from AchievementsUrl so the detail
         // view shows the complete list.  Pass any already-unlocked achievements so their
@@ -3588,9 +3658,29 @@ public partial class GameDetailViewModel : ViewModelBase
     {
         TrailerUrl   = url;
         HasTrailer   = !string.IsNullOrEmpty(url);
+        // Label updates based on whether it's a YouTube embed or a generic web URL
         TrailerLabel = HasTrailer
-            ? (string.IsNullOrEmpty(YoutubeVideoId) ? "▶  Watch Trailer on YouTube" : "▶  Watch Trailer")
+            ? (!string.IsNullOrEmpty(YoutubeVideoId) ? "▶  Watch Trailer" : "▶  Watch Trailer")
             : "▶  Watch Trailer";
+    }
+
+    /// <summary>
+    /// Updates <see cref="DisplayTitleId"/> and <see cref="HasDisplayTitleId"/> from
+    /// whichever identifier is available: Steam AppId &gt; platform TitleId (ROM/emulated).
+    /// </summary>
+    private void RefreshDisplayTitleId()
+    {
+        string? id = null;
+        if (_steamAppId > 0)
+            id = $"AppId: {_steamAppId}";
+        else
+        {
+            string? titleId = CurrentTitleId;
+            if (!string.IsNullOrWhiteSpace(titleId))
+                id = $"TitleId: {titleId}";
+        }
+        DisplayTitleId    = id ?? "";
+        HasDisplayTitleId = !string.IsNullOrEmpty(id);
     }
 
     private void PopulateScreenshots(List<string>? shots)

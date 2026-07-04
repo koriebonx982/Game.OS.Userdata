@@ -2149,7 +2149,8 @@ class Program
                 passed = false;
             }
 
-            // When the titleId is not present under any profile, should return null.
+            // When the titleId is not present under any profile, Resolve should
+            // fall back to the standard Xenia offline profile ("00000001").
             string? missingTitle = EmulatorSavePathResolver.Resolve(
                 platform: "Xbox 360",
                 emulatorName: "Xenia",
@@ -2157,13 +2158,18 @@ class Program
                 titleId: "DEADBEEF",
                 profileId: null);
 
-            if (missingTitle == null)
+            // Xbox 360 saves use 8-digit hex profile IDs; "00000001" is the default
+            // offline profile created by Xenia when no gamertag profile is present.
+            string expectedFallback = Path.Combine(tempRoot, "content", "00000001", "DEADBEEF", "00000001");
+
+            if (missingTitle == expectedFallback)
             {
-                Console.WriteLine($"  ✅  Returns null when title not found in any profile");
+                Console.WriteLine($"  ✅  Falls back to default offline profile (\"00000001\") for title not found in any profile");
             }
             else
             {
-                Console.WriteLine($"  ❌  Expected null for missing title, got \"{missingTitle}\"");
+                Console.WriteLine($"  ❌  Expected fallback path \"{expectedFallback}\"");
+                Console.WriteLine($"       got \"{missingTitle}\"");
                 passed = false;
             }
         }
