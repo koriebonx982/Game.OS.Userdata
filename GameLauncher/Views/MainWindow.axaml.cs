@@ -348,7 +348,7 @@ public partial class MainWindow : Window
     }
 
     private static readonly string[] _navPages =
-        ["dashboard", "library", "store", "friends", "profile", "settings"];
+        ["dashboard", "library", "store", "friends", "inbox", "profile", "settings", "media"];
 
     private static void NavigatePrev(MainViewModel vm)
     {

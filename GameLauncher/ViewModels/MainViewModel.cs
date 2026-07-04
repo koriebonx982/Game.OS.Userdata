@@ -684,6 +684,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         DashboardVm.OnContinuePlaying   = LaunchFromCard;
         DashboardVm.OnNavigateToLibrary = () => Navigate("library");
         DashboardVm.OnNavigateToPage    = Navigate;
+        DashboardVm.OnNavigateToMediaSection = section =>
+        {
+            MediaVm.OpenSection(section);
+            Navigate("media");
+        };
         DashboardVm.OnPlayFocusedCard   = LaunchFromCard;
         DashboardVm.OnOpenFocusedCardDetail = OpenDetailFromMyGameCard;
         DashboardVm.OnViewFriendProfile  = OpenFriendProfile;
@@ -1686,6 +1691,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             InboxVm.Load(_client, _profile.Username);
         if (page == "profile")
             ProfileVm.Load(_profile, _library, _achievements, _client.IsAdmin);
+        if (page == "media")
+            MediaVm.EnsureMediaLibraryFresh();
     }
 
     private void OpenDetailFromGame(Game game)

@@ -359,7 +359,7 @@ public partial class QuickMenuViewModel : ViewModelBase
         switch (Xb360BladeId)
         {
             case "media":
-                MediaPlayPauseCommand.Execute(null);
+                OpenMediaPageCommand.Execute(null);
                 return;
             case "settings":
                 OpenSettingsPageCommand.Execute(null);
@@ -565,6 +565,14 @@ public partial class QuickMenuViewModel : ViewModelBase
     private void OpenStorePage()
     {
         OnNavigatePage?.Invoke("store");
+        OnRequestLauncherForeground?.Invoke();
+        OnDismiss?.Invoke();
+    }
+
+    [RelayCommand]
+    private void OpenMediaPage()
+    {
+        OnNavigatePage?.Invoke("media");
         OnRequestLauncherForeground?.Invoke();
         OnDismiss?.Invoke();
     }

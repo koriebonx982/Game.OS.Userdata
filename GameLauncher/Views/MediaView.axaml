@@ -14,7 +14,7 @@
 
                 <!-- Page title -->
                 <TextBlock Text="Media" Classes="page-title"/>
-                <TextBlock Text="Browse your media library or play a file in-app with VLC."
+                <TextBlock Text="Browse media from all drives under each drive's Media folder."
                            Classes="page-subtitle" Margin="0,-20,0,0"/>
 
                 <!-- Play File button -->
@@ -26,57 +26,102 @@
                     </Button>
                 </StackPanel>
 
-                <!-- Folders section -->
-                <TextBlock Text="Media Folders" Classes="section-header"/>
-
-                <!-- Movies tile -->
-                <Border Classes="xb360-metro-tile xb360-metro-stat" CornerRadius="10" Height="80">
-                    <Grid Margin="16,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Text="🎬  Movies" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
-                            <TextBlock Text="Browse your movie collection." FontSize="12" Foreground="#8b949e"/>
+                <Border Classes="xb360-metro-tile xb360-metro-stat" CornerRadius="10">
+                    <Grid Margin="16" ColumnDefinitions="220,*" ColumnSpacing="16">
+                        <StackPanel Grid.Column="0" Spacing="8">
+                            <TextBlock Text="Media" Classes="section-header"/>
+                            <Button Classes="btn-secondary"
+                                    Classes.active="{Binding IsMoviesSelected}"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{Binding SelectMoviesCommand}">
+                                🎬  Movies
+                            </Button>
+                            <Button Classes="btn-secondary"
+                                    Classes.active="{Binding IsTvShowsSelected}"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{Binding SelectTvShowsCommand}">
+                                📺  TV Shows
+                            </Button>
+                            <Button Classes="btn-secondary"
+                                    Classes.active="{Binding IsMusicSelected}"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{Binding SelectMusicCommand}">
+                                🎵  Music
+                            </Button>
+                            <Button Classes="btn-secondary"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{Binding RefreshMediaLibraryCommand}">
+                                Refresh Scan
+                            </Button>
                         </StackPanel>
-                        <Button Grid.Column="1"
-                                Classes="btn-secondary"
-                                Padding="12,6"
-                                VerticalAlignment="Center"
-                                Command="{Binding OpenMoviesFolderCommand}">
-                            Open
-                        </Button>
-                    </Grid>
-                </Border>
 
-                <!-- Music tile -->
-                <Border Classes="xb360-metro-tile xb360-metro-stat" CornerRadius="10" Height="80">
-                    <Grid Margin="16,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Text="🎵  Music" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
-                            <TextBlock Text="Play your music library." FontSize="12" Foreground="#8b949e"/>
-                        </StackPanel>
-                        <Button Grid.Column="1"
-                                Classes="btn-secondary"
-                                Padding="12,6"
-                                VerticalAlignment="Center"
-                                Command="{Binding OpenMusicFolderCommand}">
-                            Open
-                        </Button>
-                    </Grid>
-                </Border>
-
-                <!-- TV Shows tile -->
-                <Border Classes="xb360-metro-tile xb360-metro-stat" CornerRadius="10" Height="80">
-                    <Grid Margin="16,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Text="📺  TV Shows" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
-                            <TextBlock Text="Browse your TV show collection." FontSize="12" Foreground="#8b949e"/>
-                        </StackPanel>
-                        <Button Grid.Column="1"
-                                Classes="btn-secondary"
-                                Padding="12,6"
-                                VerticalAlignment="Center"
-                                Command="{Binding OpenTvShowsFolderCommand}">
-                            Open
-                        </Button>
+                        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="8">
+                            <TextBlock Text="{Binding ActiveSectionTitle}" Classes="section-header"/>
+                            <TextBlock Text="{Binding ActiveSectionSummary}"
+                                       Grid.Row="1"
+                                       FontSize="12"
+                                       Foreground="#8b949e"/>
+                            <ScrollViewer Grid.Row="2" MaxHeight="300"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding ActiveItems}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal" ItemWidth="180" ItemHeight="96"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Classes="btn-secondary"
+                                                    Margin="0,0,8,8"
+                                                    HorizontalContentAlignment="Stretch"
+                                                    VerticalContentAlignment="Stretch"
+                                                    Command="{Binding $parent[UserControl].DataContext.SelectMediaItemCommand}"
+                                                    CommandParameter="{Binding}">
+                                                <StackPanel Margin="8,6" Spacing="3">
+                                                    <TextBlock Text="{Binding Title}"
+                                                               FontSize="12"
+                                                               FontWeight="SemiBold"
+                                                               MaxHeight="34"
+                                                               TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{Binding Extension}"
+                                                               FontSize="10"
+                                                               Foreground="#8b949e"/>
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                            <Border Grid.Row="3"
+                                    Classes="xb360-metro-tile xb360-metro-stat"
+                                    CornerRadius="8"
+                                    IsVisible="{Binding HasSelectedItem}">
+                                <StackPanel Margin="12,10" Spacing="6">
+                                    <TextBlock Text="Info" Classes="section-header" FontSize="14"/>
+                                    <TextBlock Text="{Binding SelectedItemTitle}"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding SelectedItemTypeLabel}"
+                                               FontSize="11"
+                                               Foreground="#8b949e"/>
+                                    <TextBlock Text="{Binding SelectedItemSizeLabel}"
+                                               FontSize="11"
+                                               Foreground="#8b949e"/>
+                                    <TextBlock Text="{Binding SelectedItemPath}"
+                                               FontSize="10"
+                                               Foreground="#8b949e"
+                                               TextWrapping="Wrap"
+                                               MaxHeight="36"/>
+                                    <Button Classes="btn-primary"
+                                            HorizontalAlignment="Left"
+                                            Command="{Binding PlaySelectedMediaCommand}">
+                                        <TextBlock Text="{Binding SelectedItemActionLabel}"/>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                     </Grid>
                 </Border>
 

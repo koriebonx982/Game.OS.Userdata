@@ -578,6 +578,7 @@ public partial class DashboardViewModel : ViewModelBase
     public Action? OnNavigateToLibrary { get; set; }
     /// <summary>Invoked when the user navigates to a specific page (e.g. friends/inbox).</summary>
     public Action<string>? OnNavigateToPage { get; set; }
+    public Action<string>? OnNavigateToMediaSection { get; set; }
 
     public void MoveFocus(int delta)
     {
@@ -651,37 +652,13 @@ public partial class DashboardViewModel : ViewModelBase
 
     // ── Media blade commands ────────────────────────────────────────────────────
     [RelayCommand]
-    private void OpenMoviesFolder() => OpenMediaFolder(
-        System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyVideos));
+    private void OpenMoviesFolder() => OnNavigateToMediaSection?.Invoke("movies");
 
     [RelayCommand]
-    private void OpenMusicFolder() => OpenMediaFolder(
-        System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyMusic));
+    private void OpenMusicFolder() => OnNavigateToMediaSection?.Invoke("music");
 
     [RelayCommand]
-    private void OpenTvShowsFolder() => OpenMediaFolder(
-        System.IO.Path.Combine(
-            System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyVideos),
-            "TV Shows"));
-
-    private static void OpenMediaFolder(string folderPath)
-    {
-        try
-        {
-            if (!System.IO.Directory.Exists(folderPath))
-                System.IO.Directory.CreateDirectory(folderPath);
-
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName        = folderPath,
-                UseShellExecute = true
-            });
-        }
-        catch (Exception ex)
-        {
-            DevLogService.Log($"[DashboardViewModel] OpenMediaFolder failed for '{folderPath}': {ex.GetType().Name}: {ex.Message}");
-        }
-    }
+    private void OpenTvShowsFolder() => OnNavigateToMediaSection?.Invoke("tvshows");
 
     // ── Dashboard friend actions ───────────────────────────────────────────────
     private const string InvitePayloadSeparator = "|";

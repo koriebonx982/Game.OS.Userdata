@@ -26,7 +26,10 @@ public partial class MediaView : UserControl
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
         if (DataContext is MediaViewModel vm)
+        {
             vm.PlayLocalVideoRequested = OnPlayLocalVideoRequested;
+            vm.PlayMediaItemRequested = OnPlayMediaItemRequested;
+        }
     }
 
     private void OnUnloaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -64,7 +67,17 @@ public partial class MediaView : UserControl
         if (files.Count == 0) return;
         string path = files[0].Path.LocalPath;
         if (!File.Exists(path)) return;
+        StartPlayback(path);
+    }
 
+    private void OnPlayMediaItemRequested(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
+        StartPlayback(path);
+    }
+
+    private void StartPlayback(string path)
+    {
         if (DataContext is not MediaViewModel vm) return;
 
         // Stop any running playback before starting a new one.

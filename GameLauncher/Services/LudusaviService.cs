@@ -165,7 +165,21 @@ namespace GameLauncher.Services
 
                     // Prefer ludusavi when it succeeds.
                     if (result.Kind == ResultKind.Synced)
-                        return result;
+                    {
+                        if (DirectoryHasAnyFiles(gameSavePath))
+                            return result;
+
+                        // Some emulator entries can return a successful ludusavi exit without
+                        // actually copying any files. Fall back to direct copy when source files exist.
+                        if (DirectoryHasAnyFiles(sourceOverridePath))
+                        {
+                            DevLogService.Log(
+                                "[Ludusavi] backup reported success but destination is empty; falling back to direct copy.");
+                            return await CopyDirectoryAsync(sourceOverridePath, gameSavePath, gameTitle);
+                        }
+
+                        return LudusaviResult.NoSaveFound;
+                    }
 
                     // If ludusavi is unavailable or cannot identify the game by title,
                     // copy directly from the resolved emulator save folder.
@@ -708,6 +722,9 @@ namespace GameLauncher.Services
         {
             try
             {
+                if (!DirectoryHasAnyFiles(sourceDir))
+                    return LudusaviResult.NoSaveFound;
+
                 await Task.Run(() => CopyDirectoryCore(sourceDir, destDir));
 
                 DevLogService.Log(
@@ -757,6 +774,23 @@ namespace GameLauncher.Services
                 || lower.Contains("no known game saves")
                 || lower.Contains("no info for these games")
                 || lower.Contains("no info found for this game");
+        }
+
+        /// <summary>
+        /// Returns true when <paramref name="path"/> exists and contains at least one file
+        /// (including in nested subdirectories); returns false for missing/inaccessible paths.
+        /// </summary>
+        private static bool DirectoryHasAnyFiles(string path)
+        {
+            if (!Directory.Exists(path)) return false;
+            try
+            {
+                return Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories).Any();
+            }
+            catch
+            {
+                return false;
+            }
         }
 
     }
