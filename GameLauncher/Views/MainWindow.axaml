@@ -64,6 +64,9 @@
                             <Border IsVisible="{Binding IsSettings}">
                                 <views:SettingsView DataContext="{Binding SettingsVm}"/>
                             </Border>
+                            <Border IsVisible="{Binding IsMedia}">
+                                <views:MediaView DataContext="{Binding MediaVm}"/>
+                            </Border>
                         </Panel>
                     </ScrollViewer>
 
@@ -299,6 +302,17 @@
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <TextBlock Text="⚙" FontSize="16"/>
                                 <TextBlock Text="Settings"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="nav-item"
+                                Classes.active="{Binding IsMedia}"
+                                HorizontalAlignment="Stretch"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="media">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="🎬" FontSize="16"/>
+                                <TextBlock Text="Media"/>
                             </StackPanel>
                         </Button>
 

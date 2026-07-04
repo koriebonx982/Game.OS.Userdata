@@ -1,0 +1,132 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:GameLauncher.ViewModels"
+             xmlns:vlc="using:LibVLCSharp.Avalonia"
+             x:Class="GameLauncher.Views.MediaView"
+             x:DataType="vm:MediaViewModel">
+
+    <Panel>
+        <!-- Main scrollable content -->
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto"
+                      IsVisible="{Binding !IsVlcPlayerOpen}">
+            <StackPanel Margin="32,28,32,28" Spacing="24">
+
+                <!-- Page title -->
+                <TextBlock Text="Media" Classes="page-title"/>
+                <TextBlock Text="Browse your media library or play a file in-app with VLC."
+                           Classes="page-subtitle" Margin="0,-20,0,0"/>
+
+                <!-- Play File button -->
+                <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,0,0,4">
+                    <Button Classes="btn-primary"
+                            Command="{Binding PlayLocalVideoCommand}"
+                            Padding="16,8">
+                        🎬  Play File…
+                    </Button>
+                </StackPanel>
+
+                <!-- Folders section -->
+                <TextBlock Text="Media Folders" Classes="section-header"/>
+
+                <!-- Movies tile -->
+                <Border Classes="xb360-metro-tile xb360-metro-stat" CornerRadius="10" Height="80">
+                    <Grid Margin="16,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="🎬  Movies" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+                            <TextBlock Text="Browse your movie collection." FontSize="12" Foreground="#8b949e"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Classes="btn-secondary"
+                                Padding="12,6"
+                                VerticalAlignment="Center"
+                                Command="{Binding OpenMoviesFolderCommand}">
+                            Open
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- Music tile -->
+                <Border Classes="xb360-metro-tile xb360-metro-stat" CornerRadius="10" Height="80">
+                    <Grid Margin="16,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="🎵  Music" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+                            <TextBlock Text="Play your music library." FontSize="12" Foreground="#8b949e"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Classes="btn-secondary"
+                                Padding="12,6"
+                                VerticalAlignment="Center"
+                                Command="{Binding OpenMusicFolderCommand}">
+                            Open
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- TV Shows tile -->
+                <Border Classes="xb360-metro-tile xb360-metro-stat" CornerRadius="10" Height="80">
+                    <Grid Margin="16,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="📺  TV Shows" FontSize="14" FontWeight="SemiBold" Foreground="White"/>
+                            <TextBlock Text="Browse your TV show collection." FontSize="12" Foreground="#8b949e"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Classes="btn-secondary"
+                                Padding="12,6"
+                                VerticalAlignment="Center"
+                                Command="{Binding OpenTvShowsFolderCommand}">
+                            Open
+                        </Button>
+                    </Grid>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- VLC player overlay (shown when IsVlcPlayerOpen) -->
+        <Border Background="#0d1117"
+                IsVisible="{Binding IsVlcPlayerOpen}"
+                ZIndex="50">
+            <Grid RowDefinitions="Auto,*,Auto">
+
+                <!-- Top bar -->
+                <Border Grid.Row="0" Background="#161b22" Padding="16,10">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Button Grid.Column="0"
+                                Classes="btn-secondary"
+                                Padding="10,6"
+                                Command="{Binding CloseVlcPlayerCommand}">
+                            ✕  Close
+                        </Button>
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding VlcMediaPath}"
+                                   FontSize="13"
+                                   Foreground="#c9d1d9"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Grid.Column="2"
+                                   Text="🎬 VLC Player"
+                                   FontSize="12"
+                                   Foreground="#8b949e"
+                                   VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Video surface -->
+                <vlc:VideoView Grid.Row="1"
+                               x:Name="VlcOverlayVideoView"/>
+
+                <!-- Bottom hint -->
+                <Border Grid.Row="2" Background="#161b22" Padding="16,8">
+                    <TextBlock Text="Powered by VLC · press Close to stop playback"
+                               FontSize="11"
+                               Foreground="#484f58"
+                               HorizontalAlignment="Center"/>
+                </Border>
+
+            </Grid>
+        </Border>
+
+    </Panel>
+</UserControl>

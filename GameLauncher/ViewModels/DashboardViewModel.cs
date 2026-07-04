@@ -649,6 +649,40 @@ public partial class DashboardViewModel : ViewModelBase
     [RelayCommand]
     private void NavigateToInbox() => OnNavigateToPage?.Invoke("inbox");
 
+    // ── Media blade commands ────────────────────────────────────────────────────
+    [RelayCommand]
+    private void OpenMoviesFolder() => OpenMediaFolder(
+        System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyVideos));
+
+    [RelayCommand]
+    private void OpenMusicFolder() => OpenMediaFolder(
+        System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyMusic));
+
+    [RelayCommand]
+    private void OpenTvShowsFolder() => OpenMediaFolder(
+        System.IO.Path.Combine(
+            System.Environment.GetFolderPath(System.Environment.SpecialFolder.MyVideos),
+            "TV Shows"));
+
+    private static void OpenMediaFolder(string folderPath)
+    {
+        try
+        {
+            if (!System.IO.Directory.Exists(folderPath))
+                System.IO.Directory.CreateDirectory(folderPath);
+
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName        = folderPath,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            DevLogService.Log($"[DashboardViewModel] OpenMediaFolder failed for '{folderPath}': {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
     // ── Dashboard friend actions ───────────────────────────────────────────────
     private const string InvitePayloadSeparator = "|";
     [ObservableProperty] private string _dashboardInviteStatus = "";
@@ -711,12 +745,13 @@ public partial class DashboardViewModel : ViewModelBase
     }
 
     // ── XB360 blade navigation ────────────────────────────────────────────────
-    private static readonly string[] Xb360Blades = { "mygames", "social", "games", "settings" };
+    private static readonly string[] Xb360Blades = { "mygames", "social", "games", "media", "settings" };
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsXb360MyGamesBlade))]
     [NotifyPropertyChangedFor(nameof(IsXb360SocialBlade))]
     [NotifyPropertyChangedFor(nameof(IsXb360GamesBlade))]
+    [NotifyPropertyChangedFor(nameof(IsXb360MediaBlade))]
     [NotifyPropertyChangedFor(nameof(IsXb360SettingsBlade))]
     private int _xb360BladeIndex;
 
@@ -724,6 +759,7 @@ public partial class DashboardViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(IsXb360MyGamesBlade))]
     [NotifyPropertyChangedFor(nameof(IsXb360SocialBlade))]
     [NotifyPropertyChangedFor(nameof(IsXb360GamesBlade))]
+    [NotifyPropertyChangedFor(nameof(IsXb360MediaBlade))]
     [NotifyPropertyChangedFor(nameof(IsXb360SettingsBlade))]
     private string _xb360ActiveBlade = "mygames";
 
@@ -734,6 +770,7 @@ public partial class DashboardViewModel : ViewModelBase
     public bool IsXb360MyGamesBlade  => Xb360ActiveBlade == "mygames";
     public bool IsXb360SocialBlade   => Xb360ActiveBlade == "social";
     public bool IsXb360GamesBlade    => Xb360ActiveBlade == "games";
+    public bool IsXb360MediaBlade    => Xb360ActiveBlade == "media";
     public bool IsXb360SettingsBlade => Xb360ActiveBlade == "settings";
 
     partial void OnXb360BladeIndexChanged(int value)

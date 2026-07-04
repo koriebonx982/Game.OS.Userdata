@@ -183,16 +183,25 @@ namespace GameLauncher.Services
                 return Path.Combine(contentRoot, safeProfileId, titleId, "00000001");
             }
 
-            // Auto-detect profile from existing content folder
+            // Auto-detect profile from existing content folder: first try to find a
+            // profile that already has a folder for this specific titleId.
             if (Directory.Exists(contentRoot))
             {
                 string? detectedProfile = TryDetectXeniaProfileId(saveRoot, titleId);
                 if (!string.IsNullOrWhiteSpace(detectedProfile))
                     return Path.Combine(contentRoot, detectedProfile, titleId, "00000001");
+
+                // Fallback: use the first profile folder found even if it does not yet
+                // contain this game's titleId (e.g. backing up a freshly-installed game).
+                string? anyProfile = TryDetectAnyXeniaProfileId(contentRoot);
+                if (!string.IsNullOrWhiteSpace(anyProfile))
+                    return Path.Combine(contentRoot, anyProfile, titleId, "00000001");
             }
 
-            // No profile known and none detected — cannot resolve a reliable Xenia save path.
-            return null;
+            // No profile known and none detected — use the standard Xenia offline
+            // default profile ("00000001"), which is the 8-digit hex profile created
+            // automatically by Xenia for local/offline play.
+            return Path.Combine(contentRoot, "00000001", titleId, "00000001");
         }
 
         // ── Helpers ────────────────────────────────────────────────────────────
@@ -242,6 +251,40 @@ namespace GameLauncher.Services
             return null;
         }
 
+        // Xbox 360 / Xenia profile IDs are 8–16 uppercase hex characters,
+        // e.g. "00000001" (offline/default) or "E03000003D7E0695" (gamertag-derived).
+        private const int MinXeniaProfileIdLength = 8;
+        private const int MaxXeniaProfileIdLength = 16;
+
+        /// <summary>
+        /// Scans <paramref name="contentRoot"/> for the first sub-directory whose name
+        /// is 8–16 hex characters — the standard Xenia profile folder format
+        /// (e.g. "00000001" for offline play, "E03000003D7E0695" for a gamertag profile).
+        /// Used as a last-resort fallback when game-specific detection fails.
+        /// </summary>
+        private static string? TryDetectAnyXeniaProfileId(string contentRoot)
+        {
+            try
+            {
+                if (!Directory.Exists(contentRoot)) return null;
+
+                foreach (string profileDir in Directory.EnumerateDirectories(contentRoot))
+                {
+                    string name = Path.GetFileName(profileDir);
+                    if (name.Length >= MinXeniaProfileIdLength &&
+                        name.Length <= MaxXeniaProfileIdLength &&
+                        IsHexString(name))
+                        return name;
+                }
+            }
+            catch (Exception ex)
+            {
+                DevLogService.Log($"[EmulatorSavePathResolver] TryDetectAnyXeniaProfileId failed for '{contentRoot}': {ex.Message}");
+            }
+
+            return null;
+        }
+
         private static string[] ResolvePattern(string platform, string? emulatorName)
         {
             // 1. Try emulator-name override (substring, case-insensitive)
@@ -259,6 +302,16 @@ namespace GameLauncher.Services
                 return pattern;
 
             return Array.Empty<string>();
+        }
+
+        private static bool IsHexString(string value)
+        {
+            foreach (char c in value)
+            {
+                if (!Uri.IsHexDigit(c))
+                    return false;
+            }
+            return value.Length > 0;
         }
     }
 }

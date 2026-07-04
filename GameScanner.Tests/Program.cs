@@ -2149,7 +2149,11 @@ class Program
                 passed = false;
             }
 
-            // When the titleId is not present under any profile, should return null.
+            // When the titleId is not present under any profile, Resolve should
+            // use any detected profile from the content directory rather than a
+            // hardcoded default.  The temp directory still contains the profile
+            // folder created for the first sub-test ("E03000003D7E0695"), so the
+            // resolver should return a path under that profile.
             string? missingTitle = EmulatorSavePathResolver.Resolve(
                 platform: "Xbox 360",
                 emulatorName: "Xenia",
@@ -2157,13 +2161,19 @@ class Program
                 titleId: "DEADBEEF",
                 profileId: null);
 
-            if (missingTitle == null)
+            // Xbox 360 profile IDs are 8–16 uppercase hex characters.
+            // The resolver should pick the first profile folder it finds (the one
+            // created above) rather than a hardcoded "00000001" default.
+            string expectedFallback = Path.Combine(tempRoot, "content", profileId, "DEADBEEF", "00000001");
+
+            if (missingTitle == expectedFallback)
             {
-                Console.WriteLine($"  ✅  Returns null when title not found in any profile");
+                Console.WriteLine($"  ✅  Falls back to detected profile (\"{profileId}\") for title not found in any profile");
             }
             else
             {
-                Console.WriteLine($"  ❌  Expected null for missing title, got \"{missingTitle}\"");
+                Console.WriteLine($"  ❌  Expected fallback path \"{expectedFallback}\"");
+                Console.WriteLine($"       got \"{missingTitle}\"");
                 passed = false;
             }
         }

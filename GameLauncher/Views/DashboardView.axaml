@@ -47,6 +47,9 @@
                 <TextBlock Text="Games Library"
                            Classes.xb360-blade-tab-active="{Binding IsXb360GamesBlade}"
                            Classes="xb360-blade-tab"/>
+                <TextBlock Text="Media"
+                           Classes.xb360-blade-tab-active="{Binding IsXb360MediaBlade}"
+                           Classes="xb360-blade-tab"/>
                 <TextBlock Text="Settings"
                            Classes.xb360-blade-tab-active="{Binding IsXb360SettingsBlade}"
                            Classes="xb360-blade-tab"/>
@@ -306,6 +309,59 @@
                         </StackPanel>
                     </StackPanel>
                 </Grid>
+
+                <!-- Media blade -->
+                <StackPanel Margin="32,20,32,20" Spacing="12" IsVisible="{Binding IsXb360MediaBlade}">
+                    <TextBlock Text="Media" Classes="xb360-strip-header"/>
+                    <!-- Movies tile -->
+                    <Border Classes="xb360-metro-tile xb360-metro-stat" Height="80">
+                        <Grid Margin="16,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="🎬  Movies" Classes="xb360-metro-label" FontSize="14"/>
+                                <TextBlock Text="Browse your movie collection." Classes="xb360-achievement-desc"/>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Classes="btn-secondary"
+                                    Padding="12,6"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding OpenMoviesFolderCommand}">
+                                Open
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <!-- Music tile -->
+                    <Border Classes="xb360-metro-tile xb360-metro-stat" Height="80">
+                        <Grid Margin="16,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="🎵  Music" Classes="xb360-metro-label" FontSize="14"/>
+                                <TextBlock Text="Play your music library." Classes="xb360-achievement-desc"/>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Classes="btn-secondary"
+                                    Padding="12,6"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding OpenMusicFolderCommand}">
+                                Open
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <!-- TV Shows tile -->
+                    <Border Classes="xb360-metro-tile xb360-metro-stat" Height="80">
+                        <Grid Margin="16,0" ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="📺  TV Shows" Classes="xb360-metro-label" FontSize="14"/>
+                                <TextBlock Text="Browse your TV show collection." Classes="xb360-achievement-desc"/>
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Classes="btn-secondary"
+                                    Padding="12,6"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding OpenTvShowsFolderCommand}">
+                                Open
+                            </Button>
+                        </Grid>
+                    </Border>
+                </StackPanel>
 
                 <!-- Settings blade -->
                 <StackPanel Margin="32,20,32,20" Spacing="12" IsVisible="{Binding IsXb360SettingsBlade}">

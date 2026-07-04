@@ -1,4 +1,3 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -10,14 +9,14 @@ using System.IO;
 
 namespace GameLauncher.Views;
 
-public partial class GameDetailView : UserControl
+public partial class MediaView : UserControl
 {
     // ── VLC local file player state ───────────────────────────────────────────
     private LibVLC?      _libVlc;
     private MediaPlayer? _mediaPlayer;
     private Media?       _media;
 
-    public GameDetailView()
+    public MediaView()
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
@@ -26,11 +25,8 @@ public partial class GameDetailView : UserControl
 
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
-        if (DataContext is GameDetailViewModel vm)
-        {
-            vm.BrowseLaunchPathRequested  = OnBrowseLaunchPathRequested;
-            vm.PlayLocalVideoRequested    = OnPlayLocalVideoRequested;
-        }
+        if (DataContext is MediaViewModel vm)
+            vm.PlayLocalVideoRequested = OnPlayLocalVideoRequested;
     }
 
     private void OnUnloaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -38,38 +34,8 @@ public partial class GameDetailView : UserControl
         DisposeVlc();
     }
 
-    // ── Executable browse ────────────────────────────────────────────────────
-
-    private async void OnBrowseLaunchPathRequested(Action<string> onPicked)
-    {
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
-
-        var files = await topLevel.StorageProvider.OpenFilePickerAsync(
-            new FilePickerOpenOptions
-            {
-                Title         = "Select executable or script",
-                AllowMultiple = false,
-                FileTypeFilter = new[]
-                {
-                    new FilePickerFileType("Executable / Script")
-                    {
-                        Patterns = new[] { "*.exe", "*.bat", "*.cmd", "*.sh", "*.ps1", "*.AppImage" },
-                    },
-                    FilePickerFileTypes.All,
-                },
-            });
-
-        if (files.Count > 0)
-            onPicked(files[0].Path.LocalPath);
-    }
-
     // ── VLC local file player ────────────────────────────────────────────────
 
-    /// <summary>
-    /// Called by the ViewModel's <see cref="GameDetailViewModel.PlayLocalVideoCommand"/>.
-    /// Shows a file picker, then plays the selected video file inside the VLC overlay.
-    /// </summary>
     private async void OnPlayLocalVideoRequested()
     {
         var topLevel = TopLevel.GetTopLevel(this);
@@ -78,16 +44,17 @@ public partial class GameDetailView : UserControl
         var files = await topLevel.StorageProvider.OpenFilePickerAsync(
             new FilePickerOpenOptions
             {
-                Title         = "Select a video file to play",
+                Title         = "Select a media file to play",
                 AllowMultiple = false,
                 FileTypeFilter = new[]
                 {
-                    new FilePickerFileType("Video files")
+                    new FilePickerFileType("Video / Audio files")
                     {
                         Patterns = new[]
                         {
                             "*.mp4", "*.mkv", "*.avi", "*.mov", "*.wmv",
                             "*.flv", "*.webm", "*.m4v", "*.ts", "*.m2ts",
+                            "*.mp3", "*.flac", "*.aac", "*.ogg", "*.wav", "*.m4a",
                         },
                     },
                     FilePickerFileTypes.All,
@@ -98,7 +65,7 @@ public partial class GameDetailView : UserControl
         string path = files[0].Path.LocalPath;
         if (!File.Exists(path)) return;
 
-        if (DataContext is not GameDetailViewModel vm) return;
+        if (DataContext is not MediaViewModel vm) return;
 
         // Stop any running playback before starting a new one.
         DisposeVlc();
@@ -130,7 +97,7 @@ public partial class GameDetailView : UserControl
         }
         catch (Exception ex)
         {
-            DevLogService.Log($"[GameDetailView] VLC init failed: {ex.GetType().Name}: {ex.Message}");
+            DevLogService.Log($"[MediaView] VLC init failed: {ex.GetType().Name}: {ex.Message}");
             DisposeVlc();
         }
     }
@@ -150,7 +117,7 @@ public partial class GameDetailView : UserControl
     private void CloseVlcOverlay()
     {
         DisposeVlc();
-        if (DataContext is GameDetailViewModel vm)
+        if (DataContext is MediaViewModel vm)
             vm.CloseVlcPlayerCommand.Execute(null);
     }
 
@@ -160,7 +127,7 @@ public partial class GameDetailView : UserControl
         {
             _mediaPlayer.EndReached       -= OnVlcEndReached;
             _mediaPlayer.EncounteredError -= OnVlcError;
-            try { _mediaPlayer.Stop(); } catch (Exception ex) { DevLogService.Log($"[GameDetailView] VLC stop: {ex.Message}"); }
+            try { _mediaPlayer.Stop(); } catch (Exception ex) { DevLogService.Log($"[MediaView] VLC stop: {ex.Message}"); }
             _mediaPlayer.Dispose();
             _mediaPlayer = null;
         }

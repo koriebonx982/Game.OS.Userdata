@@ -149,6 +149,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public FriendsViewModel   FriendsVm        { get; }
     public InboxViewModel     InboxVm          { get; }
     public SettingsViewModel  SettingsVm       { get; }
+    public MediaViewModel     MediaVm          { get; }
     public GameDetailViewModel DetailVm        { get; }
     public QuickMenuViewModel  QuickMenuVm     { get; }
 
@@ -178,6 +179,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public bool IsSettings    => ActivePage == "settings";
     /// <summary>True when the Inbox page is active.</summary>
     public bool IsInbox       => ActivePage == "inbox";
+    /// <summary>True when the Media page is active.</summary>
+    public bool IsMedia       => ActivePage == "media";
     /// <summary>True when the Friends or Inbox page is active (both show FriendsView).</summary>
     public bool IsFriendsOrInbox => ActivePage == "friends" || ActivePage == "inbox";
 
@@ -190,6 +193,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsFriends));
         OnPropertyChanged(nameof(IsSettings));
         OnPropertyChanged(nameof(IsInbox));
+        OnPropertyChanged(nameof(IsMedia));
         OnPropertyChanged(nameof(IsFriendsOrInbox));
     }
 
@@ -254,6 +258,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         FriendsVm      = new FriendsViewModel();
         InboxVm        = new InboxViewModel();
         SettingsVm     = new SettingsViewModel();
+        MediaVm        = new MediaViewModel();
         DetailVm       = new GameDetailViewModel();
         QuickMenuVm    = new QuickMenuViewModel();
 
