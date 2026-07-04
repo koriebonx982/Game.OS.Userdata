@@ -1229,7 +1229,7 @@ public partial class GameDetailViewModel : ViewModelBase
             string? sourceOverridePath = ResolveEmulatorSavePathOverride(CurrentTitleId);
 
             var result = await Services.LudusaviService.SyncAsync(
-                Platform, Title, _currentUsername, sourceOverridePath);
+                Platform, Title, _currentUsername, sourceOverridePath, CurrentTitleId);
 
             string statusText = result.Kind switch
             {
@@ -1276,7 +1276,7 @@ public partial class GameDetailViewModel : ViewModelBase
             string? targetOverridePath = ResolveEmulatorSavePathOverride(CurrentTitleId);
 
             var result = await Services.LudusaviService.RestoreAsync(
-                Platform, Title, _currentUsername, targetOverridePath);
+                Platform, Title, _currentUsername, targetOverridePath, CurrentTitleId);
 
             string statusText = result.Kind switch
             {
@@ -1733,19 +1733,29 @@ public partial class GameDetailViewModel : ViewModelBase
         return _driveInstances.Count > 0;
     }
 
-    private static int TryResolveSteamAppId(Game game)
+    private static int TryResolveSteamAppId(Game game, LocalGame? localGame = null)
     {
         if (game.SteamAppId.HasValue && game.SteamAppId.Value > 0)
             return (int)game.SteamAppId.Value;
 
-        if (string.IsNullOrWhiteSpace(game.TitleId))
-            return 0;
+        if (!string.IsNullOrWhiteSpace(game.TitleId))
+        {
+            string titleId = game.TitleId.Trim();
+            if (titleId.StartsWith("steam:", StringComparison.OrdinalIgnoreCase))
+                titleId = titleId[6..];
 
-        string titleId = game.TitleId.Trim();
-        if (titleId.StartsWith("steam:", StringComparison.OrdinalIgnoreCase))
-            titleId = titleId[6..];
+            if (int.TryParse(titleId, out int steamId) && steamId > 0)
+                return steamId;
+        }
 
-        return int.TryParse(titleId, out int steamId) && steamId > 0 ? steamId : 0;
+        // Fall back to reading steam_appid.txt from the installed game folder
+        if (localGame != null)
+        {
+            int folderAppId = SteamEmuAchievementService.TryReadAppIdFromFolder(localGame.FolderPath);
+            if (folderAppId > 0) return folderAppId;
+        }
+
+        return 0;
     }
 
     private static HashSet<int> CaptureProcessSnapshot()
@@ -2252,6 +2262,17 @@ public partial class GameDetailViewModel : ViewModelBase
             Services.NotificationService.ShowDeveloperNotification("Steam Emu",
                 steamEmuFilesFound ? "Found" : "Not Found");
 
+        // Build the raw→displayName map from steam_settings/achievements.json (GBE / Goldberg).
+        // This lets us convert raw API names like "ACH_WIN_GAME" to clean names like "Win The Game"
+        // even when the achievements panel hasn't been opened yet (Achievements list is empty).
+        var achNameMap = await System.Threading.Tasks.Task.Run(
+            () => SteamEmuAchievementService.TryBuildAchievementNameMap(exePath, _steamAppId))
+            .ConfigureAwait(false);
+
+        if (notifySteamEmuStatus && achNameMap.Count > 0)
+            Services.NotificationService.ShowDeveloperNotification("Steam Emu",
+                $"Name map loaded: {achNameMap.Count} entries");
+
         var knownUnlocks = SteamEmuAchievementService.ReadUnlockedIds(exePath, _steamAppId);
         var sessionUnlocks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -2269,7 +2290,9 @@ public partial class GameDetailViewModel : ViewModelBase
                     : unlockId;
                 string resolvedName = !string.IsNullOrWhiteSpace(resolved?.Name)
                     ? resolved!.Name
-                    : unlockId;
+                    // Fall back to the steam_settings name map when the Achievements list
+                    // hasn't been populated (e.g. user never opened the achievements panel).
+                    : (achNameMap.TryGetValue(unlockId, out var mappedName) ? mappedName : unlockId);
                 string? iconUrl = resolved?.IconUrl;
 
                 if (sessionUnlocks.Contains(unlockId) ||
@@ -2791,7 +2814,7 @@ public partial class GameDetailViewModel : ViewModelBase
         // IsCloudOnly: cloud library entry with no local copy of any kind
         IsCloudOnly = !IsInstalled && !IsRepack && !IsSteamInstallable;
         LoadSwitchMods();
-        _steamAppId = TryResolveSteamAppId(game);
+        _steamAppId = TryResolveSteamAppId(game, localGame);
 
         // "Install via Steam" shown for Steam-API games not yet installed locally
         IsSteamInstallable   = _steamAppId > 0 && !IsInstalled;
@@ -2927,7 +2950,9 @@ public partial class GameDetailViewModel : ViewModelBase
         SelectedDriveIndex = 0;
         RefreshActiveDrive();
         PopulatePlaytime("PC", game.Title, externalMinutes);
-        _steamAppId = game.SteamAppId;
+        _steamAppId = game.SteamAppId > 0
+            ? game.SteamAppId
+            : SteamEmuAchievementService.TryReadAppIdFromFolder(game.FolderPath);
 
         // For locally-installed Steam games, show the Steam store page link
         if (game.SteamAppId > 0)

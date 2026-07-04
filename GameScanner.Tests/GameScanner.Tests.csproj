@@ -19,6 +19,8 @@
     <Compile Include="../GameLauncher/Services/UserDataService.cs" />
     <Compile Include="../GameLauncher/Services/StorageHelpers.cs" />
     <Compile Include="../GameLauncher/Services/LudusaviService.cs" />
+    <Compile Include="../GameLauncher/Services/LudusaviConfigService.cs" />
     <Compile Include="../GameLauncher/Services/EmulatorSavePathResolver.cs" />
+    <Compile Include="../GameLauncher/Services/SteamEmuAchievementService.cs" />
   </ItemGroup>
 </Project>

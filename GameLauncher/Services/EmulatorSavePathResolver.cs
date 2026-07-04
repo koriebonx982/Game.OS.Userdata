@@ -79,7 +79,7 @@ namespace GameLauncher.Services
         /// <param name="titleId">Platform-specific title ID for the game (e.g. "0100ADC022586000" for Switch).</param>
         /// <param name="profileId">
         /// Emulator user profile ID; required for Xenia where the canonical save path is
-        /// <c>Content/{profileId}/{titleId}/</c>
+        /// <c>Content/{profileId}/{titleId}/00000001/</c>
         /// (e.g. "E03000003D7E0695").  Pass <see langword="null"/> or empty for
         /// emulators that do not use a profile ID.
         /// </param>
@@ -179,8 +179,8 @@ namespace GameLauncher.Services
 
             if (!string.IsNullOrWhiteSpace(safeProfileId))
             {
-                // Canonical save location: Content/{profileId}/{titleId}/
-                return Path.Combine(contentRoot, safeProfileId, titleId);
+                // Canonical save location: Content/{profileId}/{titleId}/00000001/
+                return Path.Combine(contentRoot, safeProfileId, titleId, "00000001");
             }
 
             // Auto-detect profile from existing content folder
@@ -188,7 +188,7 @@ namespace GameLauncher.Services
             {
                 string? detectedProfile = TryDetectXeniaProfileId(saveRoot, titleId);
                 if (!string.IsNullOrWhiteSpace(detectedProfile))
-                    return Path.Combine(contentRoot, detectedProfile, titleId);
+                    return Path.Combine(contentRoot, detectedProfile, titleId, "00000001");
             }
 
             // No profile known and none detected — cannot resolve a reliable Xenia save path.

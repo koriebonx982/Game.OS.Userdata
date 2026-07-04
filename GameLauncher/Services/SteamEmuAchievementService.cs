@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 
 namespace GameLauncher.Services
@@ -62,6 +63,139 @@ namespace GameLauncher.Services
                 catch { /* best-effort per file */ }
             }
             return unlocked;
+        }
+
+        /// <summary>
+        /// Builds a mapping from raw API achievement name (e.g. <c>ACH_WIN_GAME</c>) to
+        /// its human-readable display name (e.g. <c>Win The Game</c>) by reading the
+        /// <c>steam_settings/achievements.json</c> definitions file placed by GBE,
+        /// Goldberg, and other Steam-emulator forks next to the game executable.
+        ///
+        /// <para>
+        /// The definitions file is distinct from the unlock-state files read by
+        /// <see cref="ReadUnlockedIds"/>; it contains no unlock information, only
+        /// the achievement catalogue with names, descriptions and icons.
+        /// </para>
+        /// </summary>
+        /// <param name="exePath">Full path to the game's launch executable.</param>
+        /// <param name="steamAppId">
+        /// Steam AppID.  Currently unused by this method — kept for API symmetry with
+        /// <see cref="ReadUnlockedIds"/> and <see cref="EnumerateAchievementFiles"/> so
+        /// all three can be called with the same pair of arguments.
+        /// </param>
+        /// <returns>
+        /// A case-insensitive dictionary mapping <c>name</c> → <c>displayName</c>.
+        /// Returns an empty dictionary when no definitions file is found or can be parsed.
+        /// </returns>
+#pragma warning disable CA1801   // steamAppId intentionally unused (API symmetry — see doc)
+        public static Dictionary<string, string> TryBuildAchievementNameMap(string exePath, int steamAppId)
+#pragma warning restore CA1801
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            string? gameDir = null;
+            try { gameDir = Path.GetDirectoryName(exePath); } catch { }
+            if (string.IsNullOrEmpty(gameDir)) return map;
+
+            // Candidate definition-file locations (game dir and parent dir, both casing variants)
+            var candidates = new List<string>
+            {
+                Path.Combine(gameDir,  "steam_settings", "achievements.json"),
+                Path.Combine(gameDir,  "SteamSettings",  "achievements.json"),
+            };
+            string? parent = null;
+            try { parent = Directory.GetParent(gameDir)?.FullName; } catch { }
+            if (!string.IsNullOrEmpty(parent))
+            {
+                candidates.Add(Path.Combine(parent, "steam_settings", "achievements.json"));
+                candidates.Add(Path.Combine(parent, "SteamSettings",  "achievements.json"));
+            }
+
+            foreach (var defPath in candidates)
+            {
+                if (!File.Exists(defPath)) continue;
+                try
+                {
+                    ParseAchievementDefinitions(defPath, map);
+                    if (map.Count > 0) break; // stop at the first file that yields entries
+                }
+                catch { /* best-effort */ }
+            }
+
+            return map;
+        }
+
+        // ── Internal: achievement-definitions parser ──────────────────────────
+
+        /// <summary>
+        /// Parses a <c>steam_settings/achievements.json</c> definitions file into
+        /// <paramref name="map"/>, adding raw <c>name</c> → <c>displayName</c> pairs.
+        ///
+        /// Handles two common layouts:
+        /// <list type="bullet">
+        ///   <item>Array: <c>[{ "name": "ACH_ID", "displayName": "Clean Name", … }]</c></item>
+        ///   <item>Object: <c>{ "ACH_ID": { "displayName": "Clean Name", … } }</c></item>
+        /// </list>
+        /// </summary>
+        private static void ParseAchievementDefinitions(string filePath, Dictionary<string, string> map)
+        {
+            using var stream = File.OpenRead(filePath);
+            using var doc    = JsonDocument.Parse(stream);
+            var root = doc.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                // [ { "name": "ACH_ID", "displayName": "Clean Name", … }, … ]
+                foreach (var item in root.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.Object) continue;
+
+                    string? rawName     = null;
+                    string? displayName = null;
+
+                    foreach (var prop in item.EnumerateObject())
+                    {
+                        if (string.Equals(prop.Name, "name",         StringComparison.OrdinalIgnoreCase) &&
+                            prop.Value.ValueKind == JsonValueKind.String)
+                            rawName = prop.Value.GetString()?.Trim();
+
+                        if ((string.Equals(prop.Name, "displayName",  StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(prop.Name, "display_name", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(prop.Name, "title",        StringComparison.OrdinalIgnoreCase)) &&
+                            prop.Value.ValueKind == JsonValueKind.String)
+                            displayName = prop.Value.GetString()?.Trim();
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(rawName) && !string.IsNullOrWhiteSpace(displayName))
+                        map.TryAdd(rawName, displayName);
+                }
+            }
+            else if (root.ValueKind == JsonValueKind.Object)
+            {
+                // { "ACH_ID": { "displayName": "Clean Name", … }, … }
+                foreach (var prop in root.EnumerateObject())
+                {
+                    string rawName = prop.Name.Trim();
+                    if (string.IsNullOrWhiteSpace(rawName)) continue;
+
+                    if (prop.Value.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var inner in prop.Value.EnumerateObject())
+                        {
+                            if ((string.Equals(inner.Name, "displayName",  StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(inner.Name, "display_name", StringComparison.OrdinalIgnoreCase) ||
+                                 string.Equals(inner.Name, "title",        StringComparison.OrdinalIgnoreCase)) &&
+                                inner.Value.ValueKind == JsonValueKind.String)
+                            {
+                                string? dn = inner.Value.GetString()?.Trim();
+                                if (!string.IsNullOrWhiteSpace(dn))
+                                    map.TryAdd(rawName, dn);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -186,6 +320,28 @@ namespace GameLauncher.Services
                 AddDir(empressRoot, "achievements.ini", "stats.ini", "achievements.json");
             }
 
+            // ── %PUBLIC%\steam\{Group}\{appid}\ ──────────────────────────────
+            // Some crack groups store saves directly under %PUBLIC%\steam\ (without
+            // the \Documents\ subfolder).  Rune in particular uses this layout:
+            //   C:\Users\Public\steam\rune\{appid}\achievements.ini
+            string? publicRoot = Environment.GetEnvironmentVariable("PUBLIC");
+            if (string.IsNullOrEmpty(publicRoot) && !string.IsNullOrEmpty(common))
+                publicRoot = Directory.GetParent(common)?.FullName; // parent of %PUBLIC%\Documents
+            if (!string.IsNullOrEmpty(publicRoot))
+            {
+                string pubSteam = Path.Combine(publicRoot, "steam");
+                AddDir(Path.Combine(pubSteam, "rune",       appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "RUNE",       appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "codex",      appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "CODEX",      appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "plaza",      appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "PLAZA",      appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "skidrow",    appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "SKIDROW",    appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "online_fix", appId), "achievements.ini", "stats.ini", "achievements.json");
+                AddDir(Path.Combine(pubSteam, "onlinefix",  appId), "achievements.ini", "stats.ini", "achievements.json");
+            }
+
             // ── CPY (EMPRESS/Codex) variant: Documents/CPY_SAVES ──────────────
             if (!string.IsNullOrEmpty(docs))
             {
@@ -304,6 +460,12 @@ namespace GameLauncher.Services
                 // EMPRESS lives directly under Public Documents (not under Steam/)
                 yield return Path.Combine(commonDocs, "EMPRESS");
             }
+            // Also scan %PUBLIC%\steam\ (some emulators omit the \Documents\ subfolder)
+            string? publicDir = Environment.GetEnvironmentVariable("PUBLIC");
+            if (string.IsNullOrEmpty(publicDir) && !string.IsNullOrEmpty(commonDocs))
+                publicDir = Directory.GetParent(commonDocs)?.FullName;
+            if (!string.IsNullOrEmpty(publicDir))
+                yield return Path.Combine(publicDir, "steam");
             if (!string.IsNullOrEmpty(docs))
             {
                 yield return Path.Combine(docs, "Steam");
@@ -313,6 +475,79 @@ namespace GameLauncher.Services
             {
                 yield return Path.Combine(progData, "SteamEmu");
             }
+        }
+
+        // ── steam_appid.txt reader ────────────────────────────────────────────
+
+        /// <summary>
+        /// Tries to read a Steam AppID from a <c>steam_appid.txt</c> file placed in
+        /// the game folder or its <c>steam_settings</c> / <c>SteamSettings</c>
+        /// sub-directory.  Some Steam emulators (Goldberg, GBE, etc.) and cracked
+        /// repacks write this file so the emulator knows which game it is emulating.
+        ///
+        /// <para>Locations checked (game folder and its parent):</para>
+        /// <list type="bullet">
+        ///   <item><c>{gameFolder}/steam_appid.txt</c></item>
+        ///   <item><c>{gameFolder}/steam_settings/steam_appid.txt</c></item>
+        ///   <item><c>{gameFolder}/SteamSettings/steam_appid.txt</c></item>
+        ///   <item>Same three paths under the parent directory of <paramref name="gameFolder"/>.</item>
+        /// </list>
+        /// </summary>
+        /// <param name="gameFolder">
+        /// The root folder of the installed game (e.g. <c>D:\Games\MyGame</c>).
+        /// </param>
+        /// <returns>
+        /// The parsed AppID (&gt; 0) when found; 0 when no valid file is located.
+        /// </returns>
+        public static int TryReadAppIdFromFolder(string? gameFolder)
+        {
+            if (string.IsNullOrEmpty(gameFolder)) return 0;
+
+            // Candidate directories: game folder itself and its parent
+            var dirs = new List<string> { gameFolder };
+            try
+            {
+                string? parent = Directory.GetParent(gameFolder)?.FullName;
+                if (!string.IsNullOrEmpty(parent))
+                    dirs.Add(parent);
+            }
+            catch { /* best-effort */ }
+
+            foreach (var dir in dirs)
+            {
+                // Direct placement: <gameDir>/steam_appid.txt
+                int id = ReadAppIdFile(Path.Combine(dir, "steam_appid.txt"));
+                if (id > 0) return id;
+
+                // steam_settings sub-folder (lower-case, used by Goldberg / GBE)
+                id = ReadAppIdFile(Path.Combine(dir, "steam_settings", "steam_appid.txt"));
+                if (id > 0) return id;
+
+                // SteamSettings sub-folder (Pascal-case variant)
+                id = ReadAppIdFile(Path.Combine(dir, "SteamSettings", "steam_appid.txt"));
+                if (id > 0) return id;
+            }
+
+            return 0;
+        }
+
+        /// <summary>
+        /// Reads the first line of <paramref name="filePath"/> and tries to parse it
+        /// as a positive integer Steam AppID.  Returns 0 on any error.
+        /// </summary>
+        private static int ReadAppIdFile(string filePath)
+        {
+            try
+            {
+                if (!File.Exists(filePath)) return 0;
+                string raw = File.ReadAllText(filePath).Trim();
+                // The file may contain just the AppID or a line like "1234567\n"
+                // Split on whitespace/newlines and take the first token.
+                string[] tokens = raw.Split(Array.Empty<char>(), StringSplitOptions.RemoveEmptyEntries);
+                string token = tokens.Length > 0 ? tokens[0] : "";
+                return int.TryParse(token, out int id) && id > 0 ? id : 0;
+            }
+            catch { return 0; }
         }
 
         // ── Parsers ───────────────────────────────────────────────────────────

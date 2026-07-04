@@ -393,6 +393,7 @@ public sealed class GameScannerService : IDisposable
                     FolderPath     = gameFolder,
                     DriveRoot      = driveRoot,
                     Source         = "Local",
+                    SteamAppId     = SteamEmuAchievementService.TryReadAppIdFromFolder(gameFolder),
                 });
 
                 DevLogService.LogGamesAdvanced($"[Games] Found: \"{title}\" ({gameFolder})");
