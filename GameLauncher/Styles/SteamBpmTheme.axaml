@@ -1,112 +1,255 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Steam Big Picture inspired shell -->
     <Style Selector="Border.dashboard-xb360-layout">
         <Setter Property="IsVisible" Value="False"/>
     </Style>
     <Style Selector="Border.dashboard-ps5-layout">
         <Setter Property="IsVisible" Value="False"/>
     </Style>
+    <Style Selector="Border.dashboard-wii-layout">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
     <Style Selector="StackPanel.dashboard-default-layout">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+    <Style Selector="Border.dashboard-steambpm-layout">
         <Setter Property="IsVisible" Value="True"/>
     </Style>
 
-    <!-- Shell background (deep navy like screenshot) -->
     <Style Selector="Window.main-window-shell">
-        <Setter Property="Background" Value="#0A0F17"/>
+        <Setter Property="Background" Value="#0B131D"/>
     </Style>
     <Style Selector="Border.main-content-surface">
-        <Setter Property="Background" Value="#0A0F17"/>
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#1C2734" Offset="0"/>
+                    <GradientStop Color="#0E1A28" Offset="0.58"/>
+                    <GradientStop Color="#09131E" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
     </Style>
     <Style Selector="Border.detail-overlay-surface">
-        <Setter Property="Background" Value="#0C121D"/>
+        <Setter Property="Background" Value="#111A26"/>
     </Style>
-
-    <!-- Dashboard root gradient (hero area behind Hollow Knight) -->
     <Style Selector="UserControl.dashboard-root">
         <Setter Property="Background">
             <Setter.Value>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Color="#0A0F17" Offset="0"/>
-                    <GradientStop Color="#152233" Offset="1"/>
+                    <GradientStop Color="#2B3542" Offset="0"/>
+                    <GradientStop Color="#192636" Offset="0.45"/>
+                    <GradientStop Color="#0E1824" Offset="1"/>
                 </LinearGradientBrush>
             </Setter.Value>
         </Setter>
     </Style>
 
-    <!-- Sidebar (dark slate) -->
-    <Style Selector="Border.nav-sidebar">
-        <Setter Property="Background" Value="#111821"/>
+    <Style Selector="TextBlock.steam-shell-title">
+        <Setter Property="FontSize" Value="26"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#F3F6F8"/>
     </Style>
-
-    <!-- Logo area (muted blue strip) -->
-    <Style Selector="Border.nav-logo-area">
-        <Setter Property="Background" Value="#1A2D40"/>
+    <Style Selector="TextBlock.steam-shell-icon">
+        <Setter Property="FontSize" Value="24"/>
+        <Setter Property="Foreground" Value="#F2F5F8"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
-
-    <!-- Active nav item (tab highlight like WHAT'S NEW) -->
-    <Style Selector="Button.nav-item.active /template/ ContentPresenter">
-        <Setter Property="Background" Value="#1A9BFF"/>
+    <Style Selector="TextBlock.steam-shell-time">
+        <Setter Property="FontSize" Value="22"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#F7F9FB"/>
     </Style>
-
-    <!-- Subtitle text (soft pale blue) -->
-    <Style Selector="TextBlock.page-subtitle">
-        <Setter Property="Foreground" Value="#8FB4D8"/>
-    </Style>
-
-    <!-- Stat tiles (small info tiles under hero) -->
-    <Style Selector="Border.stat-tile">
-        <Setter Property="Background" Value="#121C27"/>
-        <Setter Property="BorderBrush" Value="#1F3B55"/>
-        <Setter Property="BorderThickness" Value="1"/>
-    </Style>
-
-    <!-- Featured hero banner (Hollow Knight panel) -->
-    <Style Selector="Border.featured-hero-banner">
+    <Style Selector="Border.steam-shell-avatar">
+        <Setter Property="Width" Value="48"/>
+        <Setter Property="Height" Value="48"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="BorderThickness" Value="2"/>
+        <Setter Property="BorderBrush" Value="#FF4FD2"/>
         <Setter Property="Background">
             <Setter.Value>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Color="#1A2D40" Offset="0"/>
-                    <GradientStop Color="#0F1C2B" Offset="1"/>
+                    <GradientStop Color="#4822A5" Offset="0"/>
+                    <GradientStop Color="#0E2235" Offset="0.45"/>
+                    <GradientStop Color="#FF4FD2" Offset="1"/>
                 </LinearGradientBrush>
             </Setter.Value>
         </Setter>
-        <Setter Property="BorderBrush" Value="#1F3B55"/>
-        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="TextBlock.steam-shell-avatar-text">
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="FontSize" Value="18"/>
+        <Setter Property="Foreground" Value="White"/>
     </Style>
 
-    <!-- Game cards (row of Tales of Arise / Psychonauts 2 etc.) -->
-    <Style Selector="Border.game-card">
-        <Setter Property="Background" Value="#121C27"/>
-        <Setter Property="BorderBrush" Value="#1F3B55"/>
-        <Setter Property="BorderThickness" Value="1"/>
+    <Style Selector="Button.steam-hero-recent-button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
+    <Style Selector="Button.steam-hero-recent-button /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="CornerRadius" Value="0"/>
+    </Style>
+    <Style Selector="Button.steam-hero-recent-button:pointerover /template/ ContentPresenter">
+        <Setter Property="Opacity" Value="0.97"/>
+    </Style>
+    <Style Selector="Border.steam-hero-image-tint">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#10FFFFFF" Offset="0"/>
+                    <GradientStop Color="#10000000" Offset="0.35"/>
+                    <GradientStop Color="#B8122030" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style Selector="Border.steam-hero-info-panel">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#00FFFFFF" Offset="0"/>
+                    <GradientStop Color="#884B355D" Offset="0.5"/>
+                    <GradientStop Color="#B9715E8F" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Padding" Value="20,18,20,16"/>
+    </Style>
+    <Style Selector="TextBlock.steam-hero-game-title">
+        <Setter Property="FontSize" Value="26"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="TextBlock.steam-hero-game-meta">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#CED5DD"/>
     </Style>
 
-    <!-- Playtime meta (blue stat text) -->
-    <Style Selector="TextBlock.game-playtime-meta">
-        <Setter Property="Foreground" Value="#1A9BFF"/>
+    <Style Selector="Button.steam-side-recent-button">
+        <Setter Property="Width" Value="182"/>
+        <Setter Property="Height" Value="392"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Background" Value="#18212E"/>
+    </Style>
+    <Style Selector="Button.steam-side-recent-button /template/ ContentPresenter">
+        <Setter Property="Background" Value="#18212E"/>
+        <Setter Property="CornerRadius" Value="0"/>
+    </Style>
+    <Style Selector="Button.steam-side-recent-button:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#1D2A38"/>
+    </Style>
+    <Style Selector="Border.steam-side-image-tint">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#08FFFFFF" Offset="0"/>
+                    <GradientStop Color="#28040A11" Offset="0.45"/>
+                    <GradientStop Color="#B4101A26" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style Selector="Border.steam-side-card-chip">
+        <Setter Property="Margin" Value="12,12,12,0"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="CornerRadius" Value="3"/>
+        <Setter Property="Background" Value="#2E7EDE"/>
+    </Style>
+    <Style Selector="TextBlock.steam-side-card-chip-text">
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="Border.steam-side-card-footer">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#00FFFFFF" Offset="0"/>
+                    <GradientStop Color="#AA182536" Offset="0.68"/>
+                    <GradientStop Color="#DD182536" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Padding" Value="12,16,12,14"/>
+    </Style>
+    <Style Selector="TextBlock.steam-side-card-title">
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="TextBlock.steam-side-card-meta">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Foreground" Value="#D4D9DE"/>
     </Style>
 
-    <!-- Platform pill (small blue tag chip) -->
-    <Style Selector="Border.game-platform-pill">
-        <Setter Property="Background" Value="#1A9BFF"/>
+    <Style Selector="Border.steam-tab-pill">
+        <Setter Property="Padding" Value="20,10"/>
+        <Setter Property="CornerRadius" Value="20"/>
+        <Setter Property="Background" Value="#3A4654"/>
+    </Style>
+    <Style Selector="Border.steam-tab-pill-active">
+        <Setter Property="Background" Value="#4B5665"/>
+    </Style>
+    <Style Selector="TextBlock.steam-tab-pill-text">
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#F5F7F9"/>
+    </Style>
+    <Style Selector="Border.steam-tab-count-pill">
+        <Setter Property="Background" Value="#3A9B45"/>
+        <Setter Property="CornerRadius" Value="11"/>
+        <Setter Property="Padding" Value="8,2"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="TextBlock.steam-tab-count-text">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="White"/>
     </Style>
 
-    <!-- Primary button (Steam blue) -->
-    <Style Selector="Button.btn-primary">
-        <Setter Property="Background" Value="#1A9BFF"/>
+    <Style Selector="Border.steam-news-card">
+        <Setter Property="Width" Value="410"/>
+        <Setter Property="Background" Value="#161F2C"/>
     </Style>
-    <Style Selector="Button.btn-primary:pointerover /template/ ContentPresenter">
-        <Setter Property="Background" Value="#2AB0FF"/>
+    <Style Selector="Border.steam-news-image-tint">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#05FFFFFF" Offset="0"/>
+                    <GradientStop Color="#16000000" Offset="0.4"/>
+                    <GradientStop Color="#660C1520" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
     </Style>
-
-    <!-- Secondary button (outlined, dark hover) -->
-    <Style Selector="Button.btn-secondary">
-        <Setter Property="BorderBrush" Value="#1F3B55"/>
-        <Setter Property="Foreground" Value="#C7D5E0"/>
+    <Style Selector="Border.steam-news-footer">
+        <Setter Property="Background" Value="#2D3949"/>
+        <Setter Property="Padding" Value="12,12,12,14"/>
     </Style>
-    <Style Selector="Button.btn-secondary:pointerover /template/ ContentPresenter">
-        <Setter Property="Background" Value="#182533"/>
+    <Style Selector="TextBlock.steam-news-category">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="#86B2E1"/>
+    </Style>
+    <Style Selector="TextBlock.steam-news-title">
+        <Setter Property="FontSize" Value="18"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="TextBlock.steam-news-subtitle">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="Foreground" Value="#D2D7DE"/>
+    </Style>
+    <Style Selector="TextBlock.steam-news-meta">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#9CA7B3"/>
     </Style>
 </Styles>
