@@ -1987,6 +1987,7 @@ async function loadFriendsList() {
                 <div class="friend-actions">
                     <a class="btn-message-friend" href="profile.html?user=${encodeURIComponent(f)}" style="text-decoration:none;">👤 Profile</a>
                     <button class="btn-message-friend" onclick="openChat('${escapeHtml(f)}')">💬 Message</button>
+                    <button class="btn-friend-ip btn-message-friend" data-friend="${escapeHtml(f)}" onclick="toggleFriendIpPanel('${escapeHtml(f)}')">🌐 IPs</button>
                     <button class="btn-remove-friend" onclick="handleRemoveFriend('${escapeHtml(f)}')">Remove</button>
                 </div>
             </div>`;
@@ -2388,6 +2389,113 @@ async function handleRespondInvite(inviteId, response) {
     } catch (err) {
         console.error('Failed to respond to invite:', err);
     }
+}
+
+// ============================================================
+// FRIEND IP MANAGEMENT (Radmin / LAN / ZeroTier / Hamachi)
+// ============================================================
+
+const FRIEND_IP_TYPES = [
+    { value: 'radmin',   label: '🔴 Radmin' },
+    { value: 'local',    label: '🏠 Local'  },
+    { value: 'zerotier', label: '⚡ ZeroTier' },
+    { value: 'hamachi',  label: '🔗 Hamachi' },
+];
+
+function _friendIpKey(friendName) {
+    return `gameOS_friend_ips_${friendName.toLowerCase()}`;
+}
+
+function loadFriendIps(friendName) {
+    try {
+        const raw = localStorage.getItem(_friendIpKey(friendName));
+        return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+}
+
+function saveFriendIps(friendName, ips) {
+    localStorage.setItem(_friendIpKey(friendName), JSON.stringify(ips));
+}
+
+function toggleFriendIpPanel(friendName) {
+    // Remove any panel that's already open for a different friend
+    document.querySelectorAll('.friend-ip-panel').forEach(p => {
+        if (p.dataset.friend !== friendName) p.remove();
+    });
+
+    const existing = document.querySelector(`.friend-ip-panel[data-friend="${CSS.escape(friendName)}"]`);
+    if (existing) { existing.remove(); return; }
+
+    // Find the friend-item row for this friend and insert the panel after it
+    const btn = document.querySelector(`.btn-friend-ip[data-friend="${CSS.escape(friendName)}"]`);
+    if (!btn) return;
+    const row = btn.closest('.friend-item');
+    if (!row) return;
+
+    const panel = document.createElement('div');
+    panel.className = 'friend-ip-panel';
+    panel.dataset.friend = friendName;
+    _renderFriendIpPanel(panel, friendName);
+    row.insertAdjacentElement('afterend', panel);
+}
+
+function _renderFriendIpPanel(panel, friendName) {
+    const ips = loadFriendIps(friendName);
+    const typeOptions = FRIEND_IP_TYPES.map(t =>
+        `<option value="${t.value}">${t.label}</option>`).join('');
+
+    const ipRows = ips.length === 0
+        ? '<p class="friend-ip-empty">No IPs saved yet.</p>'
+        : ips.map((ip, idx) => {
+            const typeLabel = (FRIEND_IP_TYPES.find(t => t.value === ip.type) || {}).label || ip.type;
+            return `<div class="friend-ip-row">
+                <span class="friend-ip-badge">${escapeHtml(typeLabel)}</span>
+                <span class="friend-ip-label">${escapeHtml(ip.label || '')}</span>
+                <span class="friend-ip-address">${escapeHtml(ip.address)}</span>
+                <button class="btn-remove-friend" onclick="_removeFriendIp(${JSON.stringify(friendName)},${idx})">✕</button>
+            </div>`;
+        }).join('');
+
+    panel.innerHTML = `
+        <div class="friend-ip-header">
+            <strong>🌐 IPs for ${escapeHtml(friendName)}</strong>
+            <button class="btn-message-friend" style="float:right" onclick="toggleFriendIpPanel(${JSON.stringify(friendName)})">✕ Close</button>
+        </div>
+        <div class="friend-ip-list">${ipRows}</div>
+        <div class="friend-ip-add-form">
+            <select id="fip-type-${CSS.escape(friendName)}" class="friend-ip-select">${typeOptions}</select>
+            <input id="fip-label-${CSS.escape(friendName)}" class="friend-ip-input" type="text" placeholder="Label (e.g. Home)" maxlength="40" />
+            <input id="fip-addr-${CSS.escape(friendName)}" class="friend-ip-input" type="text" placeholder="IP address" maxlength="64" />
+            <button class="btn-message-friend" onclick="_addFriendIp(${JSON.stringify(friendName)})">➕ Add</button>
+        </div>`;
+}
+
+function _addFriendIp(friendName) {
+    const safeId = CSS.escape(friendName);
+    const typeEl  = document.getElementById(`fip-type-${safeId}`);
+    const labelEl = document.getElementById(`fip-label-${safeId}`);
+    const addrEl  = document.getElementById(`fip-addr-${safeId}`);
+    if (!typeEl || !addrEl) return;
+
+    const address = (addrEl.value || '').trim();
+    if (!address) { addrEl.focus(); return; }
+
+    const ips = loadFriendIps(friendName);
+    ips.push({ type: typeEl.value, label: (labelEl ? labelEl.value.trim() : ''), address });
+    saveFriendIps(friendName, ips);
+
+    // Re-render the open panel
+    const panel = document.querySelector(`.friend-ip-panel[data-friend="${CSS.escape(friendName)}"]`);
+    if (panel) _renderFriendIpPanel(panel, friendName);
+}
+
+function _removeFriendIp(friendName, index) {
+    const ips = loadFriendIps(friendName);
+    ips.splice(index, 1);
+    saveFriendIps(friendName, ips);
+
+    const panel = document.querySelector(`.friend-ip-panel[data-friend="${CSS.escape(friendName)}"]`);
+    if (panel) _renderFriendIpPanel(panel, friendName);
 }
 
 // ============================================================

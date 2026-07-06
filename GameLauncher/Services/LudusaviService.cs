@@ -132,8 +132,23 @@ namespace GameLauncher.Services
             // that multiple games with the same title (or the same game on different
             // emulators) cannot collide:
             //   Data/{username}/GameSaves/{platform}/{gameTitle}/{titleId}/
+            //
+            // For Xbox 360 / Xenia games: if no explicit TitleID was provided but
+            // sourceOverridePath was resolved (e.g. Content/{profile}/{titleId}/00000001/),
+            // extract the TitleID from that path so the backup is always placed in a
+            // per-TitleID sub-folder.  This prevents collisions when multiple games share
+            // the same title but use different TitleIDs.
             string platformSavesRoot = UserDataService.GetGameSavesPath(username, platform);
             string safeGameTitle     = StorageHelpers.SanitiseName(gameTitle);
+
+            if (string.IsNullOrWhiteSpace(titleId) &&
+                !string.IsNullOrWhiteSpace(sourceOverridePath))
+            {
+                string? extracted = TryExtractXeniaTitleId(sourceOverridePath);
+                if (!string.IsNullOrWhiteSpace(extracted))
+                    titleId = extracted;
+            }
+
             string gameSavePath      = !string.IsNullOrWhiteSpace(titleId)
                 ? Path.Combine(platformSavesRoot, safeGameTitle, titleId.Trim())
                 : Path.Combine(platformSavesRoot, safeGameTitle);
@@ -255,8 +270,22 @@ namespace GameLauncher.Services
             // Locate the Game.OS backup folder for this game.
             // Prefer the TitleID-scoped sub-folder; fall back to the legacy flat folder
             // for saves that were backed up before this layout was introduced.
+            //
+            // For Xbox 360 / Xenia games: if no explicit TitleID was provided but
+            // targetOverridePath was resolved (e.g. Content/{profile}/{titleId}/00000001/),
+            // extract the TitleID from that path so the correct per-TitleID backup folder
+            // is located during restore.
             string platformSavesRoot = UserDataService.GetGameSavesPath(username, platform);
             string safeGameTitle     = StorageHelpers.SanitiseName(gameTitle);
+
+            if (string.IsNullOrWhiteSpace(titleId) &&
+                !string.IsNullOrWhiteSpace(targetOverridePath))
+            {
+                string? extracted = TryExtractXeniaTitleId(targetOverridePath);
+                if (!string.IsNullOrWhiteSpace(extracted))
+                    titleId = extracted;
+            }
+
             string gameSavePath;
             if (!string.IsNullOrWhiteSpace(titleId))
             {
@@ -667,6 +696,70 @@ namespace GameLauncher.Services
         {
             if (string.IsNullOrWhiteSpace(platform)) return false;
             return !string.Equals(platform.Trim(), "PC", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Attempts to extract the Xbox 360 / Xenia TitleID from a resolved emulator
+        /// save path.  Xenia save paths take the form:
+        /// <c>{saveRoot}/Content/{profileId}/{titleId}/00000001</c>
+        ///
+        /// <para>
+        /// The method walks up the path segments looking for an 8-character
+        /// uppercase-hex folder name immediately followed by a "00000001" segment.
+        /// Returns <see langword="null"/> when no such pattern is found.
+        /// </para>
+        /// </summary>
+        private static string? TryExtractXeniaTitleId(string savePath)
+        {
+            if (string.IsNullOrWhiteSpace(savePath)) return null;
+
+            try
+            {
+                // Normalise separators and split into parts
+                var parts = savePath
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar)
+                    .Split(Path.DirectorySeparatorChar);
+
+                // Look for a segment that looks like a TitleID (8-char hex) followed by
+                // "00000001" (the Xenia save-slot directory).  The TitleID may also be
+                // longer (up to 8 chars is typical for Xbox 360 titles, but we accept
+                // any 6–8 char hex name to be safe).
+                for (int i = 0; i + 1 < parts.Length; i++)
+                {
+                    string candidate = parts[i];
+                    string next      = parts[i + 1];
+
+                    if (candidate.Length >= 6 && candidate.Length <= 8 &&
+                        IsHexString(candidate) &&
+                        string.Equals(next, "00000001", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return candidate.ToUpperInvariant();
+                    }
+                }
+
+                // Fallback: if the path ends in a hex folder (no trailing 00000001),
+                // accept the last segment if it looks like a TitleID.
+                if (parts.Length >= 1)
+                {
+                    string last = parts[parts.Length - 1];
+                    if (last.Length >= 6 && last.Length <= 8 && IsHexString(last))
+                        return last.ToUpperInvariant();
+                }
+            }
+            catch { /* best-effort */ }
+
+            return null;
+        }
+
+        private static bool IsHexString(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return false;
+            foreach (char c in value)
+            {
+                if (!Uri.IsHexDigit(c)) return false;
+            }
+            return true;
         }
 
         private static string ClassifyFailure(string detail)

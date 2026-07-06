@@ -3496,10 +3496,21 @@ public partial class GameDetailViewModel : ViewModelBase
             // list is accurate before — or without — a play session.
             if (string.Equals(Platform, "PC", StringComparison.OrdinalIgnoreCase) && _steamAppId > 0)
             {
+                // Prefer the saved settings exe path; fall back to the first detected drive
+                // entry so the emu scan works even before the settings panel is opened.
                 string exePath = SettingsExePath ?? "";
-                var emuIds = await System.Threading.Tasks.Task.Run(
-                    () => SteamEmuAchievementService.ReadUnlockedIds(exePath, _steamAppId))
-                    .ConfigureAwait(false);
+                if (string.IsNullOrEmpty(exePath) && _driveInstances.Count > 0)
+                    exePath = _driveInstances[0].ExecutablePath ?? "";
+
+                // Fetch both the unlocked IDs and the API→displayName map in one background
+                // call so we can match achievements even when the template uses sequential IDs
+                // (Exophase-scraped) rather than Steam API names (Steam-scraped).
+                var (emuIds, achNameMap) = await System.Threading.Tasks.Task.Run(() =>
+                {
+                    var ids = SteamEmuAchievementService.ReadUnlockedIds(exePath, _steamAppId);
+                    var map = SteamEmuAchievementService.TryBuildAchievementNameMap(exePath, _steamAppId);
+                    return (ids, map);
+                }).ConfigureAwait(false);
 
                 if (emuIds.Count > 0)
                 {
@@ -3507,18 +3518,61 @@ public partial class GameDetailViewModel : ViewModelBase
                     // (real timestamps from Steam API / Exophase) but still marks the
                     // achievement as unlocked.
                     const string emuFallbackTs = "1970-01-01T00:00:00Z";
+                    int mergedCount = 0;
                     foreach (var a in list)
                     {
                         if (!string.IsNullOrEmpty(a.UnlockedAt)) continue; // already stamped
+
+                        // Direct match: emu API name equals DB achievementId or DB name.
+                        // Works when the template was scraped from Steam (API names preserved).
                         if (emuIds.Contains(a.AchievementId ?? "") ||
                             emuIds.Contains(a.Name ?? ""))
                         {
                             a.UnlockedAt = emuFallbackTs;
+                            mergedCount++;
+                            continue;
+                        }
+
+                        // Name-map match: translate each unlocked emu API name to its human-
+                        // readable display name (from steam_settings/achievements.json placed by
+                        // GBE / Goldberg next to the exe), then compare against the DB achievement
+                        // name.  This is the path taken when the template was Exophase-scraped
+                        // (sequential IDs) so the raw emu ID never matches the DB achievementId.
+                        bool matched = false;
+                        foreach (var emuId in emuIds)
+                        {
+                            if (achNameMap.TryGetValue(emuId, out var displayName) &&
+                                !string.IsNullOrEmpty(displayName) &&
+                                string.Equals(displayName, a.Name, StringComparison.OrdinalIgnoreCase))
+                            {
+                                a.UnlockedAt = emuFallbackTs;
+                                mergedCount++;
+                                matched = true;
+                                break;
+                            }
+                        }
+                        if (matched) continue;
+
+                        // Also check the known-unlocked cloud list for the same achievement by
+                        // raw emu ID — handles the case where a previous session saved the emu
+                        // API name as the achievementId in the cloud record but the DB template
+                        // uses the human-readable name as both id and name (Exophase format).
+                        if (knownUnlocked != null)
+                        {
+                            var cloudMatch = knownUnlocked.FirstOrDefault(u =>
+                                emuIds.Contains(u.AchievementId ?? "") &&
+                                string.Equals(u.Name, a.Name, StringComparison.OrdinalIgnoreCase));
+                            if (cloudMatch != null)
+                            {
+                                a.UnlockedAt = !string.IsNullOrEmpty(cloudMatch.UnlockedAt)
+                                    ? cloudMatch.UnlockedAt : emuFallbackTs;
+                                mergedCount++;
+                            }
                         }
                     }
                     DevLogService.Log(
-                        $"[AchMerge] Merged {emuIds.Count} Steam emu unlock(s) into template " +
-                        $"for AppId {_steamAppId}.");
+                        $"[AchMerge] Merged {mergedCount}/{emuIds.Count} Steam emu unlock(s) into template " +
+                        $"for AppId {_steamAppId} (nameMap entries: {achNameMap.Count}).");
                 }
             }
 
