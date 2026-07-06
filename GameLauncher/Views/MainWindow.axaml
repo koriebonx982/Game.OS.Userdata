@@ -55,8 +55,12 @@
                                 <views:StoreView DataContext="{Binding StoreVm}"/>
                             </Border>
                             <Panel IsVisible="{Binding IsFriendsOrInbox}">
-                                <views:FriendsView DataContext="{Binding FriendsVm}" IsVisible="{Binding IsFriends}"/>
-                                <views:InboxView DataContext="{Binding InboxVm}" IsVisible="{Binding IsInbox}"/>
+                                <Border IsVisible="{Binding IsFriends}">
+                                    <views:FriendsView DataContext="{Binding FriendsVm}"/>
+                                </Border>
+                                <Border IsVisible="{Binding IsInbox}">
+                                    <views:InboxView DataContext="{Binding InboxVm}"/>
+                                </Border>
                             </Panel>
                             <Border IsVisible="{Binding IsProfile}">
                                 <views:ProfileView DataContext="{Binding ProfileVm}"/>

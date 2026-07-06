@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Threading.Tasks;
 using GameLauncher;
 using GameLauncher.Models;
@@ -472,6 +473,13 @@ class Program
         Console.WriteLine("───────────────────────────────────────────────────────────────");
         bool ludusaviFlowPassed = await TestLudusaviFlowAsync();
         if (!ludusaviFlowPassed) passed = false;
+        Console.WriteLine();
+
+        // ── XBOX 360 SAVE MIRRORING ───────────────────────────────────────────
+        Console.WriteLine("☁ Xbox 360 save mirroring across TitleIDs:");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool xbox360MirrorPassed = await TestXbox360MultiTitleIdSaveMirroringAsync();
+        if (!xbox360MirrorPassed) passed = false;
         Console.WriteLine();
 
         // ── LUDUSAVI TITLE NORMALISATION ─────────────────────────────────────
@@ -2022,6 +2030,106 @@ class Program
             LudusaviService.RequestNativeConfirmationAsync = originalConfirmHandler;
             AppSettingsService.Save(originalSettings);
             try { Directory.Delete(tempRoot, true); } catch { }
+        }
+
+        return passed;
+    }
+
+    private static async Task<bool> TestXbox360MultiTitleIdSaveMirroringAsync()
+    {
+        bool passed = true;
+        string tempRoot   = Path.Combine(Path.GetTempPath(), "GameOS_Xbox360Multi_" + Guid.NewGuid().ToString("N"));
+        string sourceDir  = Path.Combine(tempRoot, "source");
+        string restoreDir = Path.Combine(tempRoot, "restore");
+        string cacheDir   = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "GameOS", "GamesDbCache");
+        string cachePath  = Path.Combine(cacheDir, "Xbox 360.json");
+        string? originalCache = File.Exists(cachePath) ? File.ReadAllText(cachePath) : null;
+        var originalSettings = AppSettingsService.Load();
+        var originalConfirmHandler = LudusaviService.RequestNativeConfirmationAsync;
+
+        const string username       = "XeniaMultiTitleIdUser";
+        const string platform       = "Xbox 360";
+        const string gameTitle      = "Xenia Multi Region Test";
+        const string primaryTitleId = "415607F2";
+        const string altTitleId     = "373407D7";
+
+        try
+        {
+            Directory.CreateDirectory(sourceDir);
+            File.WriteAllText(Path.Combine(sourceDir, "save.dat"), "xbox-360-save");
+
+            Directory.CreateDirectory(cacheDir);
+            var cacheGames = !string.IsNullOrWhiteSpace(originalCache)
+                ? JsonSerializer.Deserialize<List<DatabaseGame>>(originalCache,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<DatabaseGame>()
+                : new List<DatabaseGame>();
+            cacheGames.RemoveAll(g => string.Equals(g.Title, gameTitle, StringComparison.OrdinalIgnoreCase));
+            cacheGames.Add(new DatabaseGame { Title = gameTitle, TitleId = primaryTitleId });
+            cacheGames.Add(new DatabaseGame { Title = gameTitle, TitleId = altTitleId });
+            File.WriteAllText(cachePath, JsonSerializer.Serialize(cacheGames, new JsonSerializerOptions { WriteIndented = true }));
+
+            AppSettingsService.Save(new AppSettings
+            {
+                RequireCloudSaveConfirmation = false,
+                AllowCloudSaveInAppFallbackConfirmation = true
+            });
+            LudusaviService.RequestNativeConfirmationAsync = null;
+
+            var backup = await LudusaviService.SyncAsync(
+                platform, gameTitle, username, sourceOverridePath: sourceDir, titleId: primaryTitleId);
+
+            string savesRoot = Path.Combine(UserDataService.GetGameSavesPath(username, platform), gameTitle);
+            string primarySave = Path.Combine(savesRoot, primaryTitleId, "save.dat");
+            string altSave     = Path.Combine(savesRoot, altTitleId, "save.dat");
+
+            if (backup.Kind == LudusaviService.ResultKind.Synced &&
+                File.Exists(primarySave) &&
+                File.Exists(altSave))
+            {
+                Console.WriteLine("  ✅  Xbox 360 backup mirrors saves into every cached TitleID folder");
+            }
+            else
+            {
+                Console.WriteLine($"  ❌  Expected mirrored Xbox 360 backup, got {backup.Kind}");
+                passed = false;
+            }
+
+            Directory.CreateDirectory(restoreDir);
+            var restore = await LudusaviService.RestoreAsync(
+                platform, gameTitle, username, targetOverridePath: restoreDir, titleId: altTitleId);
+            string restoredFile = Path.Combine(restoreDir, "save.dat");
+
+            if (restore.Kind == LudusaviService.ResultKind.Synced &&
+                File.Exists(restoredFile) &&
+                File.ReadAllText(restoredFile) == "xbox-360-save")
+            {
+                Console.WriteLine("  ✅  Xbox 360 restore works from an alternate TitleID folder");
+            }
+            else
+            {
+                Console.WriteLine($"  ❌  Expected restore from alternate TitleID folder, got {restore.Kind}");
+                passed = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ❌  Xbox 360 multi-TitleID test threw: {ex.Message}");
+            passed = false;
+        }
+        finally
+        {
+            LudusaviService.RequestNativeConfirmationAsync = originalConfirmHandler;
+            AppSettingsService.Save(originalSettings);
+            try
+            {
+                if (originalCache == null) File.Delete(cachePath);
+                else File.WriteAllText(cachePath, originalCache);
+            }
+            catch { }
+            try { Directory.Delete(tempRoot, true); } catch { }
+            try { Directory.Delete(UserDataService.GetGameSavesPath(username, platform), true); } catch { }
         }
 
         return passed;
