@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using GameLauncher.Models;
@@ -37,6 +38,9 @@ namespace GameLauncher.Services
         // Keep fallback window short so accidental second presses do not auto-approve much later.
         private static readonly TimeSpan ApprovalFallbackWindow = TimeSpan.FromSeconds(20);
         private static readonly ConcurrentDictionary<string, DateTimeOffset> PendingApprovalTokens = new();
+        private static readonly string GamesDbCacheDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "GameOS", "GamesDbCache");
 
         // ── Result discriminated union ─────────────────────────────────────────
 
@@ -709,9 +713,9 @@ namespace GameLauncher.Services
 
             Add(titleId);
 
-            if (string.Equals(platform?.Trim(), "Xbox 360", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(platform.Trim(), "Xbox 360", StringComparison.OrdinalIgnoreCase))
             {
-                foreach (string cachedTitleId in GitHubDataService.TryGetTitleIdsFromLocalCache(platform, gameTitle))
+                foreach (string cachedTitleId in TryGetCachedTitleIds(platform, gameTitle))
                     Add(cachedTitleId);
             }
 
@@ -721,6 +725,53 @@ namespace GameLauncher.Services
         private static bool ShouldMirrorXbox360TitleIds(string platform, IReadOnlyCollection<string> titleIds)
             => string.Equals(platform?.Trim(), "Xbox 360", StringComparison.OrdinalIgnoreCase)
             && titleIds.Count > 1;
+
+        private static List<string> TryGetCachedTitleIds(string platform, string gameTitle)
+        {
+            if (string.IsNullOrWhiteSpace(platform) || string.IsNullOrWhiteSpace(gameTitle))
+                return new();
+
+            try
+            {
+                string cachePath = Path.Combine(
+                    GamesDbCacheDir,
+                    $"{Models.PlatformHelper.NormalizePlatform(platform)}.json");
+                if (!File.Exists(cachePath))
+                    return new();
+
+                var games = JsonSerializer.Deserialize<List<DatabaseGame>>(
+                    File.ReadAllText(cachePath),
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (games == null || games.Count == 0)
+                    return new();
+
+                string normalised = Regex.Replace(gameTitle, @"^(.+?) - (.+)$", "$1: $2");
+                string stripped = Models.PlatformHelper.StripSpecialSymbols(gameTitle);
+
+                bool Matches(string? candidate)
+                {
+                    if (string.IsNullOrWhiteSpace(candidate)) return false;
+                    return string.Equals(candidate, gameTitle, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(candidate, normalised, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(
+                            Models.PlatformHelper.StripSpecialSymbols(candidate),
+                            stripped,
+                            StringComparison.OrdinalIgnoreCase);
+                }
+
+                return games
+                    .Where(g => Matches(g.Title) || (g.AlternateNames?.Any(Matches) ?? false))
+                    .Select(g => g.TitleId?.Trim())
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Cast<string>()
+                    .ToList();
+            }
+            catch
+            {
+                return new();
+            }
+        }
 
         /// <summary>
         /// Attempts to extract the Xbox 360 / Xenia TitleID from a resolved emulator
