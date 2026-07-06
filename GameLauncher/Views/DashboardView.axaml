@@ -721,24 +721,29 @@
     </Border>
 
     <!-- ══ Steam Big Picture Layout ═══════════════════════════════════════ -->
-    <Border Classes="dashboard-steambpm-layout" IsVisible="False">
+    <Border Classes="dashboard-steambpm-layout">
         <Grid RowDefinitions="Auto,Auto,*">
-            <Grid Grid.Row="0" Margin="54,24,54,0" ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+
+            <!-- Top bar: title left, icons right -->
+            <Grid Grid.Row="0" Margin="46,20,30,0" ColumnDefinitions="*,Auto,Auto,Auto,Auto"
+                  VerticalAlignment="Center">
                 <TextBlock Text="Recent Games"
                            Classes="steam-shell-title"
                            VerticalAlignment="Center"/>
                 <TextBlock Grid.Column="1"
                            Text="⌕"
                            Classes="steam-shell-icon"
-                           Margin="0,0,18,0"/>
+                           AutomationProperties.Name="Search"
+                           Margin="0,0,20,0"/>
                 <TextBlock Grid.Column="2"
-                           Text="◉"
+                           Text="🌐"
                            Classes="steam-shell-icon"
-                           Margin="0,0,24,0"/>
+                           AutomationProperties.Name="Store"
+                           Margin="0,0,20,0"/>
                 <TextBlock Grid.Column="3"
                            Text="{Binding SteamClockTime}"
                            Classes="steam-shell-time"
-                           Margin="0,0,22,0"
+                           Margin="0,0,16,0"
                            VerticalAlignment="Center"/>
                 <Border Grid.Column="4"
                         Classes="steam-shell-avatar"
@@ -748,89 +753,78 @@
                 </Border>
             </Grid>
 
-            <Grid Grid.Row="1"
-                  Margin="54,22,54,0"
-                  Height="392"
-                  ColumnDefinitions="2.55*,3.45*"
-                  ColumnSpacing="18">
-                <Button Grid.Column="0"
-                        Classes="steam-hero-recent-button"
-                        Command="{Binding ContinuePlayingCommand}">
-                    <Grid>
+            <!-- Hero: image row + title/meta below -->
+            <StackPanel Grid.Row="1" Margin="0,14,0,0">
+                <Grid Margin="46,0,0,0"
+                      Height="264"
+                      ColumnDefinitions="2.55*,3.45*"
+                      ColumnSpacing="6">
+                    <!-- Large hero (featured / last-played) -->
+                    <Button Grid.Column="0"
+                            Classes="steam-hero-recent-button"
+                            Command="{Binding ContinuePlayingCommand}">
                         <views:CoverImage
                             ImageUrl="{Binding FeaturedGame.CoverUrl}"
                             FallbackText="{Binding FeaturedGame.Title}"
                             FallbackGradient="{Binding FeaturedGame.CoverGradient}"
                             SubText="{Binding FeaturedGame.Platform}"
-                            LetterFontSize="110"
+                            LetterFontSize="80"
                             ImageCornerRadius="0"/>
-                        <Border Classes="steam-hero-image-tint"/>
-                        <Border VerticalAlignment="Bottom"
-                                Classes="steam-hero-info-panel">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="{Binding FeaturedGame.Title}"
-                                           Classes="steam-hero-game-title"/>
-                                <TextBlock Text="{Binding SteamHeroMetaText}"
-                                           Classes="steam-hero-game-meta"/>
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-                </Button>
+                    </Button>
+                    <!-- 4 side recent cards -->
+                    <ItemsControl Grid.Column="1"
+                                  ItemsSource="{Binding SteamRecentSideGames}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="6"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LocalGameCardVm">
+                                <Button Classes="steam-side-recent-button"
+                                        Command="{Binding $parent[UserControl].DataContext.OpenLocalGameDetailCommand}"
+                                        CommandParameter="{Binding}">
+                                    <Grid>
+                                        <views:CoverImage
+                                            ImageUrl="{Binding CoverUrl}"
+                                            FallbackText="{Binding EffectiveTitle}"
+                                            FallbackGradient="{Binding CoverGradient}"
+                                            SubText="{Binding Platform}"
+                                            LetterFontSize="36"
+                                            ImageCornerRadius="0"/>
+                                        <Border VerticalAlignment="Top"
+                                                HorizontalAlignment="Left"
+                                                Classes="steam-side-card-chip"
+                                                IsVisible="{Binding KindLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                            <TextBlock Text="{Binding KindLabel}"
+                                                       Classes="steam-side-card-chip-text"/>
+                                        </Border>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+                <!-- Title and playtime below the hero images -->
+                <StackPanel Margin="46,10,0,0" Spacing="3">
+                    <TextBlock Text="{Binding FeaturedGame.Title}"
+                               Classes="steam-hero-game-title"/>
+                    <TextBlock Text="{Binding SteamHeroMetaText}"
+                               Classes="steam-hero-game-meta"/>
+                </StackPanel>
+            </StackPanel>
 
-                <ItemsControl Grid.Column="1"
-                              ItemsSource="{Binding SteamRecentSideGames}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" Spacing="18"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:LocalGameCardVm">
-                            <Button Classes="steam-side-recent-button"
-                                    Command="{Binding $parent[UserControl].DataContext.OpenLocalGameDetailCommand}"
-                                    CommandParameter="{Binding}">
-                                <Grid>
-                                    <views:CoverImage
-                                        ImageUrl="{Binding CoverUrl}"
-                                        FallbackText="{Binding EffectiveTitle}"
-                                        FallbackGradient="{Binding CoverGradient}"
-                                        SubText="{Binding Platform}"
-                                        LetterFontSize="42"
-                                        ImageCornerRadius="0"/>
-                                    <Border Classes="steam-side-image-tint"/>
-                                    <Border VerticalAlignment="Top"
-                                            HorizontalAlignment="Left"
-                                            Classes="steam-side-card-chip"
-                                            IsVisible="{Binding KindLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                                        <TextBlock Text="{Binding KindLabel}"
-                                                   Classes="steam-side-card-chip-text"/>
-                                    </Border>
-                                    <Border VerticalAlignment="Bottom"
-                                            Classes="steam-side-card-footer">
-                                        <StackPanel Spacing="3">
-                                            <TextBlock Text="{Binding EffectiveTitle}"
-                                                       Classes="steam-side-card-title"/>
-                                            <TextBlock Text="{Binding PlaytimeLabel}"
-                                                       Classes="steam-side-card-meta"
-                                                       IsVisible="{Binding PlaytimeLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-                                        </StackPanel>
-                                    </Border>
-                                </Grid>
-                            </Button>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </Grid>
-
-            <StackPanel Grid.Row="2" Margin="0,18,0,0" Spacing="24">
+            <!-- Tabs + news cards -->
+            <StackPanel Grid.Row="2" Margin="0,16,0,0" Spacing="14">
+                <!-- Centered tab pills (no background strip) -->
                 <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Center"
-                            Spacing="18">
+                            Spacing="6">
                     <Border Classes="steam-tab-pill steam-tab-pill-active">
                         <TextBlock Text="WHAT'S NEW" Classes="steam-tab-pill-text"/>
                     </Border>
                     <Border Classes="steam-tab-pill">
-                        <StackPanel Orientation="Horizontal" Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Text="FRIENDS" Classes="steam-tab-pill-text"/>
                             <Border Classes="steam-tab-count-pill">
                                 <TextBlock Text="{Binding OnlineFriendsCount}" Classes="steam-tab-count-text"/>
@@ -842,45 +836,47 @@
                     </Border>
                 </StackPanel>
 
+                <!-- Horizontally scrollable news cards -->
                 <ScrollViewer HorizontalScrollBarVisibility="Hidden"
                               VerticalScrollBarVisibility="Disabled">
                     <ItemsControl ItemsSource="{Binding SteamNewsTiles}"
-                                  Margin="54,0,24,28">
+                                  Margin="46,0,24,24">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" Spacing="18"/>
+                                <StackPanel Orientation="Horizontal" Spacing="14"/>
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:SteamDashboardNewsTileVm">
-                                <Border Classes="steam-news-card">
-                                    <Grid RowDefinitions="210,Auto">
-                                        <Grid Grid.Row="0">
+                                <!-- Category label floats above the card -->
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="{Binding Category}"
+                                               Classes="steam-news-category"/>
+                                    <Border Classes="steam-news-card">
+                                        <Grid RowDefinitions="152,Auto">
                                             <views:CoverImage
+                                                Grid.Row="0"
                                                 ImageUrl="{Binding CoverUrl}"
                                                 FallbackText="{Binding Title}"
                                                 FallbackGradient="{Binding CoverGradient}"
                                                 SubText="{Binding Category}"
-                                                LetterFontSize="58"
+                                                LetterFontSize="44"
                                                 ImageCornerRadius="0"/>
-                                            <Border Classes="steam-news-image-tint"/>
+                                            <Border Grid.Row="1" Classes="steam-news-footer">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Text="{Binding Meta}"
+                                                               Classes="steam-news-meta"/>
+                                                    <TextBlock Text="{Binding Title}"
+                                                               TextWrapping="Wrap"
+                                                               MaxLines="2"
+                                                               ToolTip.Tip="{Binding Title}"
+                                                               AutomationProperties.Name="{Binding Title}"
+                                                               Classes="steam-news-title"/>
+                                                </StackPanel>
+                                            </Border>
                                         </Grid>
-                                        <Border Grid.Row="1" Classes="steam-news-footer">
-                                            <StackPanel Spacing="6">
-                                                <TextBlock Text="{Binding Category}"
-                                                           Classes="steam-news-category"/>
-                                                <TextBlock Text="{Binding Title}"
-                                                           TextWrapping="Wrap"
-                                                           Classes="steam-news-title"/>
-                                                <TextBlock Text="{Binding Subtitle}"
-                                                           TextWrapping="Wrap"
-                                                           Classes="steam-news-subtitle"/>
-                                                <TextBlock Text="{Binding Meta}"
-                                                           Classes="steam-news-meta"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
-                                </Border>
+                                    </Border>
+                                </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
