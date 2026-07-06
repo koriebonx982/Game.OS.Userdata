@@ -12,79 +12,101 @@
         <Setter Property="IsVisible" Value="True"/>
     </Style>
 
+    <!-- Shell background (deep navy like screenshot) -->
     <Style Selector="Window.main-window-shell">
-        <Setter Property="Background" Value="#0b111b"/>
+        <Setter Property="Background" Value="#0A0F17"/>
     </Style>
     <Style Selector="Border.main-content-surface">
-        <Setter Property="Background" Value="#0b111b"/>
+        <Setter Property="Background" Value="#0A0F17"/>
     </Style>
     <Style Selector="Border.detail-overlay-surface">
-        <Setter Property="Background" Value="#0a1019"/>
+        <Setter Property="Background" Value="#0C121D"/>
     </Style>
+
+    <!-- Dashboard root gradient (hero area behind Hollow Knight) -->
     <Style Selector="UserControl.dashboard-root">
         <Setter Property="Background">
             <Setter.Value>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Color="#0b111b" Offset="0"/>
-                    <GradientStop Color="#121f31" Offset="1"/>
+                    <GradientStop Color="#0A0F17" Offset="0"/>
+                    <GradientStop Color="#152233" Offset="1"/>
                 </LinearGradientBrush>
             </Setter.Value>
         </Setter>
     </Style>
 
+    <!-- Sidebar (dark slate) -->
     <Style Selector="Border.nav-sidebar">
-        <Setter Property="Background" Value="#101a28"/>
-    </Style>
-    <Style Selector="Border.nav-logo-area">
-        <Setter Property="Background" Value="#1b4e80"/>
-    </Style>
-    <Style Selector="Button.nav-item.active /template/ ContentPresenter">
-        <Setter Property="Background" Value="#1b4e80"/>
+        <Setter Property="Background" Value="#111821"/>
     </Style>
 
-    <Style Selector="TextBlock.page-subtitle">
-        <Setter Property="Foreground" Value="#8ea8c3"/>
+    <!-- Logo area (muted blue strip) -->
+    <Style Selector="Border.nav-logo-area">
+        <Setter Property="Background" Value="#1A2D40"/>
     </Style>
+
+    <!-- Active nav item (tab highlight like WHAT'S NEW) -->
+    <Style Selector="Button.nav-item.active /template/ ContentPresenter">
+        <Setter Property="Background" Value="#1A9BFF"/>
+    </Style>
+
+    <!-- Subtitle text (soft pale blue) -->
+    <Style Selector="TextBlock.page-subtitle">
+        <Setter Property="Foreground" Value="#8FB4D8"/>
+    </Style>
+
+    <!-- Stat tiles (small info tiles under hero) -->
     <Style Selector="Border.stat-tile">
-        <Setter Property="Background" Value="#111d2d"/>
-        <Setter Property="BorderBrush" Value="#2a4f73"/>
+        <Setter Property="Background" Value="#121C27"/>
+        <Setter Property="BorderBrush" Value="#1F3B55"/>
         <Setter Property="BorderThickness" Value="1"/>
     </Style>
+
+    <!-- Featured hero banner (Hollow Knight panel) -->
     <Style Selector="Border.featured-hero-banner">
         <Setter Property="Background">
             <Setter.Value>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Color="#1b3655" Offset="0"/>
-                    <GradientStop Color="#0f2238" Offset="1"/>
+                    <GradientStop Color="#1A2D40" Offset="0"/>
+                    <GradientStop Color="#0F1C2B" Offset="1"/>
                 </LinearGradientBrush>
             </Setter.Value>
         </Setter>
-        <Setter Property="BorderBrush" Value="#2a4f73"/>
+        <Setter Property="BorderBrush" Value="#1F3B55"/>
         <Setter Property="BorderThickness" Value="1"/>
-    </Style>
-    <Style Selector="Border.game-card">
-        <Setter Property="Background" Value="#111d2d"/>
-        <Setter Property="BorderBrush" Value="#2a4f73"/>
-        <Setter Property="BorderThickness" Value="1"/>
-    </Style>
-    <Style Selector="TextBlock.game-playtime-meta">
-        <Setter Property="Foreground" Value="#66c0f4"/>
-    </Style>
-    <Style Selector="Border.game-platform-pill">
-        <Setter Property="Background" Value="#1b4e80"/>
     </Style>
 
+    <!-- Game cards (row of Tales of Arise / Psychonauts 2 etc.) -->
+    <Style Selector="Border.game-card">
+        <Setter Property="Background" Value="#121C27"/>
+        <Setter Property="BorderBrush" Value="#1F3B55"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+
+    <!-- Playtime meta (blue stat text) -->
+    <Style Selector="TextBlock.game-playtime-meta">
+        <Setter Property="Foreground" Value="#1A9BFF"/>
+    </Style>
+
+    <!-- Platform pill (small blue tag chip) -->
+    <Style Selector="Border.game-platform-pill">
+        <Setter Property="Background" Value="#1A9BFF"/>
+    </Style>
+
+    <!-- Primary button (Steam blue) -->
     <Style Selector="Button.btn-primary">
-        <Setter Property="Background" Value="#1b4e80"/>
+        <Setter Property="Background" Value="#1A9BFF"/>
     </Style>
     <Style Selector="Button.btn-primary:pointerover /template/ ContentPresenter">
-        <Setter Property="Background" Value="#24639f"/>
+        <Setter Property="Background" Value="#2AB0FF"/>
     </Style>
+
+    <!-- Secondary button (outlined, dark hover) -->
     <Style Selector="Button.btn-secondary">
-        <Setter Property="BorderBrush" Value="#2a4f73"/>
-        <Setter Property="Foreground" Value="#c7d5e0"/>
+        <Setter Property="BorderBrush" Value="#1F3B55"/>
+        <Setter Property="Foreground" Value="#C7D5E0"/>
     </Style>
     <Style Selector="Button.btn-secondary:pointerover /template/ ContentPresenter">
-        <Setter Property="Background" Value="#18283b"/>
+        <Setter Property="Background" Value="#182533"/>
     </Style>
 </Styles>
