@@ -733,10 +733,12 @@
                 <TextBlock Grid.Column="1"
                            Text="⌕"
                            Classes="steam-shell-icon"
+                           AutomationProperties.Name="Search"
                            Margin="0,0,20,0"/>
                 <TextBlock Grid.Column="2"
                            Text="🌐"
                            Classes="steam-shell-icon"
+                           AutomationProperties.Name="Store"
                            Margin="0,0,20,0"/>
                 <TextBlock Grid.Column="3"
                            Text="{Binding SteamClockTime}"
@@ -867,6 +869,7 @@
                                                     <TextBlock Text="{Binding Title}"
                                                                TextWrapping="Wrap"
                                                                MaxLines="2"
+                                                               ToolTip.Tip="{Binding Title}"
                                                                Classes="steam-news-title"/>
                                                 </StackPanel>
                                             </Border>
