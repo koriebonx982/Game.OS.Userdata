@@ -24,6 +24,7 @@ public partial class DashboardViewModel : ViewModelBase
         {
             OnPropertyChanged(nameof(WiiClockTime));
             OnPropertyChanged(nameof(WiiClockDate));
+            OnPropertyChanged(nameof(SteamClockTime));
         };
         _wiiClockTimer.Start();
     }
@@ -36,6 +37,9 @@ public partial class DashboardViewModel : ViewModelBase
     [ObservableProperty] private string _totalPlaytimeLabel = "";
     public string WiiClockTime => DateTime.Now.ToString("H:mm");
     public string WiiClockDate => DateTime.Now.ToString("ddd M/d");
+    public string SteamClockTime => DateTime.Now.ToString("h:mm tt").ToLowerInvariant();
+    public string SteamProfileInitial =>
+        string.IsNullOrWhiteSpace(Profile.Username) ? "?" : Profile.Username[..1].ToUpperInvariant();
 
     // Hero featured / last-played game
     [ObservableProperty] private StoreGame? _featuredGame;
@@ -63,12 +67,15 @@ public partial class DashboardViewModel : ViewModelBase
     [ObservableProperty] private bool _hasRecentLocalGames;
     public ObservableCollection<LocalGameCardVm> RecentLocalGames { get; } = new();
     public ObservableCollection<LocalGameCardVm> Ps5RecentGames { get; } = new();
+    public ObservableCollection<LocalGameCardVm> SteamRecentSideGames { get; } = new();
     /// <summary>True when there are local Game.OS games available for the XB360 "Games Library" strip.</summary>
     [ObservableProperty] private bool _hasLocalLibraryGames;
     public ObservableCollection<LocalGameCardVm> LocalLibraryGames { get; } = new();
+    [ObservableProperty] private string _steamHeroMetaText = "";
 
     // Recent achievements
     public ObservableCollection<Achievement> RecentAchievements { get; } = new();
+    public ObservableCollection<SteamDashboardNewsTileVm> SteamNewsTiles { get; } = new();
 
     // ── Friends (online friends shown in the dashboard) ────────────────────
     /// <summary>Online friends to display in dashboard friend tiles.</summary>
@@ -173,6 +180,8 @@ public partial class DashboardViewModel : ViewModelBase
         Greeting = $"{hour}, {profile.Username}!";
         OnPropertyChanged(nameof(WiiClockTime));
         OnPropertyChanged(nameof(WiiClockDate));
+        OnPropertyChanged(nameof(SteamClockTime));
+        OnPropertyChanged(nameof(SteamProfileInitial));
 
         // Recently Played — only games that have actually been played (have LastPlayedAt set)
         // Parse ISO 8601 strings to DateTime for correct chronological comparison.
@@ -471,6 +480,127 @@ public partial class DashboardViewModel : ViewModelBase
             FeaturedBadgeText    = "⭐  FEATURED";
             IsFeaturedLastPlayed = false;
             DevLogService.Log($"[Dashboard] FeaturedGame = store fallback '{FeaturedGame?.Title ?? "(none)"}' — no games played yet.");
+        }
+
+        SteamHeroMetaText = IsFeaturedLastPlayed
+            ? string.IsNullOrWhiteSpace(_heroLocalCard?.PlaytimeLabel)
+                ? "RECENTLY PLAYED"
+                : $"▶  {(_heroLocalCard?.PlaytimeLabel ?? "").ToUpperInvariant()}"
+            : !string.IsNullOrWhiteSpace(FeaturedGame?.Platform)
+                ? FeaturedGame.Platform.ToUpperInvariant()
+                : "NEW TO LIBRARY";
+
+        SteamRecentSideGames.Clear();
+        IEnumerable<LocalGameCardVm> steamRecentCandidates = RecentLocalGames.Count > 0
+            ? RecentLocalGames
+            : LocalLibraryGames;
+
+        foreach (var card in steamRecentCandidates)
+        {
+            bool isHeroLocal = _heroLocalCard != null
+                && string.Equals(card.Platform, _heroLocalCard.Platform, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(card.EffectiveTitle, _heroLocalCard.EffectiveTitle, StringComparison.OrdinalIgnoreCase);
+
+            bool isHeroCloud = _heroCloudGame != null
+                && string.Equals(card.Platform, _heroCloudGame.Platform, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(card.EffectiveTitle, _heroCloudGame.Title, StringComparison.OrdinalIgnoreCase);
+
+            if (isHeroLocal || isHeroCloud)
+                continue;
+
+            SteamRecentSideGames.Add(card);
+            if (SteamRecentSideGames.Count >= 4)
+                break;
+        }
+
+        SteamNewsTiles.Clear();
+
+        (string? coverUrl, string gradient) ResolveArtwork(string platform, string title)
+        {
+            var key = $"{platform.ToLowerInvariant()}||{title.ToLowerInvariant()}";
+            if (localCardMap.TryGetValue(key, out var card))
+                return (card.CoverUrl, card.CoverGradient);
+            if (cloudGameMap.TryGetValue(key, out var game))
+                return (game.CoverUrl, game.CoverGradient ?? DefaultCloudCardGradient);
+            if (FeaturedGame != null &&
+                string.Equals(platform, FeaturedGame.Platform, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(title, FeaturedGame.Title, StringComparison.OrdinalIgnoreCase))
+                return (FeaturedGame.CoverUrl, FeaturedGame.CoverGradient);
+            return (null, DefaultCloudCardGradient);
+        }
+
+        foreach (var achievement in RecentAchievements.Take(5))
+        {
+            var (coverUrl, gradient) = ResolveArtwork(achievement.Platform, achievement.GameTitle);
+            SteamNewsTiles.Add(new SteamDashboardNewsTileVm
+            {
+                Category = "NEWS",
+                Title = achievement.Name,
+                Subtitle = achievement.GameTitle,
+                Meta = achievement.Platform,
+                CoverUrl = coverUrl,
+                CoverGradient = gradient,
+            });
+        }
+
+        if (SteamNewsTiles.Count < 5)
+        {
+            SteamNewsTiles.Add(new SteamDashboardNewsTileVm
+            {
+                Category = "FRIENDS",
+                Title = HasDashboardFriends ? $"{OnlineFriendsCount} friends online" : "Friends are offline",
+                Subtitle = HasDashboardFriends ? "Jump into your social hub." : "Invite someone to play.",
+                Meta = "SOCIAL",
+                CoverGradient = "#1c3c52,#0f2233",
+            });
+        }
+
+        if (SteamNewsTiles.Count < 5)
+        {
+            SteamNewsTiles.Add(new SteamDashboardNewsTileVm
+            {
+                Category = "REGULAR UPDATE",
+                Title = "Continue your library tour",
+                Subtitle = $"{GamesCount} games · {TotalPlaytimeLabel} tracked",
+                Meta = "GAME.OS",
+                CoverGradient = "#775e13,#1f3250",
+            });
+        }
+
+        if (SteamNewsTiles.Count < 5)
+        {
+            SteamNewsTiles.Add(new SteamDashboardNewsTileVm
+            {
+                Category = "RECOMMENDED",
+                Title = "Open Movies, TV, or Music",
+                Subtitle = "Your media shortcuts live right here.",
+                Meta = "MEDIA",
+                CoverGradient = "#203860,#101d30",
+            });
+        }
+
+        if (SteamNewsTiles.Count < 5)
+        {
+            SteamNewsTiles.Add(new SteamDashboardNewsTileVm
+            {
+                Category = "NEWS",
+                Title = "Open your friends inbox",
+                Subtitle = "Messages, invites, and presence are ready.",
+                Meta = "COMMUNITY",
+                CoverGradient = "#3A264D,#121E31",
+            });
+        }
+
+        if (SteamNewsTiles.Count < 5)
+        {
+            SteamNewsTiles.Add(new SteamDashboardNewsTileVm
+            {
+                Category = "NEWS",
+                Title = "Jump back into the dashboard",
+                Subtitle = "Your recent library and activity stay in sync.",
+                Meta = "SYNCED",
+                CoverGradient = "#3A4B26,#121E31",
+            });
         }
 
         // ── Initialize PS5 focused card ──────────────────────────────────────
@@ -784,4 +914,14 @@ public partial class DashboardViewModel : ViewModelBase
     {
         if (Xb360FocusedGame != null) OnOpenLocalDetail?.Invoke(Xb360FocusedGame);
     }
+}
+
+public class SteamDashboardNewsTileVm
+{
+    public string Category { get; init; } = "";
+    public string Title { get; init; } = "";
+    public string Subtitle { get; init; } = "";
+    public string Meta { get; init; } = "";
+    public string? CoverUrl { get; init; }
+    public string CoverGradient { get; init; } = "#0d2137,#163d5e";
 }
