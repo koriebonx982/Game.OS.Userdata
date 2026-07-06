@@ -482,6 +482,12 @@ class Program
         if (!xbox360MirrorPassed) passed = false;
         Console.WriteLine();
 
+        Console.WriteLine("☁ Xbox 360 backup fallback across TitleID save folders:");
+        Console.WriteLine("───────────────────────────────────────────────────────────────");
+        bool xbox360FallbackPassed = await TestXbox360MissingPrimaryTitleIdFallbackAsync();
+        if (!xbox360FallbackPassed) passed = false;
+        Console.WriteLine();
+
         // ── LUDUSAVI TITLE NORMALISATION ─────────────────────────────────────
         Console.WriteLine("🏷  Ludusavi title normalisation (trademark stripping):");
         Console.WriteLine("───────────────────────────────────────────────────────────────");
@@ -2116,6 +2122,95 @@ class Program
         catch (Exception ex)
         {
             Console.WriteLine($"  ❌  Xbox 360 multi-TitleID test threw: {ex.Message}");
+            passed = false;
+        }
+        finally
+        {
+            LudusaviService.RequestNativeConfirmationAsync = originalConfirmHandler;
+            AppSettingsService.Save(originalSettings);
+            try
+            {
+                if (originalCache == null) File.Delete(cachePath);
+                else File.WriteAllText(cachePath, originalCache);
+            }
+            catch { }
+            try { Directory.Delete(tempRoot, true); } catch { }
+            try { Directory.Delete(UserDataService.GetGameSavesPath(username, platform), true); } catch { }
+        }
+
+        return passed;
+    }
+
+    private static async Task<bool> TestXbox360MissingPrimaryTitleIdFallbackAsync()
+    {
+        bool passed = true;
+        string tempRoot = Path.Combine(Path.GetTempPath(), "GameOS_Xbox360Fallback_" + Guid.NewGuid().ToString("N"));
+        string sourceAlt = Path.Combine(tempRoot, "Content", "00000001", "373407D7", "00000001");
+        string sourcePrimary = Path.Combine(tempRoot, "Content", "00000001", "415607F2", "00000001");
+        string cacheDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "GameOS", "GamesDbCache");
+        string cachePath = Path.Combine(cacheDir, "Xbox 360.json");
+        string? originalCache = File.Exists(cachePath) ? File.ReadAllText(cachePath) : null;
+        var originalSettings = AppSettingsService.Load();
+        var originalConfirmHandler = LudusaviService.RequestNativeConfirmationAsync;
+
+        const string username = "XeniaFallbackUser";
+        const string platform = "Xbox 360";
+        const string gameTitle = "Kung Fu Panda";
+        const string primaryTitleId = "415607F2";
+        const string altTitleId = "373407D7";
+
+        try
+        {
+            Directory.CreateDirectory(sourceAlt);
+            File.WriteAllText(Path.Combine(sourceAlt, "save.dat"), "xbox-360-alt-save");
+
+            Directory.CreateDirectory(cacheDir);
+            var cacheGames = !string.IsNullOrWhiteSpace(originalCache)
+                ? JsonSerializer.Deserialize<List<DatabaseGame>>(originalCache,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<DatabaseGame>()
+                : new List<DatabaseGame>();
+            cacheGames.RemoveAll(g => string.Equals(g.Title, gameTitle, StringComparison.OrdinalIgnoreCase));
+            cacheGames.Add(new DatabaseGame { Title = gameTitle, TitleId = primaryTitleId });
+            cacheGames.Add(new DatabaseGame { Title = gameTitle, TitleId = altTitleId });
+            File.WriteAllText(cachePath, JsonSerializer.Serialize(cacheGames, new JsonSerializerOptions { WriteIndented = true }));
+
+            AppSettingsService.Save(new AppSettings
+            {
+                RequireCloudSaveConfirmation = false,
+                AllowCloudSaveInAppFallbackConfirmation = true
+            });
+            LudusaviService.RequestNativeConfirmationAsync = null;
+
+            var backup = await LudusaviService.SyncAsync(
+                platform,
+                gameTitle,
+                username,
+                sourceOverridePath: sourcePrimary,
+                titleId: primaryTitleId);
+
+            string savesRoot = Path.Combine(UserDataService.GetGameSavesPath(username, platform), gameTitle);
+            string primarySave = Path.Combine(savesRoot, primaryTitleId, "save.dat");
+            string altSave = Path.Combine(savesRoot, altTitleId, "save.dat");
+
+            if (backup.Kind == LudusaviService.ResultKind.Synced &&
+                File.Exists(primarySave) &&
+                File.Exists(altSave) &&
+                File.ReadAllText(primarySave) == "xbox-360-alt-save" &&
+                File.ReadAllText(altSave) == "xbox-360-alt-save")
+            {
+                Console.WriteLine("  ✅  Backup uses the available alternate TitleID save folder and mirrors both IDs");
+            }
+            else
+            {
+                Console.WriteLine($"  ❌  Expected alternate TitleID fallback backup, got {backup.Kind}");
+                passed = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ❌  Xbox 360 alternate TitleID fallback test threw: {ex.Message}");
             passed = false;
         }
         finally

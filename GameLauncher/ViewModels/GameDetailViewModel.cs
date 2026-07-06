@@ -1291,10 +1291,12 @@ public partial class GameDetailViewModel : ViewModelBase
         {
             // Attempt to resolve the emulator save folder via TitleID so we can
             // copy saves directly instead of relying on ludusavi's manifest lookup.
-            string? sourceOverridePath = ResolveEmulatorSavePathOverride(CurrentTitleId);
+            var knownTitleIds = ResolveKnownTitleIdsForCurrentGame();
+            string? sourceOverridePath = ResolveBestEmulatorSavePathOverrideForBackup(knownTitleIds);
+            string? preferredTitleId = knownTitleIds.FirstOrDefault();
 
             var result = await Services.LudusaviService.SyncAsync(
-                Platform, Title, _currentUsername, sourceOverridePath, CurrentTitleId);
+                Platform, Title, _currentUsername, sourceOverridePath, preferredTitleId);
 
             string statusText = result.Kind switch
             {
@@ -1338,10 +1340,12 @@ public partial class GameDetailViewModel : ViewModelBase
         {
             // Resolve the emulator save folder so we can copy back directly
             // (works for Xenia, RPCS3, Ryujinx, etc. without a ludusavi manifest entry).
-            string? targetOverridePath = ResolveEmulatorSavePathOverride(CurrentTitleId);
+            var knownTitleIds = ResolveKnownTitleIdsForCurrentGame();
+            string? preferredTitleId = knownTitleIds.FirstOrDefault();
+            string? targetOverridePath = ResolveEmulatorSavePathOverride(preferredTitleId);
 
             var result = await Services.LudusaviService.RestoreAsync(
-                Platform, Title, _currentUsername, targetOverridePath, CurrentTitleId);
+                Platform, Title, _currentUsername, targetOverridePath, preferredTitleId);
 
             string statusText = result.Kind switch
             {
@@ -3733,9 +3737,11 @@ public partial class GameDetailViewModel : ViewModelBase
             id = $"AppId: {_steamAppId}";
         else
         {
-            string? titleId = CurrentTitleId;
-            if (!string.IsNullOrWhiteSpace(titleId))
-                id = $"TitleId: {titleId}";
+            var titleIds = ResolveKnownTitleIdsForCurrentGame();
+            if (titleIds.Count == 1)
+                id = $"TitleId: {titleIds[0]}";
+            else if (titleIds.Count > 1)
+                id = $"TitleIds: {string.Join(", ", titleIds)}";
         }
         DisplayTitleId    = id ?? "";
         HasDisplayTitleId = !string.IsNullOrEmpty(id);
@@ -3959,6 +3965,51 @@ public partial class GameDetailViewModel : ViewModelBase
             saveRoot,
             titleId,
             emuSettings.XeniaProfileId);
+    }
+
+    private List<string> ResolveKnownTitleIdsForCurrentGame()
+    {
+        var titleIds = new List<string>();
+
+        void Add(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            string normalized = value.Trim().ToUpperInvariant();
+            if (!titleIds.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+                titleIds.Add(normalized);
+        }
+
+        Add(CurrentTitleId);
+
+        if (string.Equals(Platform, "Xbox 360", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(Title))
+        {
+            foreach (string cachedTitleId in Services.GitHubDataService.TryGetTitleIdsFromLocalCache(Platform, Title))
+                Add(cachedTitleId);
+        }
+
+        return titleIds;
+    }
+
+    private string? ResolveBestEmulatorSavePathOverrideForBackup(IReadOnlyList<string> preferredTitleIds)
+    {
+        if (preferredTitleIds.Count == 0)
+            return ResolveEmulatorSavePathOverride(CurrentTitleId);
+
+        string? fallbackPath = null;
+
+        foreach (string titleId in preferredTitleIds)
+        {
+            string? candidatePath = ResolveEmulatorSavePathOverride(titleId);
+            if (string.IsNullOrWhiteSpace(candidatePath))
+                continue;
+
+            fallbackPath ??= candidatePath;
+            if (Directory.Exists(candidatePath))
+                return candidatePath;
+        }
+
+        return fallbackPath;
     }
 
     // ─────────────────────────────────────────────────────────────────────────

@@ -1691,25 +1691,12 @@ namespace GameLauncher.Services
                 }
 
                 // TitleID — mirrors: game.TitleID || game.title_id || game.titleid || game.id in script.js
-                // Switch/PS3 use "title_id"; Xbox 360 uses "titleid" (no separator); PS4/PC use "TitleID".
-                string? titleId =
-                    item.TryGetProperty("TitleID",   out var tid)  && tid.ValueKind  == JsonValueKind.String ? tid.GetString()  :
-                    item.TryGetProperty("TitleId",   out var tid2) && tid2.ValueKind == JsonValueKind.String ? tid2.GetString() :
-                    item.TryGetProperty("title_id",  out var tid3) && tid3.ValueKind == JsonValueKind.String ? tid3.GetString() :
-                    item.TryGetProperty("titleid",   out var tid4) && tid4.ValueKind == JsonValueKind.String ? tid4.GetString() :
-                    item.TryGetProperty("id",        out var tid5) && tid5.ValueKind == JsonValueKind.String ? tid5.GetString() :
-                    appId.HasValue ? appId.Value.ToString() : null;
+                // and also supports "$TitleID" plus multi-ID arrays/strings used by some Xbox 360 entries.
+                List<string> titleIds = ExtractTitleIds(item, appId);
 
-                // For Switch games, the TitleID must be exactly 16 hexadecimal characters
-                // (e.g. "0100152000022000").  Reject any other value such as a RAWG internal
-                // "id" (e.g. "1222700") to prevent mods.json from being looked up under a
-                // wrong directory name.
-                if (!string.IsNullOrEmpty(titleId) &&
-                    string.Equals(platform, "Switch", StringComparison.OrdinalIgnoreCase) &&
-                    !_switchTitleIdPattern.IsMatch(titleId))
-                {
-                    titleId = null;
-                }
+                // For Switch games, TitleIDs must be exactly 16 hexadecimal characters.
+                if (string.Equals(platform, "Switch", StringComparison.OrdinalIgnoreCase))
+                    titleIds = titleIds.Where(id => _switchTitleIdPattern.IsMatch(id)).ToList();
 
                 // Genre — Xbox 360 and some enriched databases include this field
                 string? genre =
@@ -1758,22 +1745,47 @@ namespace GameLauncher.Services
                     }
                 }
 
-                result.Add(new DatabaseGame
+                if (titleIds.Count == 0)
                 {
-                    Title           = title,
-                    TitleId         = titleId,
-                    CoverUrl        = coverUrl,
-                    AppId           = appId,
-                    Description     = description,
-                    TrailerUrl      = trailerUrl,
-                    AchievementsUrl = achievementsUrl,
-                    ExophaseUrl     = exophaseUrl,
-                    Screenshots     = screenshots,
-                    StorePageUrl    = storePageUrl,
-                    Genre           = genre,
-                    ReleaseYear     = releaseYear,
-                    AlternateNames  = alternateNames,
-                });
+                    result.Add(new DatabaseGame
+                    {
+                        Title           = title,
+                        TitleId         = null,
+                        CoverUrl        = coverUrl,
+                        AppId           = appId,
+                        Description     = description,
+                        TrailerUrl      = trailerUrl,
+                        AchievementsUrl = achievementsUrl,
+                        ExophaseUrl     = exophaseUrl,
+                        Screenshots     = screenshots,
+                        StorePageUrl    = storePageUrl,
+                        Genre           = genre,
+                        ReleaseYear     = releaseYear,
+                        AlternateNames  = alternateNames,
+                    });
+                }
+                else
+                {
+                    foreach (string titleId in titleIds)
+                    {
+                        result.Add(new DatabaseGame
+                        {
+                            Title           = title,
+                            TitleId         = titleId,
+                            CoverUrl        = coverUrl,
+                            AppId           = appId,
+                            Description     = description,
+                            TrailerUrl      = trailerUrl,
+                            AchievementsUrl = achievementsUrl,
+                            ExophaseUrl     = exophaseUrl,
+                            Screenshots     = screenshots,
+                            StorePageUrl    = storePageUrl,
+                            Genre           = genre,
+                            ReleaseYear     = releaseYear,
+                            AlternateNames  = alternateNames,
+                        });
+                    }
+                }
             }
 
             // Store in both caches so future calls (same session or next launch) are instant
@@ -1784,6 +1796,62 @@ namespace GameLauncher.Services
             _ = Task.Run(() => SaveDiskCache(platform, result), CancellationToken.None);
 
             return result;
+        }
+
+        private static readonly char[] _titleIdSeparators = { ',', ';', '|', '/' };
+
+        private static List<string> ExtractTitleIds(JsonElement item, long? appId)
+        {
+            var ids = new List<string>();
+
+            void AddToken(string? value)
+            {
+                if (string.IsNullOrWhiteSpace(value)) return;
+
+                foreach (string token in value.Split(_titleIdSeparators, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (!ids.Contains(token, StringComparer.OrdinalIgnoreCase))
+                        ids.Add(token);
+                }
+            }
+
+            void AddFromProperty(string key)
+            {
+                if (!item.TryGetProperty(key, out var value)) return;
+
+                if (value.ValueKind == JsonValueKind.String)
+                {
+                    AddToken(value.GetString());
+                    return;
+                }
+
+                if (value.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var element in value.EnumerateArray())
+                    {
+                        if (element.ValueKind == JsonValueKind.String)
+                            AddToken(element.GetString());
+                        else if (element.ValueKind == JsonValueKind.Number && element.TryGetInt64(out long numeric))
+                            AddToken(numeric.ToString());
+                    }
+                    return;
+                }
+
+                if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out long number))
+                    AddToken(number.ToString());
+            }
+
+            AddFromProperty("TitleID");
+            AddFromProperty("TitleId");
+            AddFromProperty("title_id");
+            AddFromProperty("titleid");
+            AddFromProperty("$TitleID");
+            AddFromProperty("id");
+
+            if (ids.Count == 0 && appId.HasValue)
+                AddToken(appId.Value.ToString());
+
+            return ids;
         }
 
         /// <summary>

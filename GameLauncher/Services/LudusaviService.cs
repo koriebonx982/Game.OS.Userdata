@@ -177,14 +177,24 @@ namespace GameLauncher.Services
             // fall back to a plain directory copy.
             if (!string.IsNullOrWhiteSpace(sourceOverridePath))
             {
-                if (Directory.Exists(sourceOverridePath))
+                string effectiveSourceOverridePath = sourceOverridePath;
+                if (!Directory.Exists(effectiveSourceOverridePath) &&
+                    ShouldMirrorXbox360TitleIds(platform, backupTitleIds))
+                {
+                    string? altXboxPath = TryResolveAlternateXbox360SavePath(
+                        effectiveSourceOverridePath, backupTitleIds);
+                    if (!string.IsNullOrWhiteSpace(altXboxPath))
+                        effectiveSourceOverridePath = altXboxPath;
+                }
+
+                if (Directory.Exists(effectiveSourceOverridePath))
                 {
                     if (ShouldMirrorXbox360TitleIds(platform, backupTitleIds))
                         return await CopyDirectoryToTitleIdFoldersAsync(
-                            sourceOverridePath, platformSavesRoot, safeGameTitle, backupTitleIds, gameTitle);
+                            effectiveSourceOverridePath, platformSavesRoot, safeGameTitle, backupTitleIds, gameTitle);
 
                     // Register so ludusavi knows where this emulator game's saves live.
-                    LudusaviConfigService.TryRegisterGameSave(gameTitle, sourceOverridePath);
+                    LudusaviConfigService.TryRegisterGameSave(gameTitle, effectiveSourceOverridePath);
 
                     // Let ludusavi perform the backup (it now has a manifest entry).
                     var result = await RunLudusaviBackupAsync(gameTitle, gameSavePath);
@@ -197,11 +207,11 @@ namespace GameLauncher.Services
 
                         // Some emulator entries can return a successful ludusavi exit without
                         // actually copying any files. Fall back to direct copy when source files exist.
-                        if (DirectoryHasAnyFiles(sourceOverridePath))
+                        if (DirectoryHasAnyFiles(effectiveSourceOverridePath))
                         {
                             DevLogService.Log(
                                 "[Ludusavi] backup reported success but destination is empty; falling back to direct copy.");
-                            return await CopyDirectoryAsync(sourceOverridePath, gameSavePath, gameTitle);
+                            return await CopyDirectoryAsync(effectiveSourceOverridePath, gameSavePath, gameTitle);
                         }
 
                         return LudusaviResult.NoSaveFound;
@@ -213,7 +223,7 @@ namespace GameLauncher.Services
                     {
                         DevLogService.Log(
                             $"[Ludusavi] backup returned {result.Kind}; falling back to direct copy.");
-                        return await CopyDirectoryAsync(sourceOverridePath, gameSavePath, gameTitle);
+                        return await CopyDirectoryAsync(effectiveSourceOverridePath, gameSavePath, gameTitle);
                     }
 
                     // For other failures (permission/path/process), surface the error.
@@ -824,6 +834,49 @@ namespace GameLauncher.Services
                     string last = parts[parts.Length - 1];
                     if (last.Length >= 6 && last.Length <= 8 && IsHexString(last))
                         return last.ToUpperInvariant();
+                }
+            }
+            catch { /* best-effort */ }
+
+            return null;
+        }
+
+        private static string? TryResolveAlternateXbox360SavePath(
+            string sourceOverridePath,
+            IReadOnlyCollection<string> titleIds)
+        {
+            if (string.IsNullOrWhiteSpace(sourceOverridePath) || titleIds.Count == 0)
+                return null;
+
+            try
+            {
+                string normalizedPath = sourceOverridePath
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+                string? currentTitleId = TryExtractXeniaTitleId(normalizedPath);
+                if (string.IsNullOrWhiteSpace(currentTitleId))
+                    return null;
+
+                string? slotFolder = Path.GetFileName(normalizedPath);
+                string? titleFolder = Path.GetFileName(Path.GetDirectoryName(normalizedPath) ?? "");
+                string? profileFolder = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(normalizedPath) ?? "") ?? "");
+                string? contentRoot = Path.GetDirectoryName(
+                    Path.GetDirectoryName(Path.GetDirectoryName(normalizedPath) ?? "") ?? "");
+
+                if (string.IsNullOrWhiteSpace(slotFolder) ||
+                    string.IsNullOrWhiteSpace(titleFolder) ||
+                    string.IsNullOrWhiteSpace(profileFolder) ||
+                    string.IsNullOrWhiteSpace(contentRoot))
+                    return null;
+
+                foreach (string titleId in titleIds)
+                {
+                    if (string.Equals(titleId, currentTitleId, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string candidate = Path.Combine(contentRoot, profileFolder, titleId, slotFolder);
+                    if (Directory.Exists(candidate))
+                        return candidate;
                 }
             }
             catch { /* best-effort */ }
