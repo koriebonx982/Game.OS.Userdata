@@ -704,8 +704,12 @@ namespace GameLauncher.Services
         /// <c>{saveRoot}/Content/{profileId}/{titleId}/00000001</c>
         ///
         /// <para>
-        /// The method walks up the path segments looking for an 8-character
-        /// uppercase-hex folder name immediately followed by a "00000001" segment.
+        /// The method walks up the path segments looking for a hex folder name immediately
+        /// followed by a "00000001" segment.  Standard Xbox 360 TitleIDs are exactly 8 hex
+        /// characters (e.g. <c>4D5307E6</c>).  The method accepts 6–8 hex characters to
+        /// accommodate rare edge-case titles whose IDs are shorter than 8 digits.
+        /// </para>
+        /// <para>
         /// Returns <see langword="null"/> when no such pattern is found.
         /// </para>
         /// </summary>

@@ -2452,7 +2452,7 @@ function _renderFriendIpPanel(panel, friendName) {
                 <span class="friend-ip-badge">${escapeHtml(typeLabel)}</span>
                 <span class="friend-ip-label">${escapeHtml(ip.label || '')}</span>
                 <span class="friend-ip-address">${escapeHtml(ip.address)}</span>
-                <button class="btn-remove-friend" onclick="_removeFriendIp(${JSON.stringify(friendName)},${idx})">✕</button>
+                <button class="btn-remove-friend" aria-label="Remove IP" onclick="_removeFriendIp(${JSON.stringify(friendName)},${idx})">✕</button>
             </div>`;
         }).join('');
 
@@ -2479,6 +2479,18 @@ function _addFriendIp(friendName) {
 
     const address = (addrEl.value || '').trim();
     if (!address) { addrEl.focus(); return; }
+
+    // Basic validation: accept IPv4, IPv6 (with optional brackets), or a hostname/FQDN.
+    // Rejects obviously malformed input while staying permissive enough for Radmin VPN IPs.
+    const ipv4Re   = /^(\d{1,3}\.){3}\d{1,3}$/;
+    const ipv6Re   = /^\[?[0-9a-fA-F:]+\]?$/;
+    const hostRe   = /^[a-zA-Z0-9]([a-zA-Z0-9\-\.]{0,61}[a-zA-Z0-9])?$/;
+    if (!ipv4Re.test(address) && !ipv6Re.test(address) && !hostRe.test(address)) {
+        addrEl.setCustomValidity('Enter a valid IPv4, IPv6, or hostname.');
+        addrEl.reportValidity();
+        addrEl.setCustomValidity('');
+        return;
+    }
 
     const ips = loadFriendIps(friendName);
     ips.push({ type: typeEl.value, label: (labelEl ? labelEl.value.trim() : ''), address });

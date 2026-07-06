@@ -3519,6 +3519,15 @@ public partial class GameDetailViewModel : ViewModelBase
                     // achievement as unlocked.
                     const string emuFallbackTs = "1970-01-01T00:00:00Z";
                     int mergedCount = 0;
+
+                    // Pre-build a set of translated display names from the achNameMap so
+                    // the name-map path is an O(1) lookup per achievement rather than
+                    // O(emuIds.Count) — avoids an O(n²) inner loop.
+                    var emuDisplayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var kv in achNameMap)
+                        if (!string.IsNullOrEmpty(kv.Value))
+                            emuDisplayNames.Add(kv.Value);
+
                     foreach (var a in list)
                     {
                         if (!string.IsNullOrEmpty(a.UnlockedAt)) continue; // already stamped
@@ -3533,25 +3542,16 @@ public partial class GameDetailViewModel : ViewModelBase
                             continue;
                         }
 
-                        // Name-map match: translate each unlocked emu API name to its human-
-                        // readable display name (from steam_settings/achievements.json placed by
-                        // GBE / Goldberg next to the exe), then compare against the DB achievement
-                        // name.  This is the path taken when the template was Exophase-scraped
-                        // (sequential IDs) so the raw emu ID never matches the DB achievementId.
-                        bool matched = false;
-                        foreach (var emuId in emuIds)
+                        // Name-map match: look up the DB achievement name in the pre-built set
+                        // of translated display names.  This is the path taken when the template
+                        // was Exophase-scraped (sequential IDs) so the raw emu ID never matches
+                        // the DB achievementId.
+                        if (emuDisplayNames.Contains(a.Name ?? ""))
                         {
-                            if (achNameMap.TryGetValue(emuId, out var displayName) &&
-                                !string.IsNullOrEmpty(displayName) &&
-                                string.Equals(displayName, a.Name, StringComparison.OrdinalIgnoreCase))
-                            {
-                                a.UnlockedAt = emuFallbackTs;
-                                mergedCount++;
-                                matched = true;
-                                break;
-                            }
+                            a.UnlockedAt = emuFallbackTs;
+                            mergedCount++;
+                            continue;
                         }
-                        if (matched) continue;
 
                         // Also check the known-unlocked cloud list for the same achievement by
                         // raw emu ID — handles the case where a previous session saved the emu
