@@ -734,6 +734,104 @@ footer {
     flex-wrap: wrap;
 }
 
+/* ── Friend IP Management Panel ─────────────────────────── */
+.friend-ip-panel {
+    background: var(--card-bg, #1e293b);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 4px 0 8px 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.friend-ip-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 0.9em;
+    overflow: hidden;
+}
+
+.friend-ip-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.friend-ip-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 0.85em;
+}
+
+.friend-ip-badge {
+    background: var(--primary-color, #3b82f6);
+    color: #fff;
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-size: 0.82em;
+    white-space: nowrap;
+}
+
+.friend-ip-label {
+    color: var(--text-muted, #94a3b8);
+    min-width: 60px;
+}
+
+.friend-ip-address {
+    font-family: monospace;
+    font-size: 0.9em;
+    color: var(--text-color);
+    flex: 1;
+}
+
+.friend-ip-empty {
+    color: var(--text-muted, #94a3b8);
+    font-size: 0.85em;
+    margin: 0;
+}
+
+.friend-ip-add-form {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    border-top: 1px solid var(--border-light);
+    padding-top: 10px;
+}
+
+.friend-ip-select {
+    background: var(--input-bg, #0f172a);
+    color: var(--text-color);
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.82em;
+    cursor: pointer;
+}
+
+.friend-ip-input {
+    background: var(--input-bg, #0f172a);
+    color: var(--text-color);
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.82em;
+    flex: 1;
+    min-width: 90px;
+}
+
+.friend-ip-input:focus,
+.friend-ip-select:focus {
+    outline: none;
+    border-color: var(--primary-color, #3b82f6);
+}
+
 .btn-accept-friend {
     background: var(--success-color);
     border: none;
