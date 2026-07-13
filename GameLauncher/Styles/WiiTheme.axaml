@@ -15,9 +15,9 @@
         <Setter Property="IsVisible" Value="False"/>
     </Style>
 
-    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════ -->
     <!-- WII HOME MENU MAIN BACKGROUND -->
-    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════ -->
     
     <Style Selector="Window.main-window-shell">
         <Setter Property="Background" Value="#e8e8e8"/>
@@ -31,25 +31,25 @@
         <Setter Property="Background" Value="#e8e8e8"/>
     </Style>
 
-    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════ -->
     <!-- WII CHANNEL GRID LAYOUT -->
-    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════ -->
     
     <!-- Container for channel grid -->
     <Style Selector="ItemsControl.wii-channel-grid">
-        <Setter Property="Margin" Value="32,24,32,120"/>
+        <Setter Property="Margin" Value="32,24,32,16"/>
     </Style>
 
     <!-- Individual channel tiles - the iconic Wii channel look -->
     <Style Selector="Button.wii-channel-tile">
-        <Setter Property="Width" Value="160"/>
-        <Setter Property="Height" Value="120"/>
-        <Setter Property="Margin" Value="12"/>
+        <Setter Property="Width" Value="144"/>
+        <Setter Property="Height" Value="108"/>
+        <Setter Property="Margin" Value="8"/>
         <Setter Property="Padding" Value="0"/>
         <Setter Property="Background" Value="#f5f5f5"/>
         <Setter Property="BorderBrush" Value="#a0a0a0"/>
         <Setter Property="BorderThickness" Value="2"/>
-        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="CornerRadius" Value="12"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -98,12 +98,12 @@
 
     <!-- Channel tile text - white and bold for colored tiles -->
     <Style Selector="TextBlock.wii-channel-title">
-        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontSize" Value="12"/>
         <Setter Property="FontWeight" Value="Bold"/>
         <Setter Property="Foreground" Value="#ffffff"/>
         <Setter Property="TextAlignment" Value="Center"/>
         <Setter Property="TextWrapping" Value="Wrap"/>
-        <Setter Property="Margin" Value="8"/>
+        <Setter Property="Margin" Value="4"/>
     </Style>
 
     <!-- Subtitle within channel -->
@@ -118,31 +118,31 @@
         <Setter Property="Foreground" Value="#333333"/>
     </Style>
 
-    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════ -->
     <!-- WII BOTTOM BAR (Clock, Date, Status) -->
-    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════ -->
 
     <!-- Wave-like bottom bar container -->
     <Style Selector="Border.wii-bottom-bar">
         <Setter Property="Background" Value="#dae8f2"/>
         <Setter Property="BorderBrush" Value="#a8c8d8"/>
         <Setter Property="BorderThickness" Value="2,1,2,0"/>
-        <Setter Property="Height" Value="100"/>
+        <Setter Property="Height" Value="72"/>
         <Setter Property="VerticalAlignment" Value="Bottom"/>
-        <Setter Property="Padding" Value="32,12"/>
+        <Setter Property="Padding" Value="32,8"/>
     </Style>
 
     <!-- Center clock section -->
     <Style Selector="StackPanel.wii-clock-section">
         <Setter Property="HorizontalAlignment" Value="Center"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
-        <Setter Property="Spacing" Value="4"/>
+        <Setter Property="Spacing" Value="2"/>
     </Style>
 
     <!-- Clock time display -->
     <Style Selector="TextBlock.wii-clock-time">
         <Setter Property="Foreground" Value="#333333"/>
-        <Setter Property="FontSize" Value="48"/>
+        <Setter Property="FontSize" Value="40"/>
         <Setter Property="FontWeight" Value="Bold"/>
         <Setter Property="FontFamily" Value="Arial"/>
         <Setter Property="TextAlignment" Value="Center"/>
@@ -151,64 +151,64 @@
     <!-- Clock date display -->
     <Style Selector="TextBlock.wii-clock-date">
         <Setter Property="Foreground" Value="#666666"/>
-        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="FontSize" Value="14"/>
         <Setter Property="FontWeight" Value="Normal"/>
         <Setter Property="TextAlignment" Value="Center"/>
     </Style>
 
-    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════ -->
     <!-- WII BOTTOM STATUS ORBS (Left & Right) -->
-    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════ -->
 
     <!-- Wii Remote battery/status orb - left side -->
     <Style Selector="Border.wii-status-orb-left">
-        <Setter Property="Width" Value="56"/>
-        <Setter Property="Height" Value="56"/>
-        <Setter Property="CornerRadius" Value="28"/>
+        <Setter Property="Width" Value="48"/>
+        <Setter Property="Height" Value="48"/>
+        <Setter Property="CornerRadius" Value="24"/>
         <Setter Property="Background" Value="#87ceeb"/>
         <Setter Property="BorderBrush" Value="#5a9fd4"/>
         <Setter Property="BorderThickness" Value="2"/>
         <Setter Property="HorizontalAlignment" Value="Left"/>
-        <Setter Property="VerticalAlignment" Value="Bottom"/>
-        <Setter Property="Margin" Value="16,0,0,8"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="16,0,0,0"/>
     </Style>
 
     <!-- Wii Remote battery/status orb - right side (envelope icon) -->
     <Style Selector="Border.wii-status-orb-right">
-        <Setter Property="Width" Value="56"/>
-        <Setter Property="Height" Value="56"/>
-        <Setter Property="CornerRadius" Value="28"/>
+        <Setter Property="Width" Value="48"/>
+        <Setter Property="Height" Value="48"/>
+        <Setter Property="CornerRadius" Value="24"/>
         <Setter Property="Background" Value="#87ceeb"/>
         <Setter Property="BorderBrush" Value="#5a9fd4"/>
         <Setter Property="BorderThickness" Value="2"/>
         <Setter Property="HorizontalAlignment" Value="Right"/>
-        <Setter Property="VerticalAlignment" Value="Bottom"/>
-        <Setter Property="Margin" Value="0,0,16,8"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="0,0,16,0"/>
     </Style>
 
     <!-- Text in orb -->
     <Style Selector="TextBlock.wii-orb-text">
         <Setter Property="Foreground" Value="#ffffff"/>
         <Setter Property="FontWeight" Value="Bold"/>
-        <Setter Property="FontSize" Value="20"/>
+        <Setter Property="FontSize" Value="18"/>
         <Setter Property="TextAlignment" Value="Center"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
-    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════ -->
     <!-- MENU TITLE (top of screen) -->
-    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════ -->
 
     <Style Selector="TextBlock.wii-menu-title">
-        <Setter Property="FontSize" Value="32"/>
+        <Setter Property="FontSize" Value="28"/>
         <Setter Property="FontWeight" Value="Light"/>
         <Setter Property="Foreground" Value="#333333"/>
-        <Setter Property="Margin" Value="32,16,0,8"/>
+        <Setter Property="Margin" Value="32,12,0,8"/>
     </Style>
 
-    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════ -->
     <!-- GENERIC TEXT STYLES (fallback) -->
-    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════ -->
 
     <Style Selector="TextBlock.page-title">
         <Setter Property="Foreground" Value="#333333"/>
@@ -225,9 +225,9 @@
         <Setter Property="Foreground" Value="#333333"/>
     </Style>
 
-    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════ -->
     <!-- DETAIL OVERLAY (when opening a game) -->
-    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════════════════════════════ -->
 
     <Style Selector="Border.detail-overlay-surface">
         <Setter Property="Background" Value="#ffffff"/>
