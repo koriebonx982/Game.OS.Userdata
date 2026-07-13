@@ -20,12 +20,11 @@ public partial class DashboardViewModel : ViewModelBase
         {
             Interval = TimeSpan.FromSeconds(30)
         };
-        SteamClockTime = GetSteamClockTime();
         _wiiClockTimer.Tick += (_, _) =>
         {
             OnPropertyChanged(nameof(WiiClockTime));
             OnPropertyChanged(nameof(WiiClockDate));
-            SteamClockTime = GetSteamClockTime();
+            OnPropertyChanged(nameof(SteamClockTime));
         };
         _wiiClockTimer.Start();
     }
@@ -36,10 +35,11 @@ public partial class DashboardViewModel : ViewModelBase
     [ObservableProperty] private int _achievementsCount;
     [ObservableProperty] private int _platformsCount;
     [ObservableProperty] private string _totalPlaytimeLabel = "";
-    [ObservableProperty] private string _steamClockTime = "";
-    [ObservableProperty] private string _steamProfileInitial = "?";
     public string WiiClockTime => DateTime.Now.ToString("H:mm");
     public string WiiClockDate => DateTime.Now.ToString("ddd M/d");
+    public string SteamClockTime => DateTime.Now.ToString("h:mm tt").ToLowerInvariant();
+    public string SteamProfileInitial =>
+        string.IsNullOrWhiteSpace(Profile.Username) ? "?" : Profile.Username[..1].ToUpperInvariant();
 
     // Hero featured / last-played game
     [ObservableProperty] private StoreGame? _featuredGame;
@@ -180,10 +180,8 @@ public partial class DashboardViewModel : ViewModelBase
         Greeting = $"{hour}, {profile.Username}!";
         OnPropertyChanged(nameof(WiiClockTime));
         OnPropertyChanged(nameof(WiiClockDate));
-        SteamClockTime = GetSteamClockTime();
-        SteamProfileInitial = !string.IsNullOrWhiteSpace(profile.Username)
-            ? profile.Username[0].ToString().ToUpperInvariant()
-            : "?";
+        OnPropertyChanged(nameof(SteamClockTime));
+        OnPropertyChanged(nameof(SteamProfileInitial));
 
         // Recently Played — only games that have actually been played (have LastPlayedAt set)
         // Parse ISO 8601 strings to DateTime for correct chronological comparison.
@@ -484,20 +482,13 @@ public partial class DashboardViewModel : ViewModelBase
             DevLogService.Log($"[Dashboard] FeaturedGame = store fallback '{FeaturedGame?.Title ?? "(none)"}' — no games played yet.");
         }
 
-        if (IsFeaturedLastPlayed)
-        {
-            SteamHeroMetaText = string.IsNullOrWhiteSpace(_heroLocalCard?.PlaytimeLabel)
+        SteamHeroMetaText = IsFeaturedLastPlayed
+            ? string.IsNullOrWhiteSpace(_heroLocalCard?.PlaytimeLabel)
                 ? "RECENTLY PLAYED"
-                : $"▶  {(_heroLocalCard?.PlaytimeLabel ?? "").ToUpperInvariant()}";
-        }
-        else if (!string.IsNullOrWhiteSpace(FeaturedGame?.Platform))
-        {
-            SteamHeroMetaText = FeaturedGame.Platform.ToUpperInvariant();
-        }
-        else
-        {
-            SteamHeroMetaText = "NEW TO LIBRARY";
-        }
+                : $"▶  {(_heroLocalCard?.PlaytimeLabel ?? "").ToUpperInvariant()}"
+            : !string.IsNullOrWhiteSpace(FeaturedGame?.Platform)
+                ? FeaturedGame.Platform.ToUpperInvariant()
+                : "NEW TO LIBRARY";
 
         SteamRecentSideGames.Clear();
         IEnumerable<LocalGameCardVm> steamRecentCandidates = RecentLocalGames.Count > 0
@@ -524,10 +515,23 @@ public partial class DashboardViewModel : ViewModelBase
 
         SteamNewsTiles.Clear();
 
+        (string? coverUrl, string gradient) ResolveArtwork(string platform, string title)
+        {
+            var key = $"{platform.ToLowerInvariant()}||{title.ToLowerInvariant()}";
+            if (localCardMap.TryGetValue(key, out var card))
+                return (card.CoverUrl, card.CoverGradient);
+            if (cloudGameMap.TryGetValue(key, out var game))
+                return (game.CoverUrl, game.CoverGradient ?? DefaultCloudCardGradient);
+            if (FeaturedGame != null &&
+                string.Equals(platform, FeaturedGame.Platform, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(title, FeaturedGame.Title, StringComparison.OrdinalIgnoreCase))
+                return (FeaturedGame.CoverUrl, FeaturedGame.CoverGradient);
+            return (null, DefaultCloudCardGradient);
+        }
+
         foreach (var achievement in RecentAchievements.Take(5))
         {
-            var (coverUrl, gradient) = ResolveSteamArtwork(
-                achievement.Platform, achievement.GameTitle, localCardMap, cloudGameMap, FeaturedGame);
+            var (coverUrl, gradient) = ResolveArtwork(achievement.Platform, achievement.GameTitle);
             SteamNewsTiles.Add(new SteamDashboardNewsTileVm
             {
                 Category = "NEWS",
@@ -539,50 +543,65 @@ public partial class DashboardViewModel : ViewModelBase
             });
         }
 
-        AddSteamNewsFallback(new SteamDashboardNewsTileVm
+        if (SteamNewsTiles.Count < 5)
         {
-            Category = "FRIENDS",
-            Title = HasDashboardFriends ? $"{OnlineFriendsCount} friends online" : "Friends are offline",
-            Subtitle = HasDashboardFriends ? "Jump into your social hub." : "Invite someone to play.",
-            Meta = "SOCIAL",
-            CoverGradient = "#1c3c52,#0f2233",
-        });
+            SteamNewsTiles.Add(new SteamDashboardNewsTileVm
+            {
+                Category = "FRIENDS",
+                Title = HasDashboardFriends ? $"{OnlineFriendsCount} friends online" : "Friends are offline",
+                Subtitle = HasDashboardFriends ? "Jump into your social hub." : "Invite someone to play.",
+                Meta = "SOCIAL",
+                CoverGradient = "#1c3c52,#0f2233",
+            });
+        }
 
-        AddSteamNewsFallback(new SteamDashboardNewsTileVm
+        if (SteamNewsTiles.Count < 5)
         {
-            Category = "REGULAR UPDATE",
-            Title = "Continue your library tour",
-            Subtitle = $"{GamesCount} games · {TotalPlaytimeLabel} tracked",
-            Meta = "GAME.OS",
-            CoverGradient = "#775e13,#1f3250",
-        });
+            SteamNewsTiles.Add(new SteamDashboardNewsTileVm
+            {
+                Category = "REGULAR UPDATE",
+                Title = "Continue your library tour",
+                Subtitle = $"{GamesCount} games · {TotalPlaytimeLabel} tracked",
+                Meta = "GAME.OS",
+                CoverGradient = "#775e13,#1f3250",
+            });
+        }
 
-        AddSteamNewsFallback(new SteamDashboardNewsTileVm
+        if (SteamNewsTiles.Count < 5)
         {
-            Category = "RECOMMENDED",
-            Title = "Open Movies, TV, or Music",
-            Subtitle = "Your media shortcuts live right here.",
-            Meta = "MEDIA",
-            CoverGradient = "#203860,#101d30",
-        });
+            SteamNewsTiles.Add(new SteamDashboardNewsTileVm
+            {
+                Category = "RECOMMENDED",
+                Title = "Open Movies, TV, or Music",
+                Subtitle = "Your media shortcuts live right here.",
+                Meta = "MEDIA",
+                CoverGradient = "#203860,#101d30",
+            });
+        }
 
-        AddSteamNewsFallback(new SteamDashboardNewsTileVm
+        if (SteamNewsTiles.Count < 5)
         {
-            Category = "NEWS",
-            Title = "Open your friends inbox",
-            Subtitle = "Messages, invites, and presence are ready.",
-            Meta = "COMMUNITY",
-            CoverGradient = "#3A264D,#121E31",
-        });
+            SteamNewsTiles.Add(new SteamDashboardNewsTileVm
+            {
+                Category = "NEWS",
+                Title = "Open your friends inbox",
+                Subtitle = "Messages, invites, and presence are ready.",
+                Meta = "COMMUNITY",
+                CoverGradient = "#3A264D,#121E31",
+            });
+        }
 
-        AddSteamNewsFallback(new SteamDashboardNewsTileVm
+        if (SteamNewsTiles.Count < 5)
         {
-            Category = "NEWS",
-            Title = "Jump back into the dashboard",
-            Subtitle = "Your recent library and activity stay in sync.",
-            Meta = "SYNCED",
-            CoverGradient = "#3A4B26,#121E31",
-        });
+            SteamNewsTiles.Add(new SteamDashboardNewsTileVm
+            {
+                Category = "NEWS",
+                Title = "Jump back into the dashboard",
+                Subtitle = "Your recent library and activity stay in sync.",
+                Meta = "SYNCED",
+                CoverGradient = "#3A4B26,#121E31",
+            });
+        }
 
         // ── Initialize PS5 focused card ──────────────────────────────────────
         SelectedCardIndex = Ps5RecentGames.Count > 0 ? 0 : -1;
@@ -670,33 +689,6 @@ public partial class DashboardViewModel : ViewModelBase
         if (hours > 0)
             return mins > 0 ? $"{hours}h {mins}m" : $"{hours}h";
         return $"{mins}m";
-    }
-
-    private static string GetSteamClockTime() => DateTime.Now.ToString("h:mm tt").ToLowerInvariant();
-
-    private static (string? coverUrl, string gradient) ResolveSteamArtwork(
-        string platform,
-        string title,
-        IReadOnlyDictionary<string, LocalGameCardVm> localCardMap,
-        IReadOnlyDictionary<string, Game> cloudGameMap,
-        StoreGame? featuredGame)
-    {
-        var key = $"{platform.ToLowerInvariant()}||{title.ToLowerInvariant()}";
-        if (localCardMap.TryGetValue(key, out var card))
-            return (card.CoverUrl, card.CoverGradient);
-        if (cloudGameMap.TryGetValue(key, out var game))
-            return (game.CoverUrl, game.CoverGradient ?? DefaultCloudCardGradient);
-        if (featuredGame != null &&
-            string.Equals(platform, featuredGame.Platform, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(title, featuredGame.Title, StringComparison.OrdinalIgnoreCase))
-            return (featuredGame.CoverUrl, featuredGame.CoverGradient);
-        return (null, DefaultCloudCardGradient);
-    }
-
-    private void AddSteamNewsFallback(SteamDashboardNewsTileVm tile)
-    {
-        if (SteamNewsTiles.Count < 5)
-            SteamNewsTiles.Add(tile);
     }
 
     // ── Dashboard card focus / keyboard nav ──────────────────────────────────
@@ -924,22 +916,12 @@ public partial class DashboardViewModel : ViewModelBase
     }
 }
 
-/// <summary>
-/// Lightweight tile model for the Steam Big Picture dashboard news strip.
-/// Each tile provides display copy plus optional artwork or a fallback gradient.
-/// </summary>
 public class SteamDashboardNewsTileVm
 {
-    /// <summary>Upper label shown above the tile headline, such as NEWS or RECOMMENDED.</summary>
     public string Category { get; init; } = "";
-    /// <summary>Main headline shown in the footer area.</summary>
     public string Title { get; init; } = "";
-    /// <summary>Secondary line shown under the headline.</summary>
     public string Subtitle { get; init; } = "";
-    /// <summary>Small metadata line shown at the bottom of the footer.</summary>
     public string Meta { get; init; } = "";
-    /// <summary>Optional cover or screenshot artwork used for the tile image.</summary>
     public string? CoverUrl { get; init; }
-    /// <summary>Fallback background gradient used when no image is available.</summary>
     public string CoverGradient { get; init; } = "#0d2137,#163d5e";
 }
