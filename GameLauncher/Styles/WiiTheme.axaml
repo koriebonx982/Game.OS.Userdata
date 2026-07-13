@@ -1,256 +1,180 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-  <!-- Theme resources -->
-  <Color x:Key="WiiBackgroundColor">#dff4ff</Color>
-  <Color x:Key="WiiSurfaceColor">#f6fdff</Color>
-  <Color x:Key="WiiAccent">#4cb7dc</Color>
-  <Color x:Key="WiiAccentLight">#6ec8e8</Color>
-  <Color x:Key="WiiBorder">#9bd2e8</Color>
-  <Color x:Key="WiiMuted">#5d93ad</Color>
-  <Color x:Key="WiiText">#2f6f8c</Color>
+    <!-- Nintendo Wii inspired bright shell -->
+    <Style Selector="Border.dashboard-xb360-layout">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+    <Style Selector="Border.dashboard-ps5-layout">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+    <Style Selector="Border.dashboard-wii-layout">
+        <Setter Property="IsVisible" Value="True"/>
+    </Style>
+    <Style Selector="StackPanel.dashboard-default-layout">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
 
-  <SolidColorBrush x:Key="Brush.Background" Color="{StaticResource WiiBackgroundColor}"/>
-  <SolidColorBrush x:Key="Brush.Surface" Color="{StaticResource WiiSurfaceColor}"/>
-  <SolidColorBrush x:Key="Brush.Accent" Color="{StaticResource WiiAccent}"/>
-  <SolidColorBrush x:Key="Brush.AccentLight" Color="{StaticResource WiiAccentLight}"/>
-  <SolidColorBrush x:Key="Brush.Border" Color="{StaticResource WiiBorder}"/>
-  <SolidColorBrush x:Key="Brush.Muted" Color="{StaticResource WiiMuted}"/>
-  <SolidColorBrush x:Key="Brush.Text" Color="{StaticResource WiiText}"/>
+    <Style Selector="Window.main-window-shell">
+        <Setter Property="Background" Value="#dff4ff"/>
+    </Style>
+    <Style Selector="Border.main-content-surface">
+        <Setter Property="Background" Value="#dff4ff"/>
+    </Style>
+    <Style Selector="Border.detail-overlay-surface">
+        <Setter Property="Background" Value="#cfeefe"/>
+    </Style>
+    <Style Selector="UserControl.dashboard-root">
+        <Setter Property="Background" Value="#dff4ff"/>
+    </Style>
+    <Style Selector="Border.nav-sidebar">
+        <Setter Property="Background" Value="#f5fcff"/>
+        <Setter Property="BorderBrush" Value="#a4d9ee"/>
+        <Setter Property="BorderThickness" Value="0,0,1,0"/>
+    </Style>
+    <Style Selector="Border.nav-logo-area">
+        <Setter Property="Background" Value="#4cb7dc"/>
+    </Style>
+    <Style Selector="TextBlock.nav-logo-text">
+        <Setter Property="Foreground" Value="#ffffff"/>
+    </Style>
+    <Style Selector="Button.nav-item">
+        <Setter Property="Foreground" Value="#2e6c88"/>
+    </Style>
+    <Style Selector="Button.nav-item.active /template/ ContentPresenter">
+        <Setter Property="Background" Value="#6ec8e8"/>
+    </Style>
+    <Style Selector="Button.nav-item.active">
+        <Setter Property="Foreground" Value="#ffffff"/>
+    </Style>
 
-  <!-- Layout classes (do not force visibility here; let ViewModel control IsVisible) -->
-  <Style Selector="Border.dashboard-xb360-layout">
-    <Setter Property="Background" Value="{StaticResource Brush.Surface}"/>
-  </Style>
-  <Style Selector="Border.dashboard-ps5-layout">
-    <Setter Property="Background" Value="{StaticResource Brush.Surface}"/>
-  </Style>
-  <Style Selector="Border.dashboard-wii-layout">
-    <Setter Property="Background" Value="{StaticResource Brush.Background}"/>
-  </Style>
-  <Style Selector="StackPanel.dashboard-default-layout">
-    <Setter Property="Background" Value="{StaticResource Brush.Background}"/>
-  </Style>
+    <Style Selector="TextBlock.page-title">
+        <Setter Property="Foreground" Value="#1f5f7f"/>
+    </Style>
+    <Style Selector="TextBlock.page-subtitle">
+        <Setter Property="Foreground" Value="#4b89a8"/>
+    </Style>
+    <Style Selector="TextBlock.section-header">
+        <Setter Property="Foreground" Value="#1f5f7f"/>
+    </Style>
 
-  <!-- Window and main surfaces -->
-  <Style Selector="Window.main-window-shell">
-    <Setter Property="Background" Value="{StaticResource Brush.Background}"/>
-  </Style>
-  <Style Selector="Border.main-content-surface">
-    <Setter Property="Background" Value="{StaticResource Brush.Background}"/>
-  </Style>
-  <Style Selector="Border.detail-overlay-surface">
-    <Setter Property="Background" Value="#cfeefe"/>
-  </Style>
-  <Style Selector="UserControl.dashboard-root">
-    <Setter Property="Background" Value="{StaticResource Brush.Background}"/>
-  </Style>
+    <Style Selector="Border.stat-tile">
+        <Setter Property="Background" Value="#f6fdff"/>
+        <Setter Property="BorderBrush" Value="#a4d9ee"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="TextBlock.stat-number">
+        <Setter Property="Foreground" Value="#1f5f7f"/>
+    </Style>
+    <Style Selector="TextBlock.stat-label">
+        <Setter Property="Foreground" Value="#5a92ae"/>
+    </Style>
+    <Style Selector="TextBlock.stat-number-achievements">
+        <Setter Property="Foreground" Value="#f5a623"/>
+    </Style>
+    <Style Selector="TextBlock.stat-number-platforms">
+        <Setter Property="Foreground" Value="#2bb2d9"/>
+    </Style>
+    <Style Selector="TextBlock.stat-number-playtime">
+        <Setter Property="Foreground" Value="#2a7fab"/>
+    </Style>
 
-  <!-- Navigation -->
-  <Style Selector="Border.nav-sidebar">
-    <Setter Property="Background" Value="#f5fcff"/>
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}"/>
-    <Setter Property="BorderThickness" Value="0,0,1,0"/>
-  </Style>
-  <Style Selector="Border.nav-logo-area">
-    <Setter Property="Background" Value="{StaticResource Brush.Accent}"/>
-  </Style>
-  <Style Selector="TextBlock.nav-logo-text">
-    <Setter Property="Foreground" Value="#ffffff"/>
-    <Setter Property="FontWeight" Value="SemiBold"/>
-  </Style>
-  <Style Selector="Button.nav-item">
-    <Setter Property="Foreground" Value="#2e6c88"/>
-    <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="BorderBrush" Value="Transparent"/>
-    <Setter Property="Padding" Value="10,8"/>
-  </Style>
-  <Style Selector="Button.nav-item.active">
-    <Setter Property="Foreground" Value="#ffffff"/>
-    <Setter Property="Background" Value="{StaticResource Brush.AccentLight}"/>
-  </Style>
+    <Style Selector="Border.featured-hero-banner">
+        <Setter Property="Background" Value="#f6fdff"/>
+        <Setter Property="BorderBrush" Value="#a4d9ee"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="TextBlock.hero-title">
+        <Setter Property="Foreground" Value="#1f5f7f"/>
+    </Style>
+    <Style Selector="TextBlock.hero-desc">
+        <Setter Property="Foreground" Value="#4b89a8"/>
+    </Style>
+    <Style Selector="Border.game-card">
+        <Setter Property="Background" Value="#ffffff"/>
+        <Setter Property="BorderBrush" Value="#a4d9ee"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="TextBlock.game-card-title">
+        <Setter Property="Foreground" Value="#1f5f7f"/>
+    </Style>
+    <Style Selector="TextBlock.game-card-meta">
+        <Setter Property="Foreground" Value="#4b89a8"/>
+    </Style>
 
-  <!-- Page typography -->
-  <Style Selector="TextBlock.page-title">
-    <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
-    <Setter Property="FontSize" Value="28"/>
-    <Setter Property="FontWeight" Value="Light"/>
-  </Style>
-  <Style Selector="TextBlock.page-subtitle">
-    <Setter Property="Foreground" Value="#4b89a8"/>
-    <Setter Property="FontSize" Value="13"/>
-  </Style>
-  <Style Selector="TextBlock.section-header">
-    <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
-    <Setter Property="FontSize" Value="16"/>
-    <Setter Property="FontWeight" Value="SemiBold"/>
-  </Style>
+    <Style Selector="Button.btn-primary">
+        <Setter Property="Background" Value="#4cb7dc"/>
+    </Style>
+    <Style Selector="Button.btn-primary:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#5ec2e5"/>
+    </Style>
+    <Style Selector="Button.btn-secondary">
+        <Setter Property="Foreground" Value="#2e6c88"/>
+        <Setter Property="BorderBrush" Value="#8bcbe4"/>
+    </Style>
+    <Style Selector="Button.btn-secondary:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#eef9ff"/>
+    </Style>
 
-  <!-- Stat tiles and hero -->
-  <Style Selector="Border.stat-tile">
-    <Setter Property="Background" Value="{StaticResource Brush.Surface}"/>
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}"/>
-    <Setter Property="BorderThickness" Value="1"/>
-    <Setter Property="CornerRadius" Value="8"/>
-    <Setter Property="Padding" Value="10"/>
-  </Style>
-  <Style Selector="TextBlock.stat-number">
-    <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
-    <Setter Property="FontSize" Value="20"/>
-    <Setter Property="FontWeight" Value="SemiBold"/>
-  </Style>
-  <Style Selector="TextBlock.stat-label">
-    <Setter Property="Foreground" Value="#5a92ae"/>
-    <Setter Property="FontSize" Value="12"/>
-  </Style>
-
-  <Style Selector="Border.featured-hero-banner">
-    <Setter Property="Background" Value="{StaticResource Brush.Surface}"/>
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}"/>
-    <Setter Property="BorderThickness" Value="1"/>
-    <Setter Property="CornerRadius" Value="10"/>
-    <Setter Property="Padding" Value="12"/>
-  </Style>
-  <Style Selector="TextBlock.hero-title">
-    <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
-    <Setter Property="FontSize" Value="20"/>
-    <Setter Property="FontWeight" Value="SemiBold"/>
-  </Style>
-  <Style Selector="TextBlock.hero-desc">
-    <Setter Property="Foreground" Value="#4b89a8"/>
-    <Setter Property="FontSize" Value="12"/>
-  </Style>
-
-  <!-- Buttons -->
-  <Style Selector="Button.btn-primary">
-    <Setter Property="Background" Value="{StaticResource Brush.Accent}"/>
-    <Setter Property="Foreground" Value="#ffffff"/>
-    <Setter Property="CornerRadius" Value="8"/>
-    <Setter Property="Padding" Value="10,8"/>
-  </Style>
-  <Style Selector="Button.btn-primary:pointerover /template/ Border">
-    <Setter Property="Background" Value="{StaticResource Brush.AccentLight}"/>
-  </Style>
-  <Style Selector="Button.btn-secondary">
-    <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="Foreground" Value="#2e6c88"/>
-    <Setter Property="BorderBrush" Value="#8bcbe4"/>
-    <Setter Property="CornerRadius" Value="8"/>
-    <Setter Property="Padding" Value="10,8"/>
-  </Style>
-  <Style Selector="Button.btn-secondary:pointerover /template/ Border">
-    <Setter Property="Background" Value="#eef9ff"/>
-  </Style>
-
-  <!-- Wii header -->
-  <Style Selector="TextBlock.wii-menu-title">
-    <Setter Property="FontSize" Value="36"/>
-    <Setter Property="FontWeight" Value="Light"/>
-    <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
-    <Setter Property="HorizontalAlignment" Value="Center"/>
-  </Style>
-
-  <!-- Wii channel tile: full template for consistent look, hover and focus states -->
-  <Style Selector="Button.wii-channel-tile">
-    <Setter Property="Width" Value="160"/>
-    <Setter Property="Height" Value="160"/>
-    <Setter Property="Margin" Value="10"/>
-    <Setter Property="Background" Value="{StaticResource Brush.Surface}"/>
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}"/>
-    <Setter Property="BorderThickness" Value="1"/>
-    <Setter Property="CornerRadius" Value="16"/>
-    <Setter Property="Padding" Value="12"/>
-    <Setter Property="HorizontalContentAlignment" Value="Center"/>
-    <Setter Property="VerticalContentAlignment" Value="Center"/>
-    <Setter Property="Template">
-      <ControlTemplate>
-        <Border x:Name="PART_Border"
-                Background="{TemplateBinding Background}"
-                BorderBrush="{TemplateBinding BorderBrush}"
-                BorderThickness="{TemplateBinding BorderThickness}"
-                CornerRadius="{TemplateBinding CornerRadius}">
-          <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-        </Border>
-      </ControlTemplate>
-    </Setter>
-  </Style>
-
-  <!-- Hover: subtle lift and lighter background -->
-  <Style Selector="Button.wii-channel-tile:pointerover /template/ Border#PART_Border">
-    <Setter Property="Background" Value="#eef9ff"/>
-    <Setter Property="BoxShadow" Value="0 8 20 rgba(47,111,140,0.10)"/>
-    <Setter Property="RenderTransform">
-      <Setter.Value>
-        <ScaleTransform ScaleX="1.03" ScaleY="1.03"/>
-      </Setter.Value>
-    </Setter>
-  </Style>
-
-  <!-- Focus: stronger accent, glow and scale -->
-  <Style Selector="Button.wii-channel-tile:focus /template/ Border#PART_Border">
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}"/>
-    <Setter Property="BoxShadow" Value="0 14 36 rgba(76,183,220,0.22)"/>
-    <Setter Property="RenderTransform">
-      <Setter.Value>
-        <ScaleTransform ScaleX="1.06" ScaleY="1.06"/>
-      </Setter.Value>
-    </Setter>
-  </Style>
-
-  <Style Selector="TextBlock.wii-channel-title">
-    <Setter Property="FontSize" Value="16"/>
-    <Setter Property="FontWeight" Value="SemiBold"/>
-    <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
-    <Setter Property="HorizontalAlignment" Value="Center"/>
-  </Style>
-  <Style Selector="TextBlock.wii-channel-subtitle">
-    <Setter Property="FontSize" Value="11"/>
-    <Setter Property="Foreground" Value="{StaticResource Brush.Muted}"/>
-    <Setter Property="HorizontalAlignment" Value="Center"/>
-  </Style>
-
-  <!-- Bottom bar and orb -->
-  <Style Selector="Border.wii-bottom-bar">
-    <Setter Property="Background" Value="#ecf9ff"/>
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}"/>
-    <Setter Property="BorderThickness" Value="1"/>
-    <Setter Property="CornerRadius" Value="28"/>
-    <Setter Property="Padding" Value="12,8"/>
-    <Setter Property="HorizontalAlignment" Value="Stretch"/>
-  </Style>
-  <Style Selector="Border.wii-bottom-orb">
-    <Setter Property="Width" Value="56"/>
-    <Setter Property="Height" Value="56"/>
-    <Setter Property="CornerRadius" Value="28"/>
-    <Setter Property="Background" Value="#ffffff"/>
-    <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}"/>
-    <Setter Property="BorderThickness" Value="2"/>
-    <Setter Property="HorizontalAlignment" Value="Center"/>
-    <Setter Property="VerticalAlignment" Value="Center"/>
-    <Setter Property="BoxShadow" Value="0 6 18 rgba(47,111,140,0.08)"/>
-  </Style>
-  <Style Selector="TextBlock.wii-bottom-orb-text">
-    <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
-    <Setter Property="FontWeight" Value="SemiBold"/>
-    <Setter Property="HorizontalAlignment" Value="Center"/>
-    <Setter Property="VerticalAlignment" Value="Center"/>
-  </Style>
-
-  <Style Selector="TextBlock.wii-clock-time">
-    <Setter Property="Foreground" Value="{StaticResource Brush.Text}"/>
-    <Setter Property="FontSize" Value="34"/>
-    <Setter Property="FontWeight" Value="Light"/>
-    <Setter Property="HorizontalAlignment" Value="Right"/>
-  </Style>
-  <Style Selector="TextBlock.wii-clock-date">
-    <Setter Property="Foreground" Value="{StaticResource Brush.Muted}"/>
-    <Setter Property="FontSize" Value="18"/>
-    <Setter Property="HorizontalAlignment" Value="Right"/>
-  </Style>
-
-  <!-- Accessibility: focus visuals for keyboard/gamepad navigation -->
-  <Style Selector="Button:focus">
-    <Setter Property="FocusAdorner" Value="True"/>
-  </Style>
-
+    <Style Selector="TextBlock.wii-menu-title">
+        <Setter Property="FontSize" Value="36"/>
+        <Setter Property="FontWeight" Value="Light"/>
+        <Setter Property="Foreground" Value="#2f6f8c"/>
+    </Style>
+    <Style Selector="Button.wii-channel-tile">
+        <Setter Property="Margin" Value="8"/>
+        <Setter Property="Background" Value="#fbfeff"/>
+        <Setter Property="BorderBrush" Value="#9bd2e8"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="14"/>
+        <Setter Property="Padding" Value="10"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.wii-channel-tile:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#eef9ff"/>
+    </Style>
+    <Style Selector="TextBlock.wii-channel-title">
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#2f6f8c"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="TextBlock.wii-channel-subtitle">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Foreground" Value="#5d93ad"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Border.wii-bottom-bar">
+        <Setter Property="Background" Value="#ecf9ff"/>
+        <Setter Property="BorderBrush" Value="#9bd2e8"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="28"/>
+        <Setter Property="Padding" Value="12,8"/>
+    </Style>
+    <Style Selector="Border.wii-bottom-orb">
+        <Setter Property="Width" Value="52"/>
+        <Setter Property="Height" Value="52"/>
+        <Setter Property="CornerRadius" Value="26"/>
+        <Setter Property="Background" Value="#ffffff"/>
+        <Setter Property="BorderBrush" Value="#9bd2e8"/>
+        <Setter Property="BorderThickness" Value="2"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="TextBlock.wii-bottom-orb-text">
+        <Setter Property="Foreground" Value="#2f6f8c"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="TextBlock.wii-clock-time">
+        <Setter Property="Foreground" Value="#2f6f8c"/>
+        <Setter Property="FontSize" Value="34"/>
+        <Setter Property="FontWeight" Value="Light"/>
+    </Style>
+    <Style Selector="TextBlock.wii-clock-date">
+        <Setter Property="Foreground" Value="#5d93ad"/>
+        <Setter Property="FontSize" Value="18"/>
+    </Style>
 </Styles>
