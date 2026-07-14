@@ -1,0 +1,87 @@
+# name // year // cores // threads 
+
+# Amd:
+2026 — Ryzen 9 9950X3D (Granite Ridge / Zen 5) — 16 cores — 32 threads
+2025 — Ryzen 9 9950X (Granite Ridge / Zen 5) — 16 cores — 32 threads
+2024 — Ryzen 9 9900X / 9950X (Zen 5 launch year models) — 12–16 cores — 24–32 threads
+2023 — Ryzen 9 7950X3D / 7950X (Zen 4, Raphael) — 16 cores — 32 threads
+2022 — Ryzen 9 7950X / Ryzen 7 7700X (Zen 4) — 12–16 cores — 24–32 threads
+2021 — Ryzen 5000 mobile / Ryzen 6000 mobile (Zen 3 / Zen 3+ Rembrandt) — 6–8 cores — 12–16 threads
+2020 — Ryzen 9 5950X / Ryzen 5000 (Zen 3 Vermeer) — 16 cores — 32 threads
+2019 — EPYC 7002 Rome (Zen 2 server) — up to 64 cores — up to 128 threads
+2018 — Ryzen 3000 (Zen 2 Matisse) — up to 16 cores — up to 32 threads
+2017 — Ryzen 1000 (Zen Summit Ridge) — 4–8 cores — 8–16 threads
+2016 — Ryzen prototype / Zen architecture announcement (development year) — 4–8 cores — 8–16 threads
+2015 — Carrizo / Excavator APUs (mobile) — 2–4 cores — 2–4 threads
+2014 — Kaveri (Steamroller APU) — 2–4 cores — 2–4 threads
+2013 — Jaguar / Kabini low‑power cores (APUs) — 2–4 cores — 2–4 threads
+2012 — Piledriver (Vishera) FX / Trinity refresh — 4–8 cores — 4–8 threads
+2011 — Bulldozer (Zambezi) FX series — 4–8 integer cores (module design) — 4–8 threads (no SMT)
+2010 — Athlon II / Phenom II variants (Propus/Deneb/Thuban) — 2–6 cores — 2–6 threads
+2009 — Phenom II X4 / X6 (Thuban) — 4–6 cores — 4–6 threads
+2008 — Phenom II (Deneb) — 4 cores — 4 threads
+2007 — Phenom (Agena) — 4 cores — 4 threads
+2006 — Athlon 64 X2 (Windsor) / FX‑62 — 2 cores — 2 threads
+2005 — Athlon 64 X2 (Manchester / Toledo) — 2 cores — 2 threads
+2004 — Sempron / Mobile Athlon 64 — 1 core — 1 thread
+2003 — Athlon 64 / Opteron (ClawHammer / SledgeHammer) — 1 core — 1 thread
+2002 — Athlon XP (Thoroughbred / Barton) — 1 core — 1 thread
+2001 — Athlon XP (Palomino) — 1 core — 1 thread
+2000 — Athlon (Thunderbird) / Duron (Spitfire) — 1 core — 1 thread
+
+# Intel:
+Intel Core i9-14900K — 2024 — 24 cores — 32 threads
+Intel Core i7-14700K — 2024 — 20 cores — 28 threads
+Intel Core i5-14600K — 2024 — 14 cores — 20 threads
+Intel Core i3-13400 — 2024 — 10 cores — 12 threads
+Intel Core i9-13900K — 2023 — 24 cores — 32 threads
+Intel Core i7-13700K — 2023 — 16 cores — 24 threads
+Intel Core i5-13600K — 2023 — 14 cores — 20 threads
+Intel Core i3-13100 — 2023 — 4 cores — 8 threads
+Intel Core i9-12900K — 2022 — 16 cores — 24 threads
+Intel Core i7-12700K — 2022 — 12 cores — 20 threads
+Intel Core i5-12600K — 2022 — 10 cores — 16 threads
+Intel Core i3-12100 — 2022 — 4 cores — 8 threads
+Intel Core i9-11900K — 2021 — 8 cores — 16 threads
+Intel Core i7-11700K — 2021 — 8 cores — 16 threads
+Intel Core i5-11600K — 2021 — 6 cores — 12 threads
+Intel Core i3-10100 — 2021 — 4 cores — 8 threads
+Intel Core i9-10900K — 2020 — 10 cores — 20 threads
+Intel Core i7-10700K — 2020 — 8 cores — 16 threads
+Intel Core i5-10600K — 2020 — 6 cores — 12 threads
+Intel Core i3-10100 — 2020 — 4 cores — 8 threads
+Intel Core i9-9900K — 2019 — 8 cores — 16 threads
+Intel Core i7-9700K — 2019 — 8 cores — 8 threads
+Intel Core i5-9600K — 2019 — 6 cores — 6 threads
+Intel Core i3-9100 — 2019 — 4 cores — 4 threads
+Intel Core i7-8700K — 2018 — 6 cores — 12 threads
+Intel Core i5-8600K — 2018 — 6 cores — 6 threads
+Intel Core i3-8350K — 2018 — 4 cores — 4 threads
+Intel Core i7-7700K — 2017 — 4 cores — 8 threads
+Intel Core i5-7600K — 2017 — 4 cores — 4 threads
+Intel Core i3-7350K — 2017 — 2 cores — 4 threads
+Intel Core i7-6950X (Broadwell-E) — 2016 — 10 cores — 20 threads
+Intel Core i7-6700K — 2016 — 4 cores — 8 threads
+Intel Core i5-6600K — 2016 — 4 cores — 4 threads
+Intel Core i3-6100 — 2016 — 2 cores — 4 threads
+Intel Core i7-5775C — 2015 — 4 cores — 8 threads
+Intel Core i5-5675C — 2015 — 4 cores — 4 threads
+Intel Core i3-5157U — 2015 — 2 cores — 4 threads
+Intel Core i7-5960X (Haswell‑E) — 2014 — 8 cores — 16 threads
+Intel Core i7-4790K — 2014 — 4 cores — 8 threads
+Intel Core i5-4690K — 2014 — 4 cores — 4 threads
+Intel Core i3-4330 — 2014 — 2 cores — 4 threads
+Intel Core i7-4770K — 2013 — 4 cores — 8 threads
+Intel Core i5-4670K — 2013 — 4 cores — 4 threads
+Intel Core i3-4330 — 2013 — 2 cores — 4 threads
+Intel Core i7-3770K — 2012 — 4 cores — 8 threads
+Intel Core i5-3570K — 2012 — 4 cores — 4 threads
+Intel Core i3-3220 — 2012 — 2 cores — 4 threads
+Intel Core i7-2600K — 2011 — 4 cores — 8 threads
+Intel Core i5-2500K — 2011 — 4 cores — 4 threads
+Intel Core i3-2100 — 2011 — 2 cores — 4 threads
+Intel Core i7-980X (Gulftown) — 2010 — 6 cores — 12 threads
+Intel Core i5-760 — 2010 — 4 cores — 4 threads
+Intel Core i3-530 — 2010 — 2 cores — 4 threads
+Intel Core i7-965 Extreme Edition (Nehalem) — 2009 — 4 cores — 8 threads
+Intel Core i5-750 — 2009 — 4 cores — 4 threads
